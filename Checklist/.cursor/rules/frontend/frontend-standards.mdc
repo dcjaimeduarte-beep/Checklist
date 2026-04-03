@@ -1,0 +1,46 @@
+---
+description: Padrões do frontend — direção visual, tema, reutilização de componentes
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Frontend — padrões gerais
+
+## Direção visual
+
+- Interface **profissional**, que transmita **confiança** (clara, consistente, sem ruído).
+- Estética **moderna** e **minimalista**: hierarquia legível, espaçamento generoso, poucos elementos decorativos desnecessários.
+- Preferir utilitários semânticos do tema (`bg-background`, `text-primary`, `text-muted-foreground`, etc.) alinhados a `theme/applyTheme.ts` e `index.css` (`@theme`).
+
+## Cores e tipografia
+
+- **Não duplicar** aqui a lista de tokens nem regras de contraste — estão em **`.cursor/rules/design-system-standards.mdc`** (espelho da paleta, tipografia, WCAG 2.1 AA).
+- **Fonte de código:** `frontend/src/constants/Colors.ts` e `frontend/src/constants/Tokens.ts`; fluxo de tema em `theme/applyTheme.ts` e `@theme` em `index.css`.
+- Em componentes: **sem** literais de cor (`#…`) nem paleta Tailwind solta para marca; usar classes do tema **ou** `import { Colors } from '@/constants/Colors'` quando a API exigir string (Recharts, SVG). Tipografia: classes mapeadas (`text-sm`, `font-semibold`) **ou** `Tokens` em props de libs — ver **design-system-standards**.
+
+```tsx
+// ❌ Evitar
+<div className="bg-[#002E48]" />
+
+// ✅ Preferir
+<div className="bg-primary text-primary-foreground" />
+```
+
+## Domínio fiscal (reforma tributária)
+
+- **Sem cálculo nem regra de negócio fiscal no browser** — percentuais, simulações, CST/cClassTrib e textos explicativos vêm da **API** (`POST /api/consultation/analyze` e evoluções). O frontend **renderiza** o campo `view` e coleta parâmetros (NCM, regime, ano, etc.).
+- Tipos em `frontend/src/types/tax-analysis.ts` espelham o contrato do servidor; não inferir valores tributários a partir de texto ou cartões no cliente.
+
+## Componentes — reutilizar, não duplicar
+
+- **Antes** de criar um novo componente, verificar se um existente em `components/` (ex.: `ui/`) cobre o caso com **props** bem definidas (`variant`, `size`, `asChild`, etc.).
+- **Não** copiar blocos iguais em várias páginas: extrair para componente compartilhado (`components/shared/` ou `components/ui/`).
+- **Botões / inputs / cards:** um único primitivo por padrão; criar segundo só se o comportamento ou acessibilidade forem incompatíveis (não por pequena variação visual — usar `variant`/`className` controlado).
+- Props devem ser **explícitas** e **com defaults** seguros; evitar dezenas de booleanos soltos — preferir union de variantes quando fizer sentido.
+
+## Referência
+
+- **Design system (cores, tokens, acessibilidade):** `.cursor/rules/design-system-standards.mdc`
+- **UI/UX (dashboard, minimalismo, tom profissional):** `.cursor/rules/design-ui-ux-standards.mdc`
+- Arquitetura: `frontend/docs/architecture/architecture.md`
+- Monorepo: `AGENTS.md`

@@ -1,0 +1,22 @@
+# Ignorar outros projetos da pasta
+Sermao/
+seven-reforma-tributaria-monorepo/
+.claude/
+
+# Node
+**/node_modules/
+**/dist/
+**/.env
+**/.env.local
+
+# Banco de dados
+**/*.sqlite
+**/*.fdb
+
+# Build
+**/coverage/
+**/.vite/
+
+# OS
+.DS_Store
+Thumbs.db

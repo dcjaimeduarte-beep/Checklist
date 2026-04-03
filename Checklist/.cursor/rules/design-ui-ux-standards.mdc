@@ -1,0 +1,40 @@
+---
+description: UI/UX — app moderna, minimalista e profissional; dashboards; liga ao design system
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# UI / UX — padrões de interface
+
+Esta regra define **como** a aplicação deve **parecer e comportar-se** no dia a dia. É complementar a **`.cursor/rules/design-system-standards.mdc`** (obrigatório: paleta, tipografia, **WCAG 2.1 AA**, tokens em `Colors.ts` / `Tokens.ts`) e a **`.cursor/rules/frontend/frontend-standards.mdc`** (componentes, DRY).
+
+## Princípios
+
+- **Moderna:** layout em grade clara, hierarquia tipográfica consistente, uso disciplinado de cor de marca (primary/secondary) e de **espaço em branco** — sem poluição visual nem modismos que quebrem acessibilidade.
+- **Minimalista:** cada tela com **um foco principal**; reduzir ruído (bordas duplicadas, ícones decorativos, textos longos sem escaneabilidade); preferir **uma ação primária** visível quando fizer sentido; detalhes secundários em menus, secções recolhíveis ou fluxos seguintes.
+- **Profissional / confiança:** tom **B2B sério** (reforma tributária, NCM, planilhas): previsível, estável, sem “efeito piada”; dados e números **legíveis e alinhados**; estados vazios e erros tratados com mensagens claras, não genéricas.
+- **Bonito e coeso:** alinhamentos consistentes (baseline, grid), **cards** e painéis com respiro interno uniforme, sombras ou bordas **sutis** (via tokens do tema, sem sombras pesadas aleatórias).
+
+## Dashboards e dados
+
+- **Dashboard** deve parecer **ferramento de trabalho**, não vitrine: KPIs e gráficos com **títulos explícitos**, período ou unidade quando aplicável, **legendas** compreensíveis.
+- Evitar “parede de números”: agrupar por **seções** (ex.: consultas, importações, análises); usar **tabelas** com cabeçalho fixo em listas longas quando couber.
+- Gráficos: **contraste** e **tamanho mínimo de toque/alvo** conforme design-system; cores de série **só** dos tokens (`Colors` / tema), nunca hex solto.
+
+## Interação e feedback
+
+- **Loading:** feedback visível (skeleton, spinner contextual) em operações que demoram; não deixar o utilizador sem indício de progresso.
+- **Sucesso / erro:** mensagens **próximas da ação**; erros com **próximo passo** quando possível (ex.: corrigir coluna, tentar de novo).
+- **Formulários:** rótulos visíveis, estados de ajuda e erro alinhados ao design-system (labels, foco, contraste).
+
+## O que evitar
+
+- Gradientes chamativos ou ilustrações que competem com dados fiscais.
+- Tipografia “criativa” fora de `Tokens.ts` / tema.
+- Animações longas ou que distraem; micro-movimentos **discretos** só se não prejudicarem acessibilidade (respeitar `prefers-reduced-motion` quando possível).
+
+## Referência
+
+- **Design system (cores, tipografia, AA):** `.cursor/rules/design-system-standards.mdc`
+- **Componentes e reutilização:** `.cursor/rules/frontend/frontend-standards.mdc`
+- Arquitetura: `frontend/docs/architecture/architecture.md`

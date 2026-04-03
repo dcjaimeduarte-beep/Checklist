@@ -1,0 +1,70 @@
+---
+description: Fontes confiáveis para NCM e reforma tributária (oficiais vs facilitadores); cruzamento LC 214 + cClassTrib
+alwaysApply: true
+---
+
+# NCM, reforma tributária e fontes confiáveis (orientação metodológica)
+
+Esta regra define **como pensar e onde procurar** informação sobre **NCM** no contexto da **reforma tributária (LC 214/2025)**. **Não substitui** a regra de **implementação** do repositório (ordem de ingestão e API) em **`.cursor/rules/domain/tax-reform-sources.mdc`**.
+
+## Separação importante (evitar confusão)
+
+| Aspeto | Onde está definido |
+|--------|---------------------|
+| **Pipeline do sistema** (ficheiros em `docs/`, SQLite, URL `URL_SITE`, scraping no backend) | **`tax-reform-sources.mdc`** — ordem fixa: LC 214 PDF → cClassTrib (xlsx) → NCM (xlsx) → portal configurado. |
+| **Mapa de confiança na web** (oficiais, facilitadores, o que cruzar na reforma) | **Este ficheiro** — para respostas ao utilizador, documentação e decisões de integração futura. |
+
+Sempre que implementares ou alterares código, segue **`tax-reform-sources.mdc`**. Quando explicares **“de onde vêm os dados fiáveis no mercado”** ou **“o que cruzar na reforma”**, segue **este ficheiro**.
+
+## 1. Sites e bases oficiais (prioridade para “verdade” normativa e NCM)
+
+Estas são as referências **oficiais** que profissionais e sistemas costumam usar como **base**:
+
+- **Receita Federal / Portal Único Siscomex — Classificação fiscal (Classif)**  
+  Pesquisa por código ou descrição, árvore de classificação, base governamental de NCM. No projeto, o fallback web configurável aponta para este tipo de portal (ver `URL_SITE` em `backend/env.sites.example`).
+
+- **Download oficial da tabela NCM** (formatos JSON / Excel vigentes publicados pela administração tributária)  
+  Adequado a **sistemas**: importação em massa, API e base local. A versão **vigente** reflete o catálogo atual; regras de **histórico** são outro tema.
+
+- **Portal NF-e — tabelas relacionadas à NCM (ex.: NCM, unidade tributável onde aplicável)**  
+  Uso forte em **validação de nota fiscal** e integrações fiscais/ERP.
+
+- **TIPI (Tarifa de Incidência do IPI)**  
+  **NCM classifica a mercadoria**; a **TIPI** indica **incidência/alíquota de IPI** por posição. Para análise tributária completa, o cruzamento NCM ↔ TIPI é pertinente (IPI é camada distinta da “só NCM”).
+
+Em dúvida entre fonte **oficial** e site de terceiro, **privilegia sempre a oficial** para afirmações normativas e para dados mestre.
+
+## 2. Sites facilitadores (úteis, não oficiais)
+
+Plataformas como **Qive**, **Contabilizei**, **Fazcomex / Focus NFe**, **Bluesoft Cosmos** e similares podem oferecer **boa UX**, filtros, agregação de links ou conteúdo didático. Tratá-las como **apoio à produtividade e aprendizagem**, não como substituto da legislação ou da tabela oficial.
+
+- **Não** apresentar como “lei” o que vier só de facilitador sem confrontar com **LC 214**, **cClassTrib** e fontes oficiais de NCM.
+- Para **novas integrações** no produto, preferir **APIs/dados oficiais** ou ficheiros versionados em `docs/`, alinhado a **`tax-reform-sources.mdc`**.
+
+## 3. Reforma tributária: NCM sozinho não basta
+
+Para **trabalhar NCM dentro da reforma tributária (LC 214/2025)**:
+
+- O **NCM** é, em geral, **ponto de partida** para classificação de mercadorias.
+- A **reforma** introduz regras por **classificação tributária**, **cClassTrib**, **CST IBS/CBS**, **anexos** e demais dispositivos da **LC 214**.
+- **Cruzamentos necessários** em análise séria:
+  - **NCM + LC 214** (dispositivos e anexos relevantes);
+  - **NCM + cClassTrib** (quando aplicável ao caso);
+  - **Demais obrigações e enquadramentos** previstos na norma e na documentação oficial complementar.
+
+O mesmo código NCM pode ter **tratamentos diferentes** conforme o enquadramento na reforma — isso deve refletir-se em **explicações** e, no sistema, nos **cards** que combinam fontes conforme o pipeline do repositório.
+
+## 4. Resumo operacional para o assistente
+
+1. **Código e dados do monorepo:** respeitar **`tax-reform-sources.mdc`** (ficheiros locais → URL configurada).
+2. **Explicar “onde buscar na internet”:** usar a secção **oficiais** desta regra primeiro; mencionar facilitadores apenas com o **aviso** de que não são fonte primária.
+3. **Explicar reforma tributária:** sempre que falar em NCM no contexto da LC 214, **mencionar o cruzamento** com LC 214 e cClassTrib (e não reduzir a “só NCM”).
+4. **URLs concretos** que mudam com o tempo: preferir descrever o **órgão e o tipo de serviço** (Receita, Siscomex, NF-e, TIPI) e remeter a documentação oficial atualizada, em vez de fixar hiperligações que possam caducar.
+
+## 5. Referências cruzadas
+
+| Documento | Função |
+|-----------|--------|
+| `.cursor/rules/domain/tax-reform-sources.mdc` | Ordem técnica de dados no produto (PDF, xlsx, portal, SQLite). |
+| `.cursor/skills/tax-reform-lookup/SKILL.md` | Passos do assistente; deve alinhar com ambas as rules de domínio. |
+| `AGENTS.md` | Visão geral do monorepo e ligação às rules. |

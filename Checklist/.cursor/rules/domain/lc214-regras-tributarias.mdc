@@ -1,0 +1,153 @@
+---
+description: Regras da reforma tributária brasileira (LC 214/2025) — IBS, CBS, IS, CST, cClassTrib, alíquotas, reduções, cronograma de transição
+globs: backend/src/**/*.ts, docs/rules/domain/*.md
+alwaysApply: true
+---
+
+# Regras Tributárias — Lei Complementar 214/2025
+
+Referência consolidada para implementação e validação de regras fiscais no sistema Seven.
+Documento completo: `docs/rules/domain/lc214-regras-tributarias.md`
+
+---
+
+## Novos tributos
+
+| Tributo | Substitui | Competência |
+|---------|-----------|-------------|
+| **IBS** | ICMS + ISS | Estados + Municípios |
+| **CBS** | PIS + COFINS | União |
+| **IS**  | — (novo) | União — bens prejudiciais à saúde/ambiente |
+
+Todos são não cumulativos com crédito integral sobre entradas.
+
+---
+
+## Alíquotas de referência (2026 — fase de testes)
+
+- IBS: **0,1%**
+- CBS: **0,9%**
+
+```
+Alíquota efetiva IBS = 0,1% × (1 − pRedIBS / 100)
+Alíquota efetiva CBS = 0,9% × (1 − pRedCBS / 100)
+```
+
+Alíquotas plenas definitivas serão fixadas pelo Senado Federal após 2033.
+
+---
+
+## Cronograma de transição 2026–2033
+
+| Ano       | ICMS / ISS      | IBS / CBS                |
+|-----------|-----------------|--------------------------|
+| 2026–2027 | 100% (integral) | 0,1% / 0,9% (teste)      |
+| 2028      | 100%            | Alíquota parcial inicial |
+| 2029      | 90%             | 10% da alíquota plena    |
+| 2030      | 80%             | 20% da alíquota plena    |
+| 2031      | 70%             | 30% da alíquota plena    |
+| 2032      | 60%             | 40% da alíquota plena    |
+| 2033+     | **0% (extinção)** | **100% (pleno)**       |
+
+---
+
+## CST — Código da Situação Tributária
+
+| Código | Categoria         | Prioridade no sistema |
+|--------|-------------------|-----------------------|
+| 000    | Alíquota Integral | Média                 |
+| **200**| Alíquota Reduzida | **Alta (preferido)**  |
+| 4xx    | Regime Especial   | Baixa                 |
+| 5xx    | Suspensão         | Baixa                 |
+| 6xx    | Isenção/Imunidade | Baixa                 |
+| 8xx    | Outros            | Baixa                 |
+
+### Scoring de seleção do melhor match
+
+```
+CST 200 → +20  |  CST 000 → +10  |  CST 4-8xx → −10
+pRed 1–99% → +15  |  pRed 100% → +8  |  pRed 0% → +3
+Nome > 30 chars → +2
+```
+
+---
+
+## Reduções de alíquota previstas na LC 214/2025
+
+### Redução 60% — CST 200 (Art. 133)
+- Medicamentos registrados na ANVISA (cClassTrib 200032)
+- Dispositivos médicos
+- Produtos de saúde
+
+### Redução 100% / alíquota zero
+- Cesta básica nacional — Art. 125
+- Educação básica — LC 214/25
+- Saúde pública (SUS) — LC 214/25
+- Transporte coletivo urbano — LC 214/25
+- Produtos agropecuários in natura — Art. 128, I
+
+### Tributação integral (CST 000)
+- Todos os bens/serviços não listados acima
+
+---
+
+## cClassTrib — campos obrigatórios
+
+```typescript
+// Campos mínimos que toda classificação deve ter
+CST-IBS/CBS: string       // "200" | "000" | "4xx" | ...
+cClassTrib: string        // 6 dígitos (ex: "200032")
+pRedIBS: number           // 0–100
+pRedCBS: number           // 0–100
+'LC 214/25': string       // artigo (ex: "Art. 133")
+```
+
+---
+
+## Regras de implementação (obrigatórias)
+
+1. **Toda lógica fiscal vai no backend** — nunca no frontend
+2. **Lógica compartilhada** entre consulta e batch → `tax-analysis.utils.ts`
+3. **Fonte primária** = `docs/Lcp 214.pdf` → `cClassTrib xlsx` → `NCM xlsx` → Siscomex
+4. **Cache obrigatório** em SQLite para evitar reprocessamento
+5. **Nunca inventar alíquotas** — usar apenas valores da cClassTrib xlsx ou da LC 214
+6. **Citar o artigo** da LC 214 em toda redução ou isenção implementada
+7. **Testes Jest** obrigatórios para toda nova regra fiscal (cobertura ≥ 90%)
+
+---
+
+## NCM — capítulos com tratamento especial
+
+| Capítulos | Produto             | Tratamento              |
+|-----------|---------------------|-------------------------|
+| 30        | Medicamentos        | Redução 60% (Art. 133)  |
+| 01–14, 23 | Agropecuários       | Redução/isenção (Art. 128) |
+| 22        | Bebidas             | IS possível             |
+| 27        | Combustíveis        | Regime especial         |
+| 87        | Veículos            | IS possível             |
+| 90        | Dispositivos médicos| Redução 60% (Art. 133)  |
+
+---
+
+## Regimes e crédito
+
+| Regime           | Crédito IBS/CBS                  |
+|------------------|----------------------------------|
+| Lucro Real       | Crédito integral sobre entradas  |
+| Lucro Presumido  | Limitado — avaliar caso a caso   |
+| Simples Nacional | Fora do modelo IBS/CBS padrão    |
+
+---
+
+## Glossário rápido
+
+| Termo      | Definição |
+|------------|-----------|
+| IBS        | Substitui ICMS + ISS |
+| CBS        | Substitui PIS + COFINS |
+| IS         | Imposto Seletivo (bens prejudiciais) |
+| CST        | Código da Situação Tributária |
+| cClassTrib | Código de classificação tributária (SPED/ENCAT) |
+| pRedIBS    | % redução da alíquota IBS (0–100) |
+| pRedCBS    | % redução da alíquota CBS (0–100) |
+| NCM        | Nomenclatura Comum do Mercosul |

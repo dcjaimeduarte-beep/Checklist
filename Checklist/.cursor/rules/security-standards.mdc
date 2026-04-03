@@ -1,0 +1,151 @@
+---
+description: Padroes de cyberseguranca — OWASP Top 10, validacao, autenticacao, protecao de dados
+globs: **/*
+alwaysApply: true
+---
+
+# Cyberseguranca — Padroes obrigatorios
+
+Monorepo **seven-reforma-tributaria**: sistema com dados fiscais sensiveis. Toda alteracao de codigo DEVE respeitar estes padroes de seguranca.
+
+## OWASP Top 10 — Verificacao obrigatoria
+
+### 1. Injection (SQL, Command, LDAP)
+- **NUNCA** usar queries SQL raw ou string concatenation em queries
+- **SEMPRE** usar QueryBuilder parametrizado do TypeORM com `:placeholders`
+- **SEMPRE** sanitizar inputs com `escapeLike()` para queries LIKE
+- **NUNCA** passar input do usuario para `child_process.exec()` ou similar
+- Validar e sanitizar todo input externo antes de processar
+
+### 2. Broken Authentication
+- JWT em cookies **HttpOnly** + **Secure** (producao) + **SameSite: lax**
+- Token expira em tempo finito (atual: 2 dias)
+- Credenciais NUNCA em logs ou respostas de erro
+- Rate limiting em `POST /api/auth/login` (maximo 10 tentativas / 15min)
+- Senhas com complexidade minima em producao
+
+### 3. Sensitive Data Exposure
+- **NUNCA** commitar: `.env`, credenciais, chaves privadas, dumps de dados
+- **NUNCA** logar: senhas, JWT tokens, CPF/CNPJ completos, dados fiscais brutos
+- HTTPS obrigatorio em producao
+- Dados sensiveis em variaveis de ambiente, nao no codigo
+
+### 4. XML External Entities (XXE)
+- Desabilitar processamento de entidades externas em qualquer parser XML
+- Preferir JSON sobre XML sempre que possivel
+
+### 5. Broken Access Control
+- **Todo endpoint** (exceto login e health) DEVE ter `@UseGuards(JwtAuthGuard)`
+- Verificar se usuario so acessa seus proprios dados
+- Nao expor IDs internos sequenciais (preferir UUID)
+
+### 6. Security Misconfiguration
+- Helmet habilitado com headers: CSP, X-Frame-Options, HSTS, X-Content-Type-Options
+- CORS restrito a `FRONTEND_ORIGIN` (nunca `*` em producao)
+- `ValidationPipe` global com `whitelist: true` e `forbidNonWhitelisted: true`
+- `synchronize: false` no TypeORM em producao (usar migrations)
+- Desabilitar debug/stack traces em producao
+
+### 7. Cross-Site Scripting (XSS)
+- **NUNCA** usar `dangerouslySetInnerHTML` no React
+- **NUNCA** usar `innerHTML`, `outerHTML` ou `document.write()`
+- **NUNCA** usar `eval()`, `Function()` ou `setTimeout(string)`
+- React escapa texto por padrao — confiar no JSX
+- Sanitizar qualquer conteudo dinamico que nao passe pelo JSX
+
+### 8. Insecure Deserialization
+- Validar DTOs com `class-validator` + `class-transformer`
+- `ValidationPipe` com `transform: true` para coercao de tipos
+- Nao deserializar objetos de fontes nao confiaveis sem validacao
+
+### 9. Using Components with Known Vulnerabilities
+- Rodar `npm audit` antes de cada deploy
+- Nao usar dependencias deprecated ou com CVEs conhecidos
+- Manter dependencias atualizadas (patch e minor)
+- Revisar `package-lock.json` em PRs que alteram dependencias
+
+### 10. Insufficient Logging & Monitoring
+- Logar tentativas de login falhadas (sem expor senha)
+- Logar acessos negados (403/401) com IP e timestamp
+- Logar erros 500 com contexto (sem dados sensiveis)
+- Em producao: alertas para picos de erros de autenticacao
+
+## File Upload (BatchModule)
+
+- Extensoes permitidas: `.xlsx` apenas
+- Tamanho maximo: 20 MB
+- Validar MIME type no servidor
+- Processar em memoria, nunca salvar em disco publico
+- Nunca executar conteudo de arquivos enviados
+
+## Cookies e Sessions
+
+- `httpOnly: true` — JavaScript nao acessa o cookie
+- `secure: true` — apenas HTTPS em producao
+- `sameSite: 'lax'` — protecao CSRF
+- `path: '/'` — escopo limitado
+- Expiracao finita (maximo 2 dias)
+
+## Frontend — Armazenamento
+
+- **sessionStorage:** apenas dados nao-sensiveis (NCM consultado, regime, ano)
+- **NUNCA** em localStorage/sessionStorage: senhas, tokens, dados pessoais (CPF/CNPJ)
+- Tokens SOMENTE em cookies HttpOnly (gerenciados pelo backend)
+
+## Dependencias
+
+- `npm audit --audit-level=high` deve retornar 0 vulnerabilidades
+- Antes de adicionar nova dependencia: verificar se e mantida, tem CVEs, e realmente necessaria
+- Preferir dependencias do ecossistema NestJS (ex: `@nestjs/throttler` em vez de `express-rate-limit`)
+
+## O que NUNCA fazer
+
+```typescript
+// PROIBIDO — SQL injection
+const result = await repo.query(`SELECT * FROM users WHERE name = '${userInput}'`);
+
+// PROIBIDO — Command injection
+exec(`ls ${userInput}`);
+
+// PROIBIDO — XSS
+<div dangerouslySetInnerHTML={{__html: userInput}} />
+
+// PROIBIDO — Secrets no codigo
+const JWT_SECRET = 'minha-chave-secreta';
+
+// PROIBIDO — Eval
+eval(userInput);
+
+// PROIBIDO — Token em localStorage
+localStorage.setItem('token', jwt);
+```
+
+## O que SEMPRE fazer
+
+```typescript
+// CORRETO — Query parametrizada
+const result = await repo.createQueryBuilder('u')
+  .where('u.name = :name', { name: userInput })
+  .getMany();
+
+// CORRETO — Validacao com DTO
+class AnalyzeDto {
+  @IsString() @MaxLength(16) ncm: string;
+  @IsString() @MaxLength(64) regime: string;
+}
+
+// CORRETO — Guard em endpoint
+@UseGuards(JwtAuthGuard)
+@Post('analyze')
+async analyze(@Body() dto: AnalyzeDto) { ... }
+
+// CORRETO — Secrets em .env
+const secret = process.env.JWT_SECRET;
+```
+
+## Referencia
+
+- Agente de seguranca Claude: `.claude/agents/security-specialist.md`
+- Regra compartilhada: `docs/rules/security-standards.md`
+- Padroes de teste: `docs/rules/testing-standards.md`
+- OWASP Top 10: https://owasp.org/www-project-top-ten/

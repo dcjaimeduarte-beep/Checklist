@@ -1,0 +1,42 @@
+---
+description: Backend NestJS 11 — camadas, TypeORM, SQLite, DTOs, convenções do monorepo
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Backend — padrões NestJS
+
+Monorepo **seven-reforma-tributaria**: API em **`backend/`** com **NestJS 11**, **TypeScript**, **TypeORM**, **SQLite** (`better-sqlite3`) hoje; **PostgreSQL** planeado para produção (migrations, sem `synchronize` em prod).
+
+## Arquitetura
+
+- **Controllers:** finos — roteamento HTTP, delegação ao **service**; sem regra de negócio pesada.
+- **Services:** casos de uso, orquestração, transações quando necessário.
+- **DTOs:** entrada/saída com **`class-validator`** + **`class-transformer`**; **`ValidationPipe`** global com `whitelist` / `forbidNonWhitelisted` quando ativado no projeto.
+- **Entidades TypeORM:** refletem schema; preferir entidades como fonte de verdade e **migrations** em produção (hoje `synchronize` só fora de `NODE_ENV=production` — ver `config/database.config.ts`).
+- **Módulos:** um módulo por domínio coeso (`NcmModule`, `SpreadsheetModule`, …); registar em `AppModule`.
+
+## Nomenclatura (`AGENTS.md`)
+
+- **Inglês:** guards, pipes, interceptors, ficheiros de infraestrutura, nomes de módulos técnicos.
+- **Português:** comentários que expliquem domínio fiscal/NCM; DTOs e mensagens ao utilizador podem usar vocabulário de negócio em PT quando fizer sentido.
+
+## Dados e configuração
+
+- **`DATABASE_PATH`**, **`PORT`**, **`FRONTEND_ORIGIN`** — ver `backend/.env.example`.
+- Não commitar segredos nem dumps reais de dados fiscais.
+- CORS já tratado em `main.ts` com `FRONTEND_ORIGIN`.
+
+## O que evitar
+
+- Lógica fiscal/NCM/planilhas **só** no frontend — a API é a fonte da verdade. O cliente **não** calcula impostos; expõe apenas o resultado de **`consultation/analyze`** (e endpoints futuros equivalentes).
+- Queries SQL cruas espalhadas sem camada (preferir repositório ou QueryBuilder tipado).
+- Ignorar tratamento de erros HTTP (filtros globais quando existirem).
+
+## Referência
+
+- Detalhe arquitetural: `backend/docs/architecture/architecture.md`
+- Monorepo: `AGENTS.md`
+- Fontes LC 214 / NCM / Siscomex / cache: `.cursor/rules/domain/tax-reform-sources.mdc`
+- Commits / branches: `.cursor/rules/github-standards.mdc`
+- Skill de fluxo: `.cursor/skills/backend/nest-workflow/SKILL.md`

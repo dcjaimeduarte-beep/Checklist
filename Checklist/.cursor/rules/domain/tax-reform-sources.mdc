@@ -1,0 +1,47 @@
+---
+description: Prioridade de fontes (LC 214, planilhas, Siscomex), cache SQLite e scraping no backend
+alwaysApply: true
+---
+
+# Reforma tributária — fontes de dados e ordem de consulta
+
+O produto serve **análises e consultas** sobre **reforma tributária** e **classificação fiscal** (NCM, cClassTrib, legislação). O assistente e a API devem seguir **sempre** esta ordem ao responder ou implementar lookups.
+
+**Diferença em relação a “sites confiáveis” na web:** a lista de **fontes oficiais vs facilitadores** e a lógica **NCM + LC 214 + cClassTrib** para explicações ao utilizador estão em **`.cursor/rules/domain/ncm-reforma-trusted-sources.mdc`**. Esta regra (`tax-reform-sources`) governa **o que o código ingere e em que ordem**; a outra governa **orientação metodológica e pesquisa externa**, sem contradizer a ordem abaixo.
+
+## 1. Ordem obrigatória (do mais autoritativo ao fallback externo)
+
+| Prioridade | Fonte | Caminho / nota |
+|------------|--------|----------------|
+| **1** | **Lei Complementar 214** — texto integral | `docs/Lcp 214.pdf` — base legal; interpretar dispositivos aqui antes de inferir de planilhas. |
+| **2** | **cClassTrib (público)** | `docs/cClassTrib 2026-01-23_Public.xlsx` — classificação tributária oficial em formato tabular. |
+| **3** | **Tabela NCM vigente** | `docs/Tabela_NCM_Vigente_20260331.xlsx` — nomenclatura e códigos NCM. |
+| **4** | **Portal Único Siscomex (classificação)** | Apenas se **não** houver resposta suficiente nos itens 1–3. URL base configurável: ver `backend/env.sites.example` (`URL_SITE`). Referência: [Classificação Fiscal de Mercadorias](https://portalunico.siscomex.gov.br/classif/#/sumario?perfil=publico). |
+
+Não inverter a ordem (ex.: não preferir o site à LC 214 ou às planilhas locais quando estas cobrirem o caso).
+
+## 2. Cache em SQLite
+
+- Ingestões (trechos relevantes da LC, linhas das planilhas, respostas normalizadas) e resultados de **scraping** devem ser **persistidos** no SQLite via **TypeORM** (`DATABASE_PATH`), para **não** reler PDF/XLSX nem bater no site em todo pedido.
+- Definir entidades e jobs de ingestão no **backend**; o frontend consome apenas a API.
+
+## 3. Web scraping (backend)
+
+- **Onde:** NestJS (`backend/`) — serviço dedicado (ex.: módulo de integração Siscomex), usando URL lida de **`URL_SITE`** em `env.sites` (ver `backend/env.sites.example`).
+- **Como:** O portal pode ser SPA; avaliar **HTTP** simples vs **Playwright/Puppeteer** conforme necessidade. Respeitar termos de uso e rate limit; cachear agressivamente no SQLite.
+- **Segurança:** Não logar credenciais de portal; scraping não substitui itens 1–3 quando a resposta já existe localmente.
+
+## 4. Frontend
+
+- **Login:** Tela profissional — **esquerda:** marca Seven + paleta (`frontend/src/constants/Colors.ts`); **direita:** card de usuário/senha. Ver **`.cursor/rules/design-ui-ux-standards.mdc`** e **`.cursor/rules/design-system-standards.mdc`**.
+- **Pós-login:** fluxo de **pesquisa** com **cards** de análise completos alimentados pela API (dados já resolvidos pelo pipeline acima).
+
+## 5. Referências cruzadas
+
+| Documento | Função |
+|-----------|--------|
+| `AGENTS.md` | Visão geral, stack, variáveis, ligação com esta regra |
+| `.cursor/rules/domain/ncm-reforma-trusted-sources.mdc` | Fontes oficiais/facilitadores na web; cruzamento reforma (NCM + LC 214 + cClassTrib) |
+| `.cursor/skills/tax-reform-lookup/SKILL.md` | Passos operacionais para o assistente |
+| `.cursor/rules/backend/backend-standards.mdc` | Camadas API, TypeORM |
+| `.cursor/agents/backend-specialist.md` | Subagente backend alinhado a este domínio |

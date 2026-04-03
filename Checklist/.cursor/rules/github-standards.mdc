@@ -1,0 +1,50 @@
+---
+description: Git/GitHub — commits convencionais (prefixos EN, texto PT) e branches main/develop
+alwaysApply: true
+---
+
+# Git e GitHub — padrões do repositório
+
+## Branches (long-lived)
+
+| Branch | Uso |
+|--------|-----|
+| **`main`** | Código **estável** alinhado à **release final** / produção. Não desenvolver diretamente aqui. |
+| **`develop`** | **Desenvolvimento** contínuo: integração de trabalho antes de release. |
+
+Fluxo esperado: trabalho diário integra em **`develop`**; **`main`** avança quando há **release** (merge de `develop` → `main` ou fluxo equivalente com tag de versão). Não introduzir outras branches permanentes sem decisão de equipe.
+
+## Commits — Conventional Commits
+
+- **Formato da primeira linha:** `<tipo>(<escopo opcional>): <descrição em português>`
+- **Tipo e escopo** em **inglês** (convenção da indústria); **descrição** (e corpo) em **português**, clara e no imperativo ou factual (“adicionar…”, “corrigir…”).
+
+**Tipos usuais (inglês):** `feat` · `fix` · `docs` · `style` · `refactor` · `perf` · `test` · `chore` · `ci` · `build` · `revert`
+
+**Exemplos (primeira linha):**
+
+```
+feat(docs): adicionar documentação sobre o fluxo de NCM
+fix(frontend): corrigir contraste do card no modo claro
+chore: atualizar dependências do workspace
+```
+
+## Descrição e corpo
+
+- A **primeira linha** resume a mudança (idealmente ≤ ~72 caracteres).
+- Para alterações não óbvias, adicionar **corpo** após linha em branco: contexto, motivo, breaking changes ou passos de verificação — **em português**.
+
+**Exemplo completo:**
+
+```
+feat(api): adicionar validação de código NCM no import
+
+Inclui mensagens de erro alinhadas ao domínio fiscal e testes de contrato
+para o endpoint de planilhas.
+```
+
+## O que evitar
+
+- Mensagens vagas (`fix`, `update`, `changes`).
+- Misturar idioma na mesma linha de forma inconsistente (tipo PT + descrição EN sem acordo de equipe).
+- Commit direto em `main` com trabalho em progresso (usar `develop`).

@@ -1,0 +1,63 @@
+---
+description: Design system web — WCAG 2.1 AA, paleta e tipografia (Colors / Tokens)
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Design system — padrões web
+
+Aplicação **web**: tratar **acessibilidade como requisito**, não opcional. Meta mínima: **WCAG 2.1 nível AA** (contraste, teclado, foco, semântica, nome acessível).
+
+**Fonte canônica** (podem evoluir): `frontend/src/constants/Colors.ts` e `frontend/src/constants/Tokens.ts`. A tabela abaixo espelha o estado atual para contexto na rule; em caso de divergência, prevalecem os arquivos.
+
+**Complemento:** direção visual geral, padrões de componentes e DRY — **`.cursor/rules/frontend/frontend-standards.mdc`**. Princípios de interface, dashboard e minimalismo profissional — **`.cursor/rules/design-ui-ux-standards.mdc`**.
+
+## Acessibilidade (AA no mínimo)
+
+- **Contraste:** texto normal ≥ **4,5:1**; texto grande (≥18pt ou ≥14pt negrito) ≥ **3:1**; UI e gráficos informativos ≥ **3:1** onde aplicável. Validar pares (ex.: `#444` em `#FFF`, branco em `#002E48` / `#00677E`).
+- **Foco:** estados `:focus-visible` visíveis em links, botões e controles; não remover outline sem substituto equivalente.
+- **Teclado:** fluxos usáveis sem mouse; ordem de tab lógica; sem armadilhas de foco.
+- **Semântica:** HTML correto (`button` para ação, `a` para navegação, headings hierárquicos); `aria-*` quando o padrão HTML não bastar (ex.: ícones só decorativos `aria-hidden`).
+- **Formulários:** `label` associado, erros identificáveis e associados ao campo.
+- **Mídia:** imagens com `alt` adequado; gráficos com texto ou descrição quando forem o único meio de leitura de dado crítico.
+
+## Paleta (espelho de `Colors.ts`)
+
+| Token | Hex | Uso |
+|-------|-----|-----|
+| background | `#FFFFFF` | Fundo branco |
+| backgroundMuted | `#EBF1FA` | Fundo alternativo |
+| card | `#FFFFFF` | Cartões |
+| foreground / cardForeground | `#444444` | Texto principal |
+| mutedForeground | `#666666` | Texto secundário |
+| border / chartGrid | `#D7DEE8` | Bordas / grade gráficos |
+| primary / accent | `#002E48` | Marca navy |
+| primaryForeground / accentForeground | `#FFFFFF` | Texto sobre primary |
+| secondary | `#00677E` | Teal |
+| secondaryForeground | `#FFFFFF` | Texto sobre secondary |
+| chartPrimary | `#002E48` | Série gráfico |
+| chartSecondary | `#00677E` | Série secundária |
+| darkBackground | `#001a24` | Modo escuro — fundo |
+| darkForeground | `#EBF1FA` | Modo escuro — texto |
+| darkCard | `#0c2530` | Modo escuro — cartão |
+| darkBorder | `#1a3a4a` | Modo escuro — borda |
+| darkMutedForeground | `#9CA3AF` | Modo escuro — secundário |
+| darkChartGrid | `#2a4555` | Modo escuro — grade |
+
+Novas cores: só em **`Colors.ts`** + verificação de contraste AA.
+
+## Tipografia (espelho de `Tokens.ts`)
+
+- **Sans:** Inter → Roboto → Public Sans → system-ui… (ver arquivo).
+- **Mono:** ui-monospace, SFMono, Menlo, Monaco, Consolas…
+- **Tamanhos (rem):** xs `0.75` · sm `0.875` · base `1` · lg `1.125` · xl `1.25` · 2xl `1.5` · 3xl `1.875`
+- **Tamanhos (px):** xs 12 · sm 14 · base 16 · lg 18 · xl 20
+- **Peso:** 400 / 500 / 600 / 700 · **line-height** e **letter-spacing** conforme `Tokens.ts`
+
+Evitar texto corpo menor que **16px** (`1rem`) salvo legendas que ainda atendam contraste AA.
+
+## Referência
+
+- **Padrões de UI e reutilização:** `.cursor/rules/frontend/frontend-standards.mdc`
+- **UI/UX (dashboard, minimalismo):** `.cursor/rules/design-ui-ux-standards.mdc`
+- Arquitetura: `frontend/docs/architecture/architecture.md`
