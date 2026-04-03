@@ -79,6 +79,15 @@ O Vite faz proxy de `/api` → `http://localhost:3000` automaticamente.
 | `SAIDA_ITENS` | Peças/produtos de uma OS |
 | `COLABORADOR` | CD_COLABORADOR, NM_COLABORADOR |
 
+### Mapeamento DS_TIPO_SAIDA
+
+| Código | Descrição |
+|---|---|
+| `V` | Venda Realizada |
+| `O` | Orçamento |
+| `S` | Serviço |
+| `PV` | Venda em Aberto |
+
 ---
 
 ## Endpoints
@@ -96,7 +105,7 @@ O Vite faz proxy de `/api` → `http://localhost:3000` automaticamente.
 | GET | `/api/checklist/cliente/buscar?q=` | Busca cliente por nome/CPF/telefone |
 | GET | `/api/checklist/cliente/:id/veiculos` | Veículos do cliente (com marca e modelo) |
 | GET | `/api/checklist/cliente/:id/historico` | Histórico de OS do cliente via SAIDAS |
-| GET | `/api/checklist/veiculo/placa/:placa` | Veículo pela placa com dados do cliente |
+| GET | `/api/checklist/veiculo/placa/:placa` | Veículo + lista completa de OS (`osList`) + `ultimaOS` |
 | GET | `/api/checklist/veiculo/:id/historico` | Histórico de OS do veículo via SAIDAS |
 | GET | `/api/checklist/os/:id` | Detalhes completos de uma OS (cabeçalho + itens) |
 
@@ -106,26 +115,44 @@ O Vite faz proxy de `/api` → `http://localhost:3000` automaticamente.
 
 Baseado no modelo `backend/docs/architecture/MODELO_CHECK-LIST.xlsx`.
 
-### Seções
+### Seções do documento
 
-1. **Dados do Veículo** — Marca, Modelo, Ano, Placa, KM, Última Manutenção, Descrição, Data de Entrada
-2. **Dados do Motorista** — Nome, Fone, CNH, Categoria, Vencimento
-3. **Itens Inspecionados** (20 itens em 2 colunas)
+1. **Última OS** *(card informativo)* — exibe tipo (badge colorido), data, colaborador, KM e observação da OS selecionada
+2. **Dados do Veículo** — Marca, Modelo, Ano, Placa, KM, Última Manutenção, Descrição, Data de Entrada
+3. **Dados do Motorista** — Nome, Fone, CNH, Categoria, Vencimento
+4. **Itens Inspecionados** (20 itens em 2 colunas — mantido em impressão)
    - Estados: **BOM** (verde) · **RUIM** (vermelho) · **N.FUNC** (cinza escuro)
-4. **Avarias** — diagrama SVG clicável do veículo
+5. **Avarias** — diagrama SVG clicável + resumo por peça
    - Marcações: **(A)** Amassado · **(R)** Riscado · **(X)** Quebrado · **(F)** Faltante
-   - Seleciona tipo → clica na peça do diagrama
-5. **Assinaturas** — Responsável, Motorista, Data, Aprovação
+6. **Assinaturas** — Responsável, Motorista, Data, Aprovação
+
+### Fluxo de busca por placa
+
+```
+Busca placa
+    ↓
+API retorna: veiculo + osList (todas as OS) + ultimaOS
+    ↓
+osList.length == 0  → checklist em branco
+osList.length == 1  → carrega direto (KM + obs preenchidos)
+osList.length >= 2  → abre MODAL com lista para escolher
+                       cada item mostra: data · badge tipo · nº · colaborador · KM · obs
+                       ao clicar: carrega OS selecionada
+```
 
 ### Funcionalidades
-- Busca veículo pela placa e preenche automaticamente os dados do cliente
-- Logo Seven por padrão; botão **"Logo"** na toolbar para carregar logo do cliente
-- Título da aba muda para `Checklist {PLACA}` → PDF salvo com esse nome
-- Impressão A4 com itens em 2 colunas, cores preservadas, botões ocultos
+- Busca por placa → dados do cliente preenchidos automaticamente
+- Modal de seleção de OS quando há múltiplos registros (com data, tipo, observação)
+- `DS_TIPO_SAIDA` mapeado para label legível com badge colorido
+- Observação da OS pré-preenche o campo OBS do checklist automaticamente
+- Logo Seven por padrão; botão **"Logo"** na toolbar para trocar pela logo do cliente
+- Título da aba = `Checklist {PLACA}` → nome do PDF ao salvar
+- Impressão A4 em 2 colunas, cores preservadas, botões ocultos
 
 ### Design
 - **Navy** `#13293D` — toolbar, cabeçalhos de seção
-- **Teal** `#3E7080` — acentos, botão buscar
+- **Teal** `#3E7080` — acentos, bordas, botão buscar
+- Badges de tipo: verde (Venda) · amarelo (Orçamento) · azul (Serviço) · vermelho (Venda em Aberto)
 
 ---
 
@@ -133,14 +160,15 @@ Baseado no modelo `backend/docs/architecture/MODELO_CHECK-LIST.xlsx`.
 
 | Placa | Resultado |
 |---|---|
-| SJE6A44 | ONIX PLUS BRANCO — LOCALIZA RENT A CAR — 1 OS (#586) |
+| SJE6A44 | ONIX PLUS BRANCO — LOCALIZA RENT A CAR — OS #586 (Orçamento) — obs preenchida |
 
 ---
 
 ## Decisões importantes
 
 - OS vêm da tabela **SAIDAS** (não SAIDA_SERVICOS) — SAIDAS já tem CD_CLIENTE e CD_VEICULO diretos
-- Valores monetários no Firebird são BIGINT com escala /100 (centavos)
-- Quantidades de produtos são BIGINT com escala /1000
-- O `git init` foi feito na pasta pai `Documents/GitHub`, apontando para o remote `Checklist.git`
+- `/veiculo/placa/:placa` retorna `osList` (todas as OS, max 100) e `ultimaOS` (a mais recente)
+- Valores monetários no Firebird são BIGINT escala /100 (centavos)
+- Quantidades de produtos são BIGINT escala /1000
+- `git init` foi feito na pasta pai `Documents/GitHub`, apontando para o remote `Checklist.git`
 - `.gitignore` na raiz exclui `Sermao/`, `seven-reforma-tributaria-monorepo/`, `node_modules`, `.env`, `*.fdb`

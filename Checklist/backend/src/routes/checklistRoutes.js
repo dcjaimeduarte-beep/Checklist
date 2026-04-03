@@ -3,6 +3,19 @@ const { connectFirebird } = require('../config/firebird');
 
 const router = express.Router();
 
+const TIPO_SAIDA_LABEL = {
+  'V':  'Venda Realizada',
+  'O':  'Orçamento',
+  'S':  'Serviço',
+  'PV': 'Venda em Aberto',
+};
+
+function labelTipo(tipo) {
+  if (!tipo) return '';
+  const t = tipo.trim().toUpperCase();
+  return TIPO_SAIDA_LABEL[t] || tipo.trim();
+}
+
 // Buscar cliente por nome, CPF/CNPJ ou telefone
 router.get('/cliente/buscar', async (req, res) => {
   const { q } = req.query;
@@ -140,32 +153,80 @@ router.get('/veiculo/placa/:placa', async (req, res) => {
     `;
 
     db.query(sql, [placa], (err, rows) => {
-      db.detach();
-      if (err) return res.status(500).json({ ok: false, erro: err.message });
-      if (!rows || rows.length === 0)
+      if (err) {
+        db.detach();
+        return res.status(500).json({ ok: false, erro: err.message });
+      }
+      if (!rows || rows.length === 0) {
+        db.detach();
         return res.status(404).json({ ok: false, erro: 'Veículo não encontrado.' });
+      }
 
       const r = rows[0];
-      return res.json({
-        ok: true,
-        veiculo: {
-          id: r.CD_VEICULOS,
-          placa: (r.DS_PLACA || '').trim(),
-          descricao: (r.DS_DESCRICAO || '').trim(),
-          marca: (r.DS_MARCA_VEICULO || '').trim(),
-          modelo: (r.DS_MODELO_VEICULO || '').trim(),
-          km: r.VL_KM_VEICULO || 0,
-          ultimaEntrada: r.DT_ULTIMA_ENTRADA,
-          renavan: (r.DS_RENAVAN || '').trim(),
-          uf: (r.DS_UF || '').trim(),
-          cliente: {
-            id: r.CD_CLIENTE,
-            nome: (r.NM_FANTASIA_CLIENTE || r.NM_RAZ_SOC_CLIENTE || '').trim(),
-            telefone: (r.CD_FONE_CLIENTE || '').trim(),
-            celular: (r.CD_CELULAR_CLIENTE || '').trim(),
-            email: (r.DS_EMAIL_CLIENTE || '').trim(),
-          },
+      const veiculo = {
+        id: r.CD_VEICULOS,
+        placa: (r.DS_PLACA || '').trim(),
+        descricao: (r.DS_DESCRICAO || '').trim(),
+        marca: (r.DS_MARCA_VEICULO || '').trim(),
+        modelo: (r.DS_MODELO_VEICULO || '').trim(),
+        km: r.VL_KM_VEICULO || 0,
+        ultimaEntrada: r.DT_ULTIMA_ENTRADA,
+        renavan: (r.DS_RENAVAN || '').trim(),
+        uf: (r.DS_UF || '').trim(),
+        cliente: {
+          id: r.CD_CLIENTE,
+          nome: (r.NM_FANTASIA_CLIENTE || r.NM_RAZ_SOC_CLIENTE || '').trim(),
+          telefone: (r.CD_FONE_CLIENTE || '').trim(),
+          celular: (r.CD_CELULAR_CLIENTE || '').trim(),
+          email: (r.DS_EMAIL_CLIENTE || '').trim(),
         },
+      };
+
+      // Busca todas as OS do veículo na SAIDAS
+      const sqlOSList = `
+        SELECT FIRST 100
+          S.CD_SAIDA,
+          S.DT_EMISSAO,
+          S.DT_SAIDA,
+          S.DS_TIPO_SAIDA,
+          S.DS_OBS_NOTA_SAI,
+          S.VL_KM_VEICULO,
+          S.DS_NUMERO_NOTA,
+          COL.NM_COLABORADOR
+        FROM SAIDAS S
+        LEFT JOIN COLABORADOR COL ON COL.CD_COLABORADOR = S.CD_COLABORADOR
+        WHERE S.CD_VEICULO = ?
+          AND (S.CK_CANCELADA IS NULL OR S.CK_CANCELADA <> 'S')
+        ORDER BY S.DT_EMISSAO DESC NULLS LAST, S.CD_SAIDA DESC
+      `;
+
+      db.query(sqlOSList, [r.CD_VEICULOS], (errOS, osRows) => {
+        db.detach();
+        if (errOS || !osRows || osRows.length === 0) {
+          return res.json({ ok: true, veiculo, osList: [], ultimaOS: null });
+        }
+
+        const osList = osRows.map(os => {
+          const tipo = (os.DS_TIPO_SAIDA || '').trim();
+          return {
+            id: os.CD_SAIDA,
+            data: os.DT_EMISSAO,
+            dataSaida: os.DT_SAIDA,
+            numeroNota: (os.DS_NUMERO_NOTA || '').trim(),
+            tipo,
+            tipoLabel: labelTipo(tipo),
+            observacao: (os.DS_OBS_NOTA_SAI || '').trim(),
+            km: os.VL_KM_VEICULO || 0,
+            colaborador: (os.NM_COLABORADOR || '').trim(),
+          };
+        });
+
+        return res.json({
+          ok: true,
+          veiculo,
+          osList,
+          ultimaOS: osList[0], // mais recente por padrão
+        });
       });
     });
   } catch (error) {
@@ -210,20 +271,24 @@ router.get('/veiculo/:id/historico', async (req, res) => {
       db.detach();
       if (err) return res.status(500).json({ ok: false, erro: err.message });
 
-      const historico = rows.map(r => ({
-        id: r.CD_SAIDA,
-        dataEmissao: r.DT_EMISSAO,
-        dataSaida: r.DT_SAIDA,
-        numeroNota: (r.DS_NUMERO_NOTA || '').trim(),
-        serie: (r.DS_SERIE || '').trim(),
-        tipoSaida: (r.DS_TIPO_SAIDA || '').trim(),
-        valorTotal: (r.VL_TOTAL_NOTA || 0) / 100,
-        km: r.VL_KM_VEICULO || 0,
-        observacao: (r.DS_OBS_NOTA_SAI || '').trim(),
-        cliente: (r.NM_FANTASIA_CLIENTE || r.NM_RAZ_SOC_CLIENTE || '').trim(),
-        telefone: (r.CD_FONE_CLIENTE || r.CD_CELULAR_CLIENTE || '').trim(),
-        colaborador: (r.NM_COLABORADOR || '').trim(),
-      }));
+      const historico = rows.map(r => {
+        const tipo = (r.DS_TIPO_SAIDA || '').trim();
+        return {
+          id: r.CD_SAIDA,
+          dataEmissao: r.DT_EMISSAO,
+          dataSaida: r.DT_SAIDA,
+          numeroNota: (r.DS_NUMERO_NOTA || '').trim(),
+          serie: (r.DS_SERIE || '').trim(),
+          tipo,
+          tipoLabel: labelTipo(tipo),
+          valorTotal: (r.VL_TOTAL_NOTA || 0) / 100,
+          km: r.VL_KM_VEICULO || 0,
+          observacao: (r.DS_OBS_NOTA_SAI || '').trim(),
+          cliente: (r.NM_FANTASIA_CLIENTE || r.NM_RAZ_SOC_CLIENTE || '').trim(),
+          telefone: (r.CD_FONE_CLIENTE || r.CD_CELULAR_CLIENTE || '').trim(),
+          colaborador: (r.NM_COLABORADOR || '').trim(),
+        };
+      });
 
       return res.json({ ok: true, total: historico.length, historico });
     });
@@ -268,22 +333,26 @@ router.get('/cliente/:id/historico', async (req, res) => {
       db.detach();
       if (err) return res.status(500).json({ ok: false, erro: err.message });
 
-      const historico = rows.map(r => ({
-        id: r.CD_SAIDA,
-        dataEmissao: r.DT_EMISSAO,
-        dataSaida: r.DT_SAIDA,
-        numeroNota: (r.DS_NUMERO_NOTA || '').trim(),
-        tipoSaida: (r.DS_TIPO_SAIDA || '').trim(),
-        valorTotal: (r.VL_TOTAL_NOTA || 0) / 100,
-        km: r.VL_KM_VEICULO || 0,
-        observacao: (r.DS_OBS_NOTA_SAI || '').trim(),
-        veiculo: {
-          placa: (r.DS_PLACA || '').trim(),
-          marca: (r.DS_MARCA_VEICULO || '').trim(),
-          modelo: (r.DS_MODELO_VEICULO || '').trim(),
-        },
-        colaborador: (r.NM_COLABORADOR || '').trim(),
-      }));
+      const historico = rows.map(r => {
+        const tipo = (r.DS_TIPO_SAIDA || '').trim();
+        return {
+          id: r.CD_SAIDA,
+          dataEmissao: r.DT_EMISSAO,
+          dataSaida: r.DT_SAIDA,
+          numeroNota: (r.DS_NUMERO_NOTA || '').trim(),
+          tipo,
+          tipoLabel: labelTipo(tipo),
+          valorTotal: (r.VL_TOTAL_NOTA || 0) / 100,
+          km: r.VL_KM_VEICULO || 0,
+          observacao: (r.DS_OBS_NOTA_SAI || '').trim(),
+          veiculo: {
+            placa: (r.DS_PLACA || '').trim(),
+            marca: (r.DS_MARCA_VEICULO || '').trim(),
+            modelo: (r.DS_MODELO_VEICULO || '').trim(),
+          },
+          colaborador: (r.NM_COLABORADOR || '').trim(),
+        };
+      });
 
       return res.json({ ok: true, total: historico.length, historico });
     });

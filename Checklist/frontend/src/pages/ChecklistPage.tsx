@@ -14,6 +14,25 @@ interface VeiculoInfo {
   cliente: { id: number; nome: string; telefone: string; celular: string }
 }
 
+interface UltimaOS {
+  id: number
+  data: string | null
+  dataSaida: string | null
+  numeroNota: string
+  tipo: string
+  tipoLabel: string
+  observacao: string
+  km: number
+  colaborador: string
+}
+
+const TIPO_COLOR: Record<string, { bg: string; color: string }> = {
+  'V':  { bg: '#dcfce7', color: '#15803d' },
+  'O':  { bg: '#fef9c3', color: '#a16207' },
+  'S':  { bg: '#dbeafe', color: '#1d4ed8' },
+  'PV': { bg: '#fee2e2', color: '#b91c1c' },
+}
+
 // ─── Status configs ───────────────────────────────────────────────────────────
 const ITEM_CFG: Record<ItemStatus, { label: string; short: string; bg: string; color: string }> = {
   na:  { label: 'N/A',    short: '—',  bg: '#f3f4f6', color: '#9ca3af' },
@@ -247,7 +266,10 @@ export default function ChecklistPage() {
   const [placa, setPlaca]     = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro]       = useState('')
-  const [veiculo, setVeiculo] = useState<VeiculoInfo | null>(null)
+  const [veiculo, setVeiculo]     = useState<VeiculoInfo | null>(null)
+  const [ultimaOS, setUltimaOS]   = useState<UltimaOS | null>(null)
+  const [osList, setOsList]       = useState<UltimaOS[]>([])
+  const [showOSPicker, setShowOSPicker] = useState(false)
   const [logo, setLogo]       = useState<string | null>(null)
   const logoRef               = useRef<HTMLInputElement>(null)
 
@@ -274,7 +296,7 @@ export default function ChecklistPage() {
   const handleBuscar = async () => {
     const p = placa.trim().toUpperCase()
     if (!p) return
-    setLoading(true); setErro(''); setVeiculo(null)
+    setLoading(true); setErro(''); setVeiculo(null); setUltimaOS(null); setOsList([]); setShowOSPicker(false)
     try {
       const res  = await fetch(`/api/checklist/veiculo/placa/${p}`)
       const json = await res.json()
@@ -284,10 +306,26 @@ export default function ChecklistPage() {
       setMarca(v.marca || '')
       setModelo(v.modelo || v.descricao || '')
       setPlacaV(v.placa || '')
-      setKm(v.km ? String(v.km) : '')
       setNome(v.cliente.nome || '')
       setFone(v.cliente.celular || v.cliente.telefone || '')
-      setItems(initItems()); setBody(initBody()); setObs('')
+      setItems(initItems()); setBody(initBody())
+
+      const list: UltimaOS[] = json.osList || []
+      setOsList(list)
+
+      if (list.length > 1) {
+        // Múltiplas OS — abre o seletor, não preenche nada ainda
+        setKm(v.km ? String(v.km) : '')
+        setObs('')
+        setUltimaOS(null)
+        setShowOSPicker(true)
+      } else {
+        // Nenhuma ou apenas uma OS — carrega direto
+        const os: UltimaOS | null = json.ultimaOS || null
+        setUltimaOS(os)
+        setKm(os?.km ? String(os.km) : (v.km ? String(v.km) : ''))
+        setObs(os?.observacao || '')
+      }
     } catch { setErro('Erro ao conectar com a API.') }
     finally { setLoading(false) }
   }
@@ -312,7 +350,14 @@ export default function ChecklistPage() {
     document.title = placaV ? `Checklist ${placaV}` : 'Checklist de Veículo'
   }, [placaV])
 
-  const fmtDate = (iso: string) => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : ''
+  const fmtDate = (iso: string | null) => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : '—'
+
+  const handleSelectOS = (os: UltimaOS) => {
+    setUltimaOS(os)
+    setKm(os.km ? String(os.km) : '')
+    setObs(os.observacao || '')
+    setShowOSPicker(false)
+  }
 
   const avariaCount = Object.values(body).filter(v => v !== 'ok').length
 
@@ -382,6 +427,94 @@ export default function ChecklistPage() {
         </div>
       )}
 
+      {/* ── Modal seleção de OS ── */}
+      {showOSPicker && veiculo && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 10, width: '100%', maxWidth: 560,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden'
+          }}>
+            {/* Header modal */}
+            <div style={{ background: NAVY, color: '#fff', padding: '14px 20px' }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>Selecionar Checklist</div>
+              <div style={{ fontSize: 12, color: '#93c5fd', marginTop: 2 }}>
+                {veiculo.placa} — {veiculo.descricao || veiculo.modelo} — {osList.length} registros encontrados
+              </div>
+            </div>
+
+            {/* Lista de OS */}
+            <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+              {osList.map((os, idx) => {
+                const tipoCor = TIPO_COLOR[os.tipo?.toUpperCase()] || TIPO_COLOR['O']
+                return (
+                  <button
+                    key={os.id}
+                    onClick={() => handleSelectOS(os)}
+                    style={{
+                      width: '100%', textAlign: 'left', padding: '12px 20px',
+                      borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? '#fff' : '#f9fafb',
+                      cursor: 'pointer', border: 'none', display: 'block',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#eff6ff')}
+                    onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#f9fafb')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                      {/* Data em destaque */}
+                      <span style={{
+                        fontSize: 13, fontWeight: 800, color: NAVY,
+                        background: '#e0f2fe', borderRadius: 6, padding: '2px 10px',
+                        minWidth: 90, textAlign: 'center'
+                      }}>
+                        {fmtDate(os.data || os.dataSaida)}
+                      </span>
+                      {/* Badge tipo */}
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 8px',
+                        borderRadius: 20, background: tipoCor.bg, color: tipoCor.color
+                      }}>
+                        {os.tipoLabel || os.tipo || '—'}
+                      </span>
+                      {os.numeroNota && (
+                        <span style={{ fontSize: 11, color: '#6b7280' }}>Nº {os.numeroNota}</span>
+                      )}
+                      <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>OS #{os.id}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#6b7280' }}>
+                      {os.colaborador && <span>👤 {os.colaborador}</span>}
+                      {os.km > 0 && <span>🔢 {os.km.toLocaleString('pt-BR')} km</span>}
+                    </div>
+                    {os.observacao && (
+                      <div style={{
+                        marginTop: 5, fontSize: 11, color: '#374151',
+                        borderLeft: `3px solid ${TEAL}`, paddingLeft: 8,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%'
+                      }}>
+                        {os.observacao}
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Footer modal */}
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e5e7eb',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>Clique em um registro para abrir o checklist</span>
+              <button onClick={() => setShowOSPicker(false)}
+                style={{ fontSize: 12, color: '#6b7280', background: 'none', border: '1px solid #d1d5db',
+                  borderRadius: 6, padding: '4px 14px', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Document ── */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '16px', background: '#fff' }}
         className="print:p-0 print:max-w-none">
@@ -426,6 +559,46 @@ export default function ChecklistPage() {
             <Field label="Data de Entrada" value={data} onChange={setData} type="date" />
           </div>
         </div>
+
+        {/* ── Última OS ── */}
+        {ultimaOS && (
+          <div style={{ marginBottom: 14, border: `1px solid ${TEAL}`, borderRadius: 6,
+            padding: '10px 14px', background: '#f0f7fa' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: NAVY, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Última OS no sistema
+              </span>
+              {/* Badge tipo */}
+              {ultimaOS.tipo && (
+                <span style={{
+                  padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  background: (TIPO_COLOR[ultimaOS.tipo.toUpperCase()] || TIPO_COLOR['O']).bg,
+                  color: (TIPO_COLOR[ultimaOS.tipo.toUpperCase()] || TIPO_COLOR['O']).color,
+                  border: `1px solid currentColor`,
+                }}>
+                  {ultimaOS.tipoLabel || ultimaOS.tipo}
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: '#6b7280' }}>
+                OS #{ultimaOS.id}
+                {ultimaOS.numeroNota ? ` · Nº ${ultimaOS.numeroNota}` : ''}
+                {ultimaOS.data ? ` · ${new Date(ultimaOS.data).toLocaleDateString('pt-BR')}` : ''}
+                {ultimaOS.colaborador ? ` · ${ultimaOS.colaborador}` : ''}
+                {ultimaOS.km ? ` · ${ultimaOS.km.toLocaleString('pt-BR')} km` : ''}
+              </span>
+            </div>
+            {ultimaOS.observacao && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#374151',
+                background: '#fff', border: '1px solid #e5e7eb', borderRadius: 4,
+                padding: '6px 10px', borderLeft: `3px solid ${TEAL}` }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: TEAL, display: 'block', marginBottom: 2 }}>
+                  OBSERVAÇÃO DA ÚLTIMA OS:
+                </span>
+                {ultimaOS.observacao}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Dados do Motorista ── */}
         <div style={{ marginBottom: 14 }}>
