@@ -1,0 +1,78 @@
+/*
+ * TOKENS DE MARCA — Seven Sistemas de Automação
+ * Fonte de verdade para todos os estilos do projeto.
+ * Consultar .claude/IDENTIDADE_VISUAL.md antes de alterar.
+ *
+ * NÃO modificar sem aprovação — qualquer mudança de cor deve
+ * refletir uma decisão de marca documentada.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* === Cores de marca === */
+  --color-navy:          #0D2235;
+  --color-navy-light:    #1A3548;
+  --color-teal:          #1B7A8C;
+  --color-teal-dark:     #155F6E;
+  --color-white:         #FFFFFF;
+  --color-gray:          #8B9EB0;
+  --color-bg:            #F0F4F7;
+
+  /* === Cores funcionais === */
+  --color-border:        #CBD5E0;
+  --color-border-focus:  var(--color-teal);
+  --color-text:          var(--color-navy);
+  --color-text-muted:    var(--color-gray);
+  --color-success-bg:    #E8F5F7;
+  --color-success-border:#1B7A8C;
+  --color-error-bg:      #FEF2F2;
+  --color-error-border:  #DC2626;
+  --color-error-text:    #991B1B;
+
+  /* === Tipografia === */
+  --font-family:         'Inter', system-ui, -apple-system, sans-serif;
+  --font-size-xs:        0.75rem;   /* 12px */
+  --font-size-sm:        0.875rem;  /* 14px */
+  --font-size-base:      1rem;      /* 16px */
+  --font-size-lg:        1.125rem;  /* 18px */
+  --font-size-xl:        1.25rem;   /* 20px */
+  --font-size-2xl:       1.5rem;    /* 24px */
+
+  /* === Espaçamento === */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* === Layout === */
+  --radius-sm:    4px;
+  --radius-md:    6px;
+  --radius-lg:    8px;
+  --header-height:64px;
+  --max-width:    960px;
+
+  /* === Sombras === */
+  --shadow-card:  0 1px 4px rgba(13, 34, 53, 0.08);
+  --shadow-md:    0 4px 12px rgba(13, 34, 53, 0.12);
+
+  /* === Transição === */
+  --transition:   0.2s ease;
+}
+
+/* Reset mínimo */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
