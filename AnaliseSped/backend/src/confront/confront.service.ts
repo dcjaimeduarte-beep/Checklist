@@ -315,12 +315,15 @@ export class ConfrontService {
       );
       verdict = 'divergencia';
     }
+    const brl = (v: number) =>
+      v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     if (totalValueDiff > 0.01) {
       const pct = totalSpedValue > 0
-        ? ((totalValueDiff / totalSpedValue) * 100).toFixed(2)
+        ? ((totalValueDiff / totalSpedValue) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : '—';
       verdictMessages.push(
-        `Diferença de valor total: R$ ${totalValueDiff.toFixed(2)} (${pct}%) — SPED R$ ${totalSpedValue.toFixed(2)} × XML R$ ${totalXmlValue.toFixed(2)}.`,
+        `Diferença de valor total: R$ ${brl(totalValueDiff)} (${pct}%) — SPED R$ ${brl(totalSpedValue)} × XML R$ ${brl(totalXmlValue)}.`,
       );
       if (verdict !== 'divergencia') {
         verdict = totalValueDiff > 100 ||
@@ -332,7 +335,7 @@ export class ConfrontService {
     if (matchedWithValueDiff.length > 0) {
       const totalDivDoc = matchedWithValueDiff.reduce((s, r) => s + r.diferenca, 0);
       verdictMessages.push(
-        `${matchedWithValueDiff.length} documento(s) conferidos com divergência de valor (soma: R$ ${totalDivDoc.toFixed(2)}).`,
+        `${matchedWithValueDiff.length} documento(s) conferidos com divergência de valor (soma: R$ ${brl(totalDivDoc)}).`,
       );
       if (verdict === 'ok') verdict = 'atencao';
     }
