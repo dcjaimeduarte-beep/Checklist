@@ -108,6 +108,13 @@ export function ResultsPage() {
   const [spedPage, setSpedPage]         = useState(0)
   const [authPage, setAuthPage]         = useState(0)
   const [cancelPage, setCancelPage]     = useState(0)
+  // Filtro global de CFOP — compartilhado entre Dashboard e CFOP Agrupado
+  const [cfopFilter, setCfopFilter]     = useState('')
+
+  const cfopFilterSet = new Set(
+    cfopFilter.split(/[\s,;]+/).map(s => s.trim()).filter(s => /^\d{4}$/.test(s)),
+  )
+  const isCfopFiltered = cfopFilterSet.size > 0
 
   if (!result) {
     return (
@@ -299,6 +306,42 @@ export function ResultsPage() {
           ))}
         </div>
 
+        {/* ── Barra de filtro de CFOP (Dashboard + CFOP Agrupado) ──────── */}
+        {(activeTab === 'dashboard' || activeTab === 'cfop-agrupado') && (
+          <div className={cn(
+            'mb-4 flex items-center gap-3 rounded-xl border px-4 py-2.5 shadow-sm transition-colors',
+            isCfopFiltered
+              ? 'border-primary/40 bg-primary/5'
+              : 'border-border bg-white',
+          )}>
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Filtrar todos os totais por CFOP — ex: 5102, 5405  (separados por vírgula ou espaço)"
+              value={cfopFilter}
+              onChange={e => setCfopFilter(e.target.value)}
+              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+            />
+            {isCfopFiltered && (
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="hidden sm:flex gap-1">
+                  {[...cfopFilterSet].map(c => (
+                    <span key={c} className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">{c}</span>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCfopFilter('')}
+                  className="cursor-pointer inline-flex items-center gap-1 rounded-lg border border-border bg-white px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  Limpar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Aba Auditoria Fiscal ──────────────────────────────────────── */}
         {activeTab === 'auditoria' && (
           <AuditoriaTab result={result} />
@@ -306,12 +349,12 @@ export function ResultsPage() {
 
         {/* ── Aba Dashboard ─────────────────────────────────────────────── */}
         {activeTab === 'dashboard' && (
-          <DashboardTab result={result} />
+          <DashboardTab result={result} cfopFilterSet={cfopFilterSet} />
         )}
 
         {/* ── Aba CFOP Agrupado ─────────────────────────────────────────── */}
         {activeTab === 'cfop-agrupado' && (
-          <CfopAgrupadoTab result={result} />
+          <CfopAgrupadoTab result={result} cfopFilterSet={cfopFilterSet} />
         )}
 
         {/* ── Aba Resumo ────────────────────────────────────────────────── */}
@@ -1104,7 +1147,13 @@ function BRL(value: number) {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
+function DashboardTab({
+  result,
+  cfopFilterSet,
+}: {
+  result: NonNullable<ReturnType<typeof useConfront>['result']>
+  cfopFilterSet: Set<string>
+}) {
   const db = result.dashboard ?? {
     totalVlSpedGeral: 0, totalVlSpedEntradas: 0, totalVlSpedSaidas: 0,
     totalVlOprC190: 0, totalVlOprC190Entradas: 0, totalVlOprC190Saidas: 0,
@@ -1112,31 +1161,43 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
     cfopSummary: [],
   }
 
-  const [dashCfopFilter, setDashCfopFilter] = useState('')
-
-  const dashFilterSet = new Set(
-    dashCfopFilter.split(/[\s,;]+/).map(s => s.trim()).filter(s => /^\d{4}$/.test(s)),
-  )
-  const isDashFiltered = dashFilterSet.size > 0
+  const isDashFiltered = cfopFilterSet.size > 0
 
   const cfopRows: CfopSummary[] = [...db.cfopSummary].sort((a, b) =>
     a.cfop.localeCompare(b.cfop),
   )
 
   const cfopRowsFiltered = isDashFiltered
-    ? cfopRows.filter(r => dashFilterSet.has(r.cfop))
+    ? cfopRows.filter(r => cfopFilterSet.has(r.cfop))
     : cfopRows
 
   // VL_OPR total: usa campo calculado pelo backend (sessões novas) ou soma local (sessões antigas)
-  const totalVlOprC190         = db.totalVlOprC190 ?? cfopRows.reduce((s, r) => s + r.vlOpr, 0)
-  const totalVlOprC190Entradas = db.totalVlOprC190Entradas ?? cfopRows.filter(r => ['1','2'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0)
-  const totalVlOprC190Saidas   = db.totalVlOprC190Saidas   ?? cfopRows.filter(r => ['5','6'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0)
+  const totalVlOprC190All         = db.totalVlOprC190 ?? cfopRows.reduce((s, r) => s + r.vlOpr, 0)
+  const totalVlOprC190Entradas    = db.totalVlOprC190Entradas ?? cfopRows.filter(r => ['1','2'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0)
+  const totalVlOprC190Saidas      = db.totalVlOprC190Saidas   ?? cfopRows.filter(r => ['5','6'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0)
 
-  const totalCfopOpr  = isDashFiltered
-    ? cfopRowsFiltered.reduce((s, r) => s + r.vlOpr, 0)
-    : totalVlOprC190
-  const totalCfopIcms = cfopRowsFiltered.reduce((s, r) => s + r.vlIcms, 0)
-  const totalCfopSt   = cfopRowsFiltered.reduce((s, r) => s + r.vlIcmsSt, 0)
+  // Quando filtrado: recalcula VL_OPR a partir das linhas C190 filtradas
+  const vlOprGeral    = isDashFiltered ? cfopRowsFiltered.reduce((s, r) => s + r.vlOpr, 0) : totalVlOprC190All
+  const vlOprEntradas = isDashFiltered ? cfopRowsFiltered.filter(r => ['1','2','3'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0) : totalVlOprC190Entradas
+  const vlOprSaidas   = isDashFiltered ? cfopRowsFiltered.filter(r => ['5','6','7'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0) : totalVlOprC190Saidas
+  const vlIcmsGeral   = cfopRowsFiltered.reduce((s, r) => s + r.vlIcms, 0)
+  const vlIcmsStGeral = cfopRowsFiltered.reduce((s, r) => s + r.vlIcmsSt, 0)
+
+  const totalCfopOpr  = vlOprGeral
+  const totalCfopIcms = vlIcmsGeral
+  const totalCfopSt   = vlIcmsStGeral
+
+  // Totais XML filtrados por CFOP (apenas xmlsNotInSped — matched não tem detalhe por CFOP)
+  const xmlFiltered = isDashFiltered
+    ? (result.xmlsNotInSped ?? []).filter(xml => {
+        if (!xml.cfops) return false
+        const xmlCfops = xml.cfops.split(/[\s,]+/).map(c => c.trim())
+        return xmlCfops.some(c => cfopFilterSet.has(c))
+      })
+    : result.xmlsNotInSped ?? []
+  const filteredXmlVnf  = xmlFiltered.reduce((s, r) => s + (Number(r.vNF)  || 0), 0)
+  const filteredXmlIcms = xmlFiltered.reduce((s, r) => s + (Number(r.vICMS) || 0), 0)
+  const filteredXmlSt   = xmlFiltered.reduce((s, r) => s + (Number(r.vST)   || 0), 0)
 
   return (
     <div className="space-y-5">
@@ -1146,6 +1207,11 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">S</span>
           Valores apurados — SPED Fiscal
+          {isDashFiltered && (
+            <span className="ml-auto rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+              Filtrado: {[...cfopFilterSet].join(', ')}
+            </span>
+          )}
         </h3>
 
         {/* VL_OPR C190 — referência fiscal principal */}
@@ -1153,15 +1219,22 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
           <div className="mb-2 flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-widest text-primary">VL Operação — C190</span>
             <span className="rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold text-white">Referência Fiscal</span>
+            {isDashFiltered && (
+              <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[9px] font-semibold text-primary">
+                {cfopRowsFiltered.length} CFOP{cfopRowsFiltered.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           <p className="mb-2 text-[10px] text-muted-foreground">
-            Total operacional escriturado (exclui frete, seguro e despesas acessórias — base usada pela contabilidade)
+            {isDashFiltered
+              ? `Total operacional dos CFOP${cfopFilterSet.size !== 1 ? 's' : ''} selecionado${cfopFilterSet.size !== 1 ? 's' : ''} (C190 VL_OPR)`
+              : 'Total operacional escriturado (exclui frete, seguro e despesas acessórias — base usada pela contabilidade)'}
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {[
-              { label: 'Total geral (VL_OPR)', value: totalVlOprC190,         cls: 'text-primary' },
-              { label: 'Entradas (1xxx/2xxx)',  value: totalVlOprC190Entradas, cls: 'text-blue-600' },
-              { label: 'Saídas (5xxx/6xxx)',    value: totalVlOprC190Saidas,   cls: 'text-orange-600' },
+              { label: isDashFiltered ? 'VL_OPR filtrado'   : 'Total geral (VL_OPR)', value: vlOprGeral,    cls: 'text-primary' },
+              { label: 'Entradas (1xxx/2xxx)',                                          value: vlOprEntradas, cls: 'text-blue-600' },
+              { label: 'Saídas (5xxx/6xxx)',                                            value: vlOprSaidas,   cls: 'text-orange-600' },
             ].map(({ label, value, cls }) => (
               <div key={label} className="rounded-md bg-white px-3 py-2 border border-primary/10">
                 <p className="text-[10px] text-muted-foreground">{label}</p>
@@ -1169,11 +1242,28 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
               </div>
             ))}
           </div>
+          {isDashFiltered && (
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-2">
+              <div className="rounded-md bg-white px-3 py-2 border border-primary/10">
+                <p className="text-[10px] text-muted-foreground">VL ICMS (filtrado)</p>
+                <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">R$ {BRL(vlIcmsGeral)}</p>
+              </div>
+              <div className="rounded-md bg-white px-3 py-2 border border-primary/10">
+                <p className="text-[10px] text-muted-foreground">VL ICMS ST (filtrado)</p>
+                <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">R$ {BRL(vlIcmsStGeral)}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* VL_DOC C100 — total dos documentos */}
-        <div className="rounded-lg border border-border bg-[#F8FAFC] px-4 py-3">
-          <p className="mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">VL Documento — C100/D100 (inclui frete/seguro/acessórias)</p>
+        <div className={cn('rounded-lg border px-4 py-3', isDashFiltered ? 'border-border/50 bg-[#F8FAFC] opacity-60' : 'border-border bg-[#F8FAFC]')}>
+          <div className="mb-2 flex items-center gap-2">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">VL Documento — C100/D100 (inclui frete/seguro/acessórias)</p>
+            {isDashFiltered && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[9px] text-muted-foreground">total geral</span>
+            )}
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {[
               { label: 'Total geral (VL_DOC)',  value: db.totalVlSpedGeral,    cls: 'text-foreground' },
@@ -1186,6 +1276,9 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
               </div>
             ))}
           </div>
+          {isDashFiltered && (
+            <p className="mt-2 text-[10px] text-muted-foreground/70">C100/D100 não possui detalhe por CFOP — exibindo total geral.</p>
+          )}
         </div>
       </div>
 
@@ -1194,38 +1287,56 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary/10 text-[10px] font-bold text-secondary">X</span>
           Valores apurados — XMLs enviados
+          {isDashFiltered && (
+            <span className="ml-auto rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">
+              Não escriturados com esses CFOPs: {xmlFiltered.length} doc(s)
+            </span>
+          )}
         </h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {[
-            { label: 'Total geral (vNF)',    value: db.totalVlXmlGeral,    cls: 'text-secondary' },
-            { label: 'Entradas (tpNF=0)',    value: db.totalVlXmlEntradas, cls: 'text-blue-600' },
-            { label: 'Saídas (tpNF=1)',      value: db.totalVlXmlSaidas,   cls: 'text-orange-600' },
-          ].map(({ label, value, cls }) => (
-            <div key={label} className="rounded-lg border border-border bg-[#F8FAFC] px-4 py-3">
-              <p className="text-[11px] text-muted-foreground">{label}</p>
-              <p className={cn('mt-1 text-lg font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
+        {isDashFiltered ? (
+          // Quando filtrado: mostra XMLs não escriturados no SPED com esses CFOPs
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                { label: `VL NF (${xmlFiltered.length} doc${xmlFiltered.length !== 1 ? 's' : ''} não escriturados)`, value: filteredXmlVnf,  cls: 'text-amber-700' },
+                { label: 'VL ICMS (não escriturados)',                                                                  value: filteredXmlIcms, cls: 'text-blue-600' },
+                { label: 'VL ICMS ST (não escriturados)',                                                               value: filteredXmlSt,   cls: 'text-orange-600' },
+              ].map(({ label, value, cls }) => (
+                <div key={label} className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[11px] text-amber-700">{label}</p>
+                  <p className={cn('mt-1 text-lg font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+            <p className="text-[10px] text-muted-foreground">
+              * Apenas documentos XML <strong>não escriturados no SPED</strong> com o(s) CFOP(s) filtrado(s). Documentos conferidos (presentes em ambos) não são detalhados por CFOP individualmente.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { label: 'Total geral (vNF)',    value: db.totalVlXmlGeral,    cls: 'text-secondary' },
+              { label: 'Entradas (tpNF=0)',    value: db.totalVlXmlEntradas, cls: 'text-blue-600' },
+              { label: 'Saídas (tpNF=1)',      value: db.totalVlXmlSaidas,   cls: 'text-orange-600' },
+            ].map(({ label, value, cls }) => (
+              <div key={label} className="rounded-lg border border-border bg-[#F8FAFC] px-4 py-3">
+                <p className="text-[11px] text-muted-foreground">{label}</p>
+                <p className={cn('mt-1 text-lg font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Resumo por CFOP ── */}
       <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-border px-5 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Resumo por CFOP — Registro C190</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">Totais de operações agrupados por CFOP conforme escrituração no SPED</p>
-          </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Filtrar CFOP: 5102, 5405..."
-              value={dashCfopFilter}
-              onChange={e => setDashCfopFilter(e.target.value)}
-              className="h-8 w-full rounded-lg border border-border bg-backgroundMuted pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
-          </div>
+        <div className="border-b border-border px-5 py-3">
+          <h3 className="text-sm font-semibold text-foreground">Resumo por CFOP — Registro C190</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {isDashFiltered
+              ? `Exibindo ${cfopRowsFiltered.length} de ${cfopRows.length} CFOPs — filtrado por: ${[...cfopFilterSet].join(', ')}`
+              : 'Totais de operações agrupados por CFOP conforme escrituração no SPED'}
+          </p>
         </div>
         {isDashFiltered && cfopRowsFiltered.length === 0 && (
           <p className="px-5 py-4 text-xs text-muted-foreground">Nenhum CFOP encontrado para o filtro informado.</p>
@@ -1285,19 +1396,19 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
 
 // ── CFOP Agrupado Tab ─────────────────────────────────────────────────────────
 
-function CfopAgrupadoTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
+function CfopAgrupadoTab({
+  result,
+  cfopFilterSet,
+}: {
+  result: NonNullable<ReturnType<typeof useConfront>['result']>
+  cfopFilterSet: Set<string>
+}) {
   const cfopSummary = result.dashboard?.cfopSummary ?? []
-  const [filterInput, setFilterInput] = useState('')
-
-  // Parse CFOPs do input: aceita separadores espaço, vírgula, ponto-e-vírgula
-  const filterSet = new Set(
-    filterInput.split(/[\s,;]+/).map(s => s.trim()).filter(s => /^\d{4}$/.test(s)),
-  )
-  const isFiltered = filterSet.size > 0
+  const isFiltered  = cfopFilterSet.size > 0
 
   // cfopSummary filtrado (para tabelas)
   const activeSummary = isFiltered
-    ? cfopSummary.filter(r => filterSet.has(r.cfop))
+    ? cfopSummary.filter(r => cfopFilterSet.has(r.cfop))
     : cfopSummary
 
   // Totais SPED (C190) para os CFOPs selecionados
@@ -1307,13 +1418,12 @@ function CfopAgrupadoTab({ result }: { result: NonNullable<ReturnType<typeof use
   const filteredSpedBc   = activeSummary.reduce((s, r) => s + r.vlBcIcms, 0)
 
   // Totais XML (xmlsNotInSped) para os CFOPs selecionados
-  // cfops no XML é "5102, 5405" (separado por ", ")
   const xmlItemsAll = result.xmlsNotInSped ?? []
   const xmlItemsFiltered = isFiltered
     ? xmlItemsAll.filter(xml => {
         if (!xml.cfops) return false
         const xmlCfops = xml.cfops.split(/[\s,]+/).map(c => c.trim())
-        return xmlCfops.some(c => filterSet.has(c))
+        return xmlCfops.some(c => cfopFilterSet.has(c))
       })
     : xmlItemsAll
   const filteredXmlVnf  = xmlItemsFiltered.reduce((s, r) => s + (Number(r.vNF)  || 0), 0)
@@ -1423,85 +1533,53 @@ function CfopAgrupadoTab({ result }: { result: NonNullable<ReturnType<typeof use
   return (
     <div className="flex flex-col gap-4">
 
-      {/* ── Filtro de CFOP ── */}
-      <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label className="mb-1 block text-xs font-semibold text-foreground">Filtrar por CFOP</label>
-            <p className="mb-2 text-[11px] text-muted-foreground">
-              Digite um ou mais CFOPs separados por vírgula ou espaço. Ex: <code className="rounded bg-muted px-1 font-mono">5102, 5405</code>
-            </p>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Ex: 5102, 5405, 1102..."
-                value={filterInput}
-                onChange={e => setFilterInput(e.target.value)}
-                className="h-9 w-full max-w-xs rounded-lg border border-border bg-backgroundMuted pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
+      {/* ── Painel de comparação SPED vs XML (apenas quando filtrado) ── */}
+      {isFiltered && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-primary">
+            Resultado — {[...cfopFilterSet].join(', ')} ({activeSummary.length} linha{activeSummary.length !== 1 ? 's' : ''} C190)
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {/* SPED */}
+            <div className="col-span-2 sm:col-span-3 grid grid-cols-3 gap-2">
+              <div className="rounded-md border border-primary/20 bg-white px-3 py-2.5">
+                <p className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-0.5">SPED — VL Operação</p>
+                <p className="text-sm font-bold text-primary tabular-nums">R$ {BRL(filteredSpedOpr)}</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">C190 VL_OPR (referência fiscal)</p>
+              </div>
+              <div className="rounded-md border border-border bg-white px-3 py-2.5">
+                <p className="text-[10px] text-muted-foreground mb-0.5">SPED — BC ICMS</p>
+                <p className="text-sm font-semibold text-foreground tabular-nums">R$ {BRL(filteredSpedBc)}</p>
+              </div>
+              <div className="rounded-md border border-border bg-white px-3 py-2.5">
+                <p className="text-[10px] text-muted-foreground mb-0.5">SPED — VL ICMS</p>
+                <p className="text-sm font-semibold text-foreground tabular-nums">R$ {BRL(filteredSpedIcms)}</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">ST: R$ {BRL(filteredSpedSt)}</p>
+              </div>
+            </div>
+            {/* XML */}
+            <div className="col-span-2 sm:col-span-3 grid grid-cols-3 gap-2">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">XML — VL NF</p>
+                <p className="text-sm font-bold text-amber-800 tabular-nums">R$ {BRL(filteredXmlVnf)}</p>
+                <p className="text-[9px] text-amber-600 mt-0.5">{xmlItemsFiltered.length} doc(s) não escriturado{xmlItemsFiltered.length !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="rounded-md border border-amber-100 bg-amber-50/50 px-3 py-2.5">
+                <p className="text-[10px] text-amber-700 mb-0.5">XML — VL ICMS</p>
+                <p className="text-sm font-semibold text-amber-800 tabular-nums">R$ {BRL(filteredXmlIcms)}</p>
+              </div>
+              <div className="rounded-md border border-amber-100 bg-amber-50/50 px-3 py-2.5">
+                <p className="text-[10px] text-amber-700 mb-0.5">XML — VL ICMS ST</p>
+                <p className="text-sm font-semibold text-amber-800 tabular-nums">R$ {BRL(filteredXmlSt)}</p>
+              </div>
             </div>
           </div>
-          {isFiltered && (
-            <button
-              type="button"
-              onClick={() => setFilterInput('')}
-              className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-backgroundMuted transition-colors"
-            >
-              <X className="h-3 w-3" />
-              Limpar filtro
-            </button>
-          )}
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            * Valores XML referem-se apenas aos documentos <strong>não escriturados no SPED</strong> com o(s) CFOP(s) selecionado(s).
+            Documentos conferidos (presentes em ambos) não são detalhados por CFOP individualmente.
+          </p>
         </div>
-
-        {/* ── Painel de comparação SPED vs XML (apenas quando filtrado) ── */}
-        {isFiltered && (
-          <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-primary">
-              Resultado — {[...filterSet].join(', ')} ({activeSummary.length} linha{activeSummary.length !== 1 ? 's' : ''} C190)
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              {/* SPED */}
-              <div className="col-span-2 sm:col-span-3 grid grid-cols-3 gap-2">
-                <div className="rounded-md border border-primary/20 bg-white px-3 py-2.5">
-                  <p className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-0.5">SPED — VL Operação</p>
-                  <p className="text-sm font-bold text-primary tabular-nums">R$ {BRL(filteredSpedOpr)}</p>
-                  <p className="text-[9px] text-muted-foreground mt-0.5">C190 VL_OPR (referência fiscal)</p>
-                </div>
-                <div className="rounded-md border border-border bg-white px-3 py-2.5">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">SPED — BC ICMS</p>
-                  <p className="text-sm font-semibold text-foreground tabular-nums">R$ {BRL(filteredSpedBc)}</p>
-                </div>
-                <div className="rounded-md border border-border bg-white px-3 py-2.5">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">SPED — VL ICMS</p>
-                  <p className="text-sm font-semibold text-foreground tabular-nums">R$ {BRL(filteredSpedIcms)}</p>
-                  <p className="text-[9px] text-muted-foreground mt-0.5">ST: R$ {BRL(filteredSpedSt)}</p>
-                </div>
-              </div>
-              {/* XML */}
-              <div className="col-span-2 sm:col-span-3 grid grid-cols-3 gap-2">
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 col-span-1">
-                  <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">XML — VL NF</p>
-                  <p className="text-sm font-bold text-amber-800 tabular-nums">R$ {BRL(filteredXmlVnf)}</p>
-                  <p className="text-[9px] text-amber-600 mt-0.5">{xmlItemsFiltered.length} doc(s) não escriturado{xmlItemsFiltered.length !== 1 ? 's' : ''}</p>
-                </div>
-                <div className="rounded-md border border-amber-100 bg-amber-50/50 px-3 py-2.5">
-                  <p className="text-[10px] text-amber-700 mb-0.5">XML — VL ICMS</p>
-                  <p className="text-sm font-semibold text-amber-800 tabular-nums">R$ {BRL(filteredXmlIcms)}</p>
-                </div>
-                <div className="rounded-md border border-amber-100 bg-amber-50/50 px-3 py-2.5">
-                  <p className="text-[10px] text-amber-700 mb-0.5">XML — VL ICMS ST</p>
-                  <p className="text-sm font-semibold text-amber-800 tabular-nums">R$ {BRL(filteredXmlSt)}</p>
-                </div>
-              </div>
-            </div>
-            <p className="mt-2 text-[10px] text-muted-foreground">
-              * Valores XML referem-se apenas aos documentos <strong>não escriturados no SPED</strong> com o(s) CFOP(s) selecionado(s).
-              Documentos conferidos (presentes em ambos) não são detalhados por CFOP individualmente.
-            </p>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Entradas */}
       <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
