@@ -77,18 +77,26 @@ export class ConfrontService {
     const {
       xmlsNotInSped, spedNotInXml, matchedWithValueDiff,
       totalVlSpedMatched, totalVlXmlMatched,
+      cancelledMatchedChaves,
     } = this.compare(spedEntries, xmlEntries, cancelChaves);
 
-    // 5. XMLs sem autorização SEFAZ (do conjunto filtrado)
+    // Conjunto unificado de chaves "canceladas conhecidas" (evento XML + COD_SIT 02/03/04 no SPED)
+    const allCancelledChaves = new Set([...cancelChaves, ...cancelledMatchedChaves]);
+
+    // 5. XMLs sem autorização SEFAZ — excluir XMLs de notas canceladas confirmadas
+    //    (o nfce.xml de uma nota cancelada não deve aparecer como "sem autorização")
     const xmlsSemAutorizacao: XmlItemDto[] = xmlEntries
-      .filter((e) => !e.autorizada)
+      .filter((e) => !e.autorizada && !allCancelledChaves.has(e.chave))
       .map((e) => this.toXmlItemDto(e.chave, e));
 
-    // totalMatches = SPED entries que têm XML correspondente
-    // (excluir chaves de cancelamento que estão no SPED mas não têm XML)
+    // totalMatches = SPED entries que têm XML correspondente e são notas regulares
+    // (excluir: sem XML com cancelamento, e com XML mas COD_SIT cancelado/denegado)
     const spedEntryChaveSet = new Set(spedEntries.map((e) => e.chave));
     const cancelInSpedCount = [...cancelChaves].filter((ch) => spedEntryChaveSet.has(ch)).length;
-    const totalMatches = spedEntries.length - spedNotInXml.length - cancelInSpedCount;
+    const totalMatches = spedEntries.length
+      - spedNotInXml.length
+      - cancelInSpedCount
+      - cancelledMatchedChaves.size;
 
     // 6. Calcular dashboard (totais + CFOP)
     const dashboard = this.buildDashboard(spedEntries, xmlEntries, spedResult.cfopSummary);
@@ -97,7 +105,9 @@ export class ConfrontService {
     const allSpedMap = new Map<string, SpedEntry>(
       spedResult.entries.map((e) => [e.chave, e]),
     );
-    const cancelamentos = this.buildCancelamentos(cancelEntries, allSpedMap);
+    // Inclui também chaves COD_SIT=02/03/04 do SPED filtrado que matcharam XML
+    // (têm nota física mas foram canceladas — sem necessidade de evento para identificar)
+    const cancelamentos = this.buildCancelamentos(cancelEntries, allSpedMap, cancelledMatchedChaves);
 
     // 7. Relatório de auditoria
     const totalVlXmlNotInSped  = xmlsNotInSped.reduce((s, e) => s + (parseFloat(e.vNF ?? '0') || 0), 0);
@@ -188,6 +198,13 @@ export class ConfrontService {
 
   // -------------------------------------------------------------------
 
+  /**
+   * COD_SIT no SPED onde VL_DOC é sempre zero por design.
+   * Notas canceladas (02/03) e denegadas (04) nunca têm valor fiscal — comparar
+   * VL_DOC=0 contra vNF do XML não é divergência, é comportamento esperado.
+   */
+  private static readonly CODSIT_SEM_VALOR = new Set(['02', '03', '04']);
+
   private compare(
     spedEntries: SpedEntry[],
     xmlEntries: XmlEntry[],
@@ -199,6 +216,8 @@ export class ConfrontService {
     matchedWithValueDiff: AuditItemDto[];
     totalVlSpedMatched: number;
     totalVlXmlMatched: number;
+    /** Chaves presentes em ambos os lados mas com COD_SIT cancelado/denegado */
+    cancelledMatchedChaves: Set<string>;
   } {
     const spedChaves = new Map<string, SpedEntry>(
       spedEntries.map((e) => [e.chave, e]),
@@ -207,6 +226,7 @@ export class ConfrontService {
       xmlEntries.map((e) => [e.chave, e]),
     );
 
+    // XMLs sem entrada no SPED (e sem evento de cancelamento)
     const xmlsNotInSped: XmlItemDto[] = [];
     for (const [chave, xml] of xmlChaves) {
       if (!spedChaves.has(chave)) {
@@ -214,76 +234,92 @@ export class ConfrontService {
       }
     }
 
+    // SPED sem XML — excluir chaves com evento de cancelamento
     const spedNotInXml: SpedItemDto[] = [];
     for (const [chave, sped] of spedChaves) {
-      // Excluir chaves que possuem evento de cancelamento — vão para a aba Cancelamentos
       if (!xmlChaves.has(chave) && !cancelChaves.has(chave)) {
         spedNotInXml.push(this.toSpedItemDto(chave, sped));
       }
     }
 
-    // Pares encontrados nos dois lados: acumular totais e detectar divergência de valor
+    // Pares encontrados nos dois lados
     const matchedWithValueDiff: AuditItemDto[] = [];
+    const cancelledMatchedChaves = new Set<string>();
     let totalVlSpedMatched = 0;
     let totalVlXmlMatched  = 0;
 
     for (const [chave, sped] of spedChaves) {
       const xml = xmlChaves.get(chave);
-      if (xml) {
-        const vlSped = sped.vlDoc ?? 0;
-        const vlXml  = parseFloat(xml.vNF ?? '0') || 0;
-        totalVlSpedMatched += vlSped;
-        totalVlXmlMatched  += vlXml;
-        const diferenca = Math.abs(vlSped - vlXml);
-        if (diferenca > 0.01) {
-          matchedWithValueDiff.push({
-            chave,
-            registro:   sped.registro,
-            numDoc:     sped.numDoc,
-            dtDoc:      sped.dtDoc,
-            indOper:    sped.indOper,
-            nNF:        xml.nNF,
-            dhEmi:      xml.dhEmi,
-            cnpjEmit:   xml.cnpjEmit,
-            xNomeEmit:  xml.xNomeEmit,
-            vlSped,
-            vlXml,
-            diferenca,
-          });
-        }
+      if (!xml) continue;
+
+      // Nota cancelada/denegada no SPED: VL_DOC=0 é design, não é divergência.
+      // Registrar como "cancelamento identificado" e pular comparação de valor.
+      if (ConfrontService.CODSIT_SEM_VALOR.has(sped.codSit)) {
+        cancelledMatchedChaves.add(chave);
+        continue;
+      }
+
+      const vlSped = sped.vlDoc ?? 0;
+      const vlXml  = parseFloat(xml.vNF ?? '0') || 0;
+      totalVlSpedMatched += vlSped;
+      totalVlXmlMatched  += vlXml;
+      const diferenca = Math.abs(vlSped - vlXml);
+      if (diferenca > 0.01) {
+        matchedWithValueDiff.push({
+          chave,
+          registro:  sped.registro,
+          numDoc:    sped.numDoc,
+          dtDoc:     sped.dtDoc,
+          indOper:   sped.indOper,
+          nNF:       xml.nNF,
+          dhEmi:     xml.dhEmi,
+          cnpjEmit:  xml.cnpjEmit,
+          xNomeEmit: xml.xNomeEmit,
+          vlSped,
+          vlXml,
+          diferenca,
+        });
       }
     }
 
-    return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff, totalVlSpedMatched, totalVlXmlMatched };
+    return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff, totalVlSpedMatched, totalVlXmlMatched, cancelledMatchedChaves };
   }
 
   /**
    * Consolida eventos de cancelamento (tpEvento=110111) com registros do SPED.
-   * Classifica cada evento como:
-   * - 'ok'      → chave encontrada no SPED com COD_SIT='02' (cancelado em ambos)
-   * - 'atencao' → chave encontrada no SPED com COD_SIT≠'02' (ativo no SPED, cancelado no XML!)
-   * - 'info'    → chave ausente do SPED (normal: canceladas não precisam ser escrituradas)
+   * Também adiciona entradas para notas com COD_SIT=02/03/04 no SPED que matcharam
+   * XML mas não têm evento separado — identificadas via cancelledMatchedChaves.
+   *
+   * Classificação da situação:
+   * - 'ok'      → noSped && COD_SIT em 02/03/04 (cancelado corretamente no SPED)
+   * - 'atencao' → noSped && COD_SIT regular (ativo no SPED, mas cancelado no XML!)
+   * - 'info'    → !noSped (não escriturada — normal para cancelamentos)
    */
   private buildCancelamentos(
     cancelEntries: import('../xml-parser/xml-parser.types').XmlEntry[],
     allSpedMap: Map<string, SpedEntry>,
+    cancelledMatchedChaves: Set<string> = new Set(),
   ): CancelamentoItemDto[] {
-    return cancelEntries.map((evt) => {
-      // Número da NF-e extraído da chave (posição 25, comprimento 9)
+    const result: CancelamentoItemDto[] = [];
+    const processedChaves = new Set<string>();
+
+    // 1. Processar eventos de cancelamento XML (procEventoNFe)
+    for (const evt of cancelEntries) {
+      processedChaves.add(evt.chave);
       const nNF = evt.chave.substring(25, 34).replace(/^0+/, '') || evt.chave.substring(25, 34);
       const spedEntry = allSpedMap.get(evt.chave);
       const noSped = !!spedEntry;
 
       let situacao: 'ok' | 'atencao' | 'info';
       if (!noSped) {
-        situacao = 'info';       // ausente do SPED — normal para cancelamentos
-      } else if (spedEntry.codSit === '02') {
-        situacao = 'ok';         // escriturado como cancelado — consistente
+        situacao = 'info';
+      } else if (ConfrontService.CODSIT_SEM_VALOR.has(spedEntry.codSit)) {
+        situacao = 'ok';
       } else {
-        situacao = 'atencao';    // escriturado como ativo no SPED — divergência!
+        situacao = 'atencao';   // ativo no SPED mas evento de cancelamento existe!
       }
 
-      return {
+      result.push({
         chave: evt.chave,
         filename: evt.filename,
         nNF,
@@ -296,8 +332,34 @@ export class ConfrontService {
         vlDocSped: spedEntry?.vlDoc,
         registroSped: spedEntry?.registro,
         situacao,
-      };
-    });
+      });
+    }
+
+    // 2. Adicionar notas canceladas/denegadas detectadas via COD_SIT no SPED
+    //    (COD_SIT=02/03/04 + XML correspondente presente, sem evento separado)
+    for (const chave of cancelledMatchedChaves) {
+      if (processedChaves.has(chave)) continue; // já incluída pelo evento XML
+      const spedEntry = allSpedMap.get(chave);
+      if (!spedEntry) continue;
+
+      const nNF = chave.substring(25, 34).replace(/^0+/, '') || chave.substring(25, 34);
+      result.push({
+        chave,
+        filename: '(identificado pelo SPED)',
+        nNF,
+        dhCancelamento: undefined,
+        cStatEvento: '101',  // Cancelado
+        xMotivoEvento: `COD_SIT=${spedEntry.codSit} no SPED EFD`,
+        xJust: undefined,
+        noSped: true,
+        codSitSped: spedEntry.codSit,
+        vlDocSped: spedEntry.vlDoc,
+        registroSped: spedEntry.registro,
+        situacao: 'ok',   // SPED já reflete o cancelamento corretamente
+      });
+    }
+
+    return result;
   }
 
   private buildDashboard(
