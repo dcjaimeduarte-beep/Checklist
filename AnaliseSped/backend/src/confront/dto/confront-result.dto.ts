@@ -86,9 +86,17 @@ export class AuditReportDto {
   totalSpedCount: number;
   totalXmlCount: number;
   matchedCount: number;
+  /** Totais gerais de cada lado (todos os documentos) */
   totalSpedValue: number;
   totalXmlValue: number;
   totalValueDiff: number;
+  /** Totais apenas dos pares casados (chave encontrada nos dois lados) */
+  totalVlSpedMatched: number;
+  totalVlXmlMatched: number;
+  /** Soma dos XMLs sem escrituração no SPED */
+  totalVlXmlNotInSped: number;
+  /** Soma das entradas SPED sem XML correspondente */
+  totalVlSpedNotInXml: number;
   /** Documentos presentes em ambos mas com VL_DOC ≠ vNF */
   matchedWithValueDiff: AuditItemDto[];
   /** 'ok' | 'atencao' | 'divergencia' */

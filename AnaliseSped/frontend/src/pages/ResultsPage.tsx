@@ -705,14 +705,17 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
     totalSpedValue: result.dashboard?.totalVlSpedGeral ?? 0,
     totalXmlValue: result.dashboard?.totalVlXmlGeral ?? 0,
     totalValueDiff: 0,
+    totalVlSpedMatched: 0, totalVlXmlMatched: 0,
+    totalVlXmlNotInSped: 0, totalVlSpedNotInXml: 0,
     matchedWithValueDiff: [] as AuditItem[],
     verdict: 'ok' as const,
     verdictMessages: [],
   }
 
   const cfg = VERDICT_CFG[audit.verdict as keyof typeof VERDICT_CFG] ?? VERDICT_CFG.ok
-
   const diffRows = [...(audit.matchedWithValueDiff ?? [])].sort((a, b) => b.diferenca - a.diferenca)
+
+  const matchedDiff = audit.totalVlSpedMatched - audit.totalVlXmlMatched
 
   const checks: Array<{ label: string; ok: boolean; detail: string }> = [
     {
@@ -726,11 +729,11 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
       detail: `${audit.matchedCount} de ${Math.max(audit.totalSpedCount, audit.totalXmlCount)} pares encontrados`,
     },
     {
-      label: 'Valor total SPED × XML',
-      ok: audit.totalValueDiff <= 0.01,
-      detail: audit.totalValueDiff > 0.01
-        ? `Diferença: R$ ${BRL(audit.totalValueDiff)} (SPED R$ ${BRL(audit.totalSpedValue)} | XML R$ ${BRL(audit.totalXmlValue)})`
-        : `R$ ${BRL(audit.totalSpedValue)} — valores idênticos`,
+      label: 'Valores nos pares conferidos',
+      ok: Math.abs(matchedDiff) <= 0.01 && diffRows.length === 0,
+      detail: Math.abs(matchedDiff) <= 0.01
+        ? `R$ ${BRL(audit.totalVlSpedMatched)} — valores idênticos nos pares`
+        : `SPED R$ ${BRL(audit.totalVlSpedMatched)} | XML R$ ${BRL(audit.totalVlXmlMatched)} | Δ R$ ${BRL(Math.abs(matchedDiff))}`,
     },
     {
       label: 'Valores por documento',
@@ -783,6 +786,80 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
             </li>
           ))}
         </ul>
+      </div>
+
+      {/* Decomposição dos totais */}
+      <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        <div className="px-6 py-3 border-b border-border bg-[#F8FAFC]">
+          <p className="text-sm font-semibold text-foreground">Decomposição dos valores</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">De onde vem a diferença entre o total SPED e o total XML</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[#0d1f30] text-white text-left">
+                <th className="px-4 py-3 font-semibold">Origem</th>
+                <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Qtd docs</th>
+                <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">VL SPED</th>
+                <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">VL XML</th>
+                <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Diferença</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="bg-white border-b border-border">
+                <td className="px-4 py-3">
+                  <p className="font-medium text-foreground">Pares conferidos (chave OK)</p>
+                  <p className="text-muted-foreground">Documentos presentes nos dois lados</p>
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">{audit.matchedCount}</td>
+                <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{BRL(audit.totalVlSpedMatched)}</td>
+                <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{BRL(audit.totalVlXmlMatched)}</td>
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', Math.abs(matchedDiff) > 0.01 ? 'text-red-600' : 'text-emerald-600')}>
+                  {Math.abs(matchedDiff) > 0.01 ? BRL(Math.abs(matchedDiff)) : '—'}
+                </td>
+              </tr>
+              <tr className="bg-[#F2F5F7] border-b border-border">
+                <td className="px-4 py-3">
+                  <p className="font-medium text-foreground">XMLs sem escrituração no SPED</p>
+                  <p className="text-muted-foreground">XMLs enviados que não constam no SPED</p>
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">{result.xmlsNotInSped.length}</td>
+                <td className="px-4 py-3 text-right text-muted-foreground">—</td>
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap', audit.totalVlXmlNotInSped > 0 ? 'text-red-600 font-semibold' : '')}>
+                  {audit.totalVlXmlNotInSped > 0 ? BRL(audit.totalVlXmlNotInSped) : '—'}
+                </td>
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', audit.totalVlXmlNotInSped > 0 ? 'text-red-600' : 'text-emerald-600')}>
+                  {audit.totalVlXmlNotInSped > 0 ? BRL(audit.totalVlXmlNotInSped) : '—'}
+                </td>
+              </tr>
+              <tr className="bg-white border-b border-border">
+                <td className="px-4 py-3">
+                  <p className="font-medium text-foreground">SPED sem XML correspondente</p>
+                  <p className="text-muted-foreground">Chaves no SPED sem arquivo XML enviado</p>
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">{result.spedNotInXml.length}</td>
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap', audit.totalVlSpedNotInXml > 0 ? 'text-red-600 font-semibold' : '')}>
+                  {audit.totalVlSpedNotInXml > 0 ? BRL(audit.totalVlSpedNotInXml) : '—'}
+                </td>
+                <td className="px-4 py-3 text-right text-muted-foreground">—</td>
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', audit.totalVlSpedNotInXml > 0 ? 'text-red-600' : 'text-emerald-600')}>
+                  {audit.totalVlSpedNotInXml > 0 ? BRL(audit.totalVlSpedNotInXml) : '—'}
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr className="bg-primary/5 border-t-2 border-primary/20 font-semibold">
+                <td className="px-4 py-2.5 text-xs font-bold text-primary">TOTAL GERAL</td>
+                <td className="px-4 py-2.5 text-right text-xs tabular-nums">{Math.max(audit.totalSpedCount, audit.totalXmlCount)}</td>
+                <td className="px-4 py-2.5 text-right text-xs tabular-nums whitespace-nowrap">{BRL(audit.totalSpedValue)}</td>
+                <td className="px-4 py-2.5 text-right text-xs tabular-nums whitespace-nowrap">{BRL(audit.totalXmlValue)}</td>
+                <td className={cn('px-4 py-2.5 text-right text-xs tabular-nums whitespace-nowrap font-bold', audit.totalValueDiff > 0.01 ? 'text-red-600' : 'text-emerald-600')}>
+                  {audit.totalValueDiff > 0.01 ? BRL(audit.totalValueDiff) : '—'}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
 
       {/* Tabela de divergências de valor nos pares conferidos */}

@@ -105,6 +105,10 @@ export interface AuditReport {
   totalSpedValue: number
   totalXmlValue: number
   totalValueDiff: number
+  totalVlSpedMatched: number
+  totalVlXmlMatched: number
+  totalVlXmlNotInSped: number
+  totalVlSpedNotInXml: number
   matchedWithValueDiff: AuditItem[]
   verdict: 'ok' | 'atencao' | 'divergencia'
   verdictMessages: string[]

@@ -67,10 +67,10 @@ export class ConfrontService {
     }
 
     // 4. Confrontar
-    const { xmlsNotInSped, spedNotInXml, matchedWithValueDiff } = this.compare(
-      spedEntries,
-      xmlEntries,
-    );
+    const {
+      xmlsNotInSped, spedNotInXml, matchedWithValueDiff,
+      totalVlSpedMatched, totalVlXmlMatched,
+    } = this.compare(spedEntries, xmlEntries);
 
     // 5. XMLs sem autorização SEFAZ (do conjunto filtrado)
     const xmlsSemAutorizacao: XmlItemDto[] = xmlEntries
@@ -99,6 +99,9 @@ export class ConfrontService {
     const dashboard = this.buildDashboard(spedEntries, xmlEntries, spedResult.cfopSummary);
 
     // 7. Relatório de auditoria
+    const totalVlXmlNotInSped  = xmlsNotInSped.reduce((s, e) => s + (parseFloat(e.vNF ?? '0') || 0), 0);
+    const totalVlSpedNotInXml  = spedNotInXml.reduce((s, e) => s + (e.vlDoc ?? 0), 0);
+
     const audit = this.buildAuditReport(
       spedEntries.length,
       xmlEntries.length,
@@ -108,6 +111,10 @@ export class ConfrontService {
       xmlsNotInSped.length,
       spedNotInXml.length,
       matchedWithValueDiff,
+      totalVlSpedMatched,
+      totalVlXmlMatched,
+      totalVlXmlNotInSped,
+      totalVlSpedNotInXml,
     );
 
     // 8. Persistir sessão
@@ -180,7 +187,13 @@ export class ConfrontService {
   private compare(
     spedEntries: SpedEntry[],
     xmlEntries: XmlEntry[],
-  ): { xmlsNotInSped: XmlItemDto[]; spedNotInXml: SpedItemDto[]; matchedWithValueDiff: AuditItemDto[] } {
+  ): {
+    xmlsNotInSped: XmlItemDto[];
+    spedNotInXml: SpedItemDto[];
+    matchedWithValueDiff: AuditItemDto[];
+    totalVlSpedMatched: number;
+    totalVlXmlMatched: number;
+  } {
     const spedChaves = new Map<string, SpedEntry>(
       spedEntries.map((e) => [e.chave, e]),
     );
@@ -228,13 +241,18 @@ export class ConfrontService {
       }
     }
 
-    // Pares encontrados nos dois lados: comparar valores
+    // Pares encontrados nos dois lados: acumular totais e detectar divergência de valor
     const matchedWithValueDiff: AuditItemDto[] = [];
+    let totalVlSpedMatched = 0;
+    let totalVlXmlMatched  = 0;
+
     for (const [chave, sped] of spedChaves) {
       const xml = xmlChaves.get(chave);
       if (xml) {
         const vlSped = sped.vlDoc ?? 0;
         const vlXml  = parseFloat(xml.vNF ?? '0') || 0;
+        totalVlSpedMatched += vlSped;
+        totalVlXmlMatched  += vlXml;
         const diferenca = Math.abs(vlSped - vlXml);
         if (diferenca > 0.01) {
           matchedWithValueDiff.push({
@@ -255,7 +273,7 @@ export class ConfrontService {
       }
     }
 
-    return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff };
+    return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff, totalVlSpedMatched, totalVlXmlMatched };
   }
 
   private buildDashboard(
@@ -298,6 +316,10 @@ export class ConfrontService {
     xmlsNotInSpedCount: number,
     spedNotInXmlCount: number,
     matchedWithValueDiff: AuditItemDto[],
+    totalVlSpedMatched: number,
+    totalVlXmlMatched: number,
+    totalVlXmlNotInSped: number,
+    totalVlSpedNotInXml: number,
   ): AuditReportDto {
     const totalValueDiff = Math.abs(totalSpedValue - totalXmlValue);
     const verdictMessages: string[] = [];
@@ -353,6 +375,10 @@ export class ConfrontService {
       totalSpedValue,
       totalXmlValue,
       totalValueDiff,
+      totalVlSpedMatched,
+      totalVlXmlMatched,
+      totalVlXmlNotInSped,
+      totalVlSpedNotInXml,
       matchedWithValueDiff,
       verdict,
       verdictMessages,
@@ -363,6 +389,8 @@ export class ConfrontService {
     return {
       totalSpedCount: 0, totalXmlCount: 0, matchedCount: 0,
       totalSpedValue: 0, totalXmlValue: 0, totalValueDiff: 0,
+      totalVlSpedMatched: 0, totalVlXmlMatched: 0,
+      totalVlXmlNotInSped: 0, totalVlSpedNotInXml: 0,
       matchedWithValueDiff: [], verdict: 'ok', verdictMessages: [],
     };
   }
