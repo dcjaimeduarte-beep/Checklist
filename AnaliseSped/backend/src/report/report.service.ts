@@ -146,12 +146,36 @@ export class ReportService {
 
     ws.addRow([]);
 
-    // Totais de valores
-    this.addSectionHeader(ws, 'TOTAIS DE VALORES (R$)', 2);
-    ws.columns = [{ width: 38 }, { width: 22 }];
+    // Totais de valores — VL Operação C190 (referência fiscal principal)
+    this.addSectionHeader(ws, 'VL OPERAÇÃO — C190 (Referência Fiscal)', 2);
+    const db = data.dashboard;
+    const vlOprC190         = db?.totalVlOprC190         ?? db?.cfopSummary?.reduce((s, c) => s + c.vlOpr, 0) ?? 0;
+    const vlOprC190Entradas = db?.totalVlOprC190Entradas ?? db?.cfopSummary?.filter(c => ['1','2'].includes(c.cfop[0])).reduce((s, c) => s + c.vlOpr, 0) ?? 0;
+    const vlOprC190Saidas   = db?.totalVlOprC190Saidas   ?? db?.cfopSummary?.filter(c => ['5','6'].includes(c.cfop[0])).reduce((s, c) => s + c.vlOpr, 0) ?? 0;
+
+    const notaRow = ws.addRow(['* Total operacional escriturado no SPED (exclui frete, seguro e despesas acessórias)']);
+    notaRow.getCell(1).font = { italic: true, color: { argb: 'FF555555' } };
+
+    const vlOprRows: [string, number][] = [
+      ['VL Operação Total (C190)',        vlOprC190],
+      ['VL Operação — Entradas (1xxx/2xxx)', vlOprC190Entradas],
+      ['VL Operação — Saídas (5xxx/6xxx)',   vlOprC190Saidas],
+    ];
+    for (const [label, value] of vlOprRows) {
+      const row = ws.addRow([label, value]);
+      row.getCell(1).font = { bold: true };
+      row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EFF8' } };
+      this.setCurrency(row.getCell(2), value);
+      row.getCell(2).font = { bold: true };
+    }
+
+    ws.addRow([]);
+
+    // Totais de valores gerais
+    this.addSectionHeader(ws, 'TOTAIS DE VALORES GERAIS (R$)', 2);
     const totaisVal: [string, number][] = [
-      ['VL Total SPED (geral)', audit.totalSpedValue],
-      ['VL Total XMLs (geral)', audit.totalXmlValue],
+      ['VL Total SPED — VL_DOC C100/D100', audit.totalSpedValue],
+      ['VL Total XMLs — vNF', audit.totalXmlValue],
       ['VL SPED — pares casados', audit.totalVlSpedMatched],
       ['VL XML — pares casados', audit.totalVlXmlMatched],
       ['VL XMLs não no SPED', audit.totalVlXmlNotInSped],

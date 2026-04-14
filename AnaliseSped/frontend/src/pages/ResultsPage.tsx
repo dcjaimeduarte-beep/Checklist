@@ -1106,6 +1106,7 @@ function BRL(value: number) {
 function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
   const db = result.dashboard ?? {
     totalVlSpedGeral: 0, totalVlSpedEntradas: 0, totalVlSpedSaidas: 0,
+    totalVlOprC190: 0, totalVlOprC190Entradas: 0, totalVlOprC190Saidas: 0,
     totalVlXmlGeral: 0,  totalVlXmlEntradas: 0,  totalVlXmlSaidas: 0,
     cfopSummary: [],
   }
@@ -1114,7 +1115,12 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
     a.cfop.localeCompare(b.cfop),
   )
 
-  const totalCfopOpr  = cfopRows.reduce((s, r) => s + r.vlOpr, 0)
+  // VL_OPR total: usa campo calculado pelo backend (sessões novas) ou soma local (sessões antigas)
+  const totalVlOprC190         = db.totalVlOprC190 ?? cfopRows.reduce((s, r) => s + r.vlOpr, 0)
+  const totalVlOprC190Entradas = db.totalVlOprC190Entradas ?? cfopRows.filter(r => ['1','2'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0)
+  const totalVlOprC190Saidas   = db.totalVlOprC190Saidas   ?? cfopRows.filter(r => ['5','6'].includes(r.cfop[0])).reduce((s, r) => s + r.vlOpr, 0)
+
+  const totalCfopOpr  = totalVlOprC190
   const totalCfopIcms = cfopRows.reduce((s, r) => s + r.vlIcms, 0)
   const totalCfopSt   = cfopRows.reduce((s, r) => s + r.vlIcmsSt, 0)
 
@@ -1127,17 +1133,45 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">S</span>
           Valores apurados — SPED Fiscal
         </h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {[
-            { label: 'Total geral (VL_DOC)',  value: db.totalVlSpedGeral,    cls: 'text-primary' },
-            { label: 'Entradas (IND_OPER=0)', value: db.totalVlSpedEntradas, cls: 'text-blue-600' },
-            { label: 'Saídas (IND_OPER=1)',   value: db.totalVlSpedSaidas,   cls: 'text-orange-600' },
-          ].map(({ label, value, cls }) => (
-            <div key={label} className="rounded-lg border border-border bg-[#F8FAFC] px-4 py-3">
-              <p className="text-[11px] text-muted-foreground">{label}</p>
-              <p className={cn('mt-1 text-lg font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
-            </div>
-          ))}
+
+        {/* VL_OPR C190 — referência fiscal principal */}
+        <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">VL Operação — C190</span>
+            <span className="rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold text-white">Referência Fiscal</span>
+          </div>
+          <p className="mb-2 text-[10px] text-muted-foreground">
+            Total operacional escriturado (exclui frete, seguro e despesas acessórias — base usada pela contabilidade)
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {[
+              { label: 'Total geral (VL_OPR)', value: totalVlOprC190,         cls: 'text-primary' },
+              { label: 'Entradas (1xxx/2xxx)',  value: totalVlOprC190Entradas, cls: 'text-blue-600' },
+              { label: 'Saídas (5xxx/6xxx)',    value: totalVlOprC190Saidas,   cls: 'text-orange-600' },
+            ].map(({ label, value, cls }) => (
+              <div key={label} className="rounded-md bg-white px-3 py-2 border border-primary/10">
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+                <p className={cn('mt-0.5 text-base font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* VL_DOC C100 — total dos documentos */}
+        <div className="rounded-lg border border-border bg-[#F8FAFC] px-4 py-3">
+          <p className="mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">VL Documento — C100/D100 (inclui frete/seguro/acessórias)</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {[
+              { label: 'Total geral (VL_DOC)',  value: db.totalVlSpedGeral,    cls: 'text-foreground' },
+              { label: 'Entradas (IND_OPER=0)', value: db.totalVlSpedEntradas, cls: 'text-blue-600' },
+              { label: 'Saídas (IND_OPER=1)',   value: db.totalVlSpedSaidas,   cls: 'text-orange-600' },
+            ].map(({ label, value, cls }) => (
+              <div key={label}>
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+                <p className={cn('mt-0.5 text-sm font-semibold tabular-nums', cls)}>R$ {BRL(value)}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -10,10 +10,17 @@ export class CfopSummaryDto {
 }
 
 export class DashboardDto {
-  /** Valor total dos documentos no SPED (VL_DOC) */
+  /** Valor total dos documentos no SPED (soma VL_DOC do C100/D100) */
   totalVlSpedGeral: number;
   totalVlSpedEntradas: number;
   totalVlSpedSaidas: number;
+  /**
+   * Soma de VL_OPR do C190 — representa o total operacional fiscal do SPED.
+   * Exclui frete/seguro/acessórias; é o campo que a contabilidade usa como referência.
+   */
+  totalVlOprC190: number;
+  totalVlOprC190Entradas: number;
+  totalVlOprC190Saidas: number;
   /** Valor total dos XMLs enviados (vNF) */
   totalVlXmlGeral: number;
   totalVlXmlEntradas: number;

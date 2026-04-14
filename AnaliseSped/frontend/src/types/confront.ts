@@ -95,6 +95,10 @@ export interface DashboardData {
   totalVlSpedGeral: number
   totalVlSpedEntradas: number
   totalVlSpedSaidas: number
+  /** Soma de VL_OPR do C190 — total operacional fiscal (sem frete/seguro/acessórias) */
+  totalVlOprC190: number
+  totalVlOprC190Entradas: number
+  totalVlOprC190Saidas: number
   totalVlXmlGeral: number
   totalVlXmlEntradas: number
   totalVlXmlSaidas: number

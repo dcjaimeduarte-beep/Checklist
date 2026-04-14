@@ -373,10 +373,19 @@ export class ConfrontService {
     const sumXml = (filter: (e: XmlEntry) => boolean) =>
       xmlEntries.filter(filter).reduce((s, e) => s + (parseFloat(e.vNF ?? '0') || 0), 0);
 
+    // VL_OPR do C190 = total operacional fiscal (exclui frete/seguro/acessórias)
+    // CFOPs 1xxx/2xxx = entradas, 5xxx/6xxx = saídas
+    const totalVlOprC190         = cfopSummary.reduce((s, c) => s + c.vlOpr, 0);
+    const totalVlOprC190Entradas = cfopSummary.filter(c => ['1', '2'].includes(c.cfop[0])).reduce((s, c) => s + c.vlOpr, 0);
+    const totalVlOprC190Saidas   = cfopSummary.filter(c => ['5', '6'].includes(c.cfop[0])).reduce((s, c) => s + c.vlOpr, 0);
+
     return {
       totalVlSpedGeral:    sumSped(() => true),
       totalVlSpedEntradas: sumSped((e) => e.indOper === '0'),
       totalVlSpedSaidas:   sumSped((e) => e.indOper === '1'),
+      totalVlOprC190,
+      totalVlOprC190Entradas,
+      totalVlOprC190Saidas,
       totalVlXmlGeral:     sumXml(() => true),
       totalVlXmlEntradas:  sumXml((e) => e.tpNF === '0'),
       totalVlXmlSaidas:    sumXml((e) => e.tpNF === '1'),
