@@ -442,6 +442,7 @@ export function ResultsPage() {
                         <Th>Data Doc</Th>
                         <Th>Situação</Th>
                         <Th>Operação</Th>
+                        <Th right>Valor (R$)</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -465,6 +466,9 @@ export function ResultsPage() {
                             )}>
                               {item.indOper === '0' ? 'Entrada' : 'Saída'}
                             </span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
+                            {item.vlDoc != null ? item.vlDoc.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
                           </td>
                         </tr>
                       ))}

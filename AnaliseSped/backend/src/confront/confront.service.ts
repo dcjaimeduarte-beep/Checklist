@@ -207,6 +207,7 @@ export class ConfrontService {
           codSit: sped.codSit,
           indOper: sped.indOper,
           indEmit: sped.indEmit,
+          vlDoc: sped.vlDoc,
         });
       }
     }

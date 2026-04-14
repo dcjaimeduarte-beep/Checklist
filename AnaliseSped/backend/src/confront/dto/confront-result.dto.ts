@@ -63,6 +63,8 @@ export class SpedItemDto {
   indOper?: string;
   /** IND_EMIT: '0' = emissão própria, '1' = terceiros */
   indEmit?: string;
+  /** VL_DOC do registro C100/D100 */
+  vlDoc?: number;
 }
 
 export class ConfrontResultDto {
