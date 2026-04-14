@@ -72,18 +72,23 @@ export class ConfrontService {
     }
 
     // 4. Confrontar
+    // Chaves com evento de cancelamento confirmado são excluídas da divergência SPED×XML
+    const cancelChaves = new Set(cancelEntries.map((e) => e.chave));
     const {
       xmlsNotInSped, spedNotInXml, matchedWithValueDiff,
       totalVlSpedMatched, totalVlXmlMatched,
-    } = this.compare(spedEntries, xmlEntries);
+    } = this.compare(spedEntries, xmlEntries, cancelChaves);
 
     // 5. XMLs sem autorização SEFAZ (do conjunto filtrado)
     const xmlsSemAutorizacao: XmlItemDto[] = xmlEntries
       .filter((e) => !e.autorizada)
       .map((e) => this.toXmlItemDto(e.chave, e));
 
-    const totalMatches =
-      spedEntries.length - spedNotInXml.length;
+    // totalMatches = SPED entries que têm XML correspondente
+    // (excluir chaves de cancelamento que estão no SPED mas não têm XML)
+    const spedEntryChaveSet = new Set(spedEntries.map((e) => e.chave));
+    const cancelInSpedCount = [...cancelChaves].filter((ch) => spedEntryChaveSet.has(ch)).length;
+    const totalMatches = spedEntries.length - spedNotInXml.length - cancelInSpedCount;
 
     // 6. Calcular dashboard (totais + CFOP)
     const dashboard = this.buildDashboard(spedEntries, xmlEntries, spedResult.cfopSummary);
@@ -186,6 +191,8 @@ export class ConfrontService {
   private compare(
     spedEntries: SpedEntry[],
     xmlEntries: XmlEntry[],
+    /** Chaves com evento de cancelamento confirmado — excluídas da divergência SPED×XML */
+    cancelChaves: Set<string> = new Set(),
   ): {
     xmlsNotInSped: XmlItemDto[];
     spedNotInXml: SpedItemDto[];
@@ -209,7 +216,8 @@ export class ConfrontService {
 
     const spedNotInXml: SpedItemDto[] = [];
     for (const [chave, sped] of spedChaves) {
-      if (!xmlChaves.has(chave)) {
+      // Excluir chaves que possuem evento de cancelamento — vão para a aba Cancelamentos
+      if (!xmlChaves.has(chave) && !cancelChaves.has(chave)) {
         spedNotInXml.push(this.toSpedItemDto(chave, sped));
       }
     }

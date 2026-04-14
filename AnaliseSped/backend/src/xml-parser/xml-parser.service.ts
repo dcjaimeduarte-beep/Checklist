@@ -205,32 +205,53 @@ export class XmlParserService {
     const retEvento = proc['retEvento'] as Record<string, unknown> | undefined;
     const infProt = retEvento?.['infProt'] as Record<string, unknown> | undefined;
 
-    const chNFe = String(infEvento?.['chNFe'] ?? '').replace(/\D/g, '');
+    /**
+     * IMPORTANTE: <chNFe> é um elemento de 44 dígitos numéricos.
+     * O fast-xml-parser (parseNodeValue=true por padrão) converte valores de elementos
+     * para number, e um inteiro de 44 dígitos ultrapassa a precisão do Number JS (~15 dígitos),
+     * resultando em perda de precisão ao converter de volta para string.
+     *
+     * Solução: extrair a chave do atributo @_Id do infEvento, que é protegido por
+     * parseAttributeValue:false e sempre fica como string.
+     * Formato do Id: "ID{tpEvento(6)}{chNFe(44)}{nSeqEvento(2)}"
+     */
+    let chNFe = '';
+    const idAttr = String(infEvento?.['@_Id'] ?? '').trim();
+    if (idAttr.startsWith('ID') && idAttr.length >= 52) {
+      // Posição 8 = depois de "ID" + tpEvento(6), comprimento = 44
+      chNFe = idAttr.substring(8, 52);
+    }
+    // Fallback: tenta retEvento.infProt.chNFe (string, não há risco de overflow pois
+    // fast-xml-parser preserva como string quando não parseia atributos)
+    if (chNFe.length !== 44) {
+      chNFe = String(infProt?.['chNFe'] ?? '').replace(/\D/g, '');
+    }
     if (chNFe.length !== 44) return null;
 
+    // tpEvento: 110111 é um número pequeno (6 dígitos), sem risco de overflow
     const tpEvento = String(infEvento?.['tpEvento'] ?? '').trim();
     // Processar apenas eventos de cancelamento (110111)
     if (tpEvento !== '110111') return null;
 
-    const cStat = String(infProt?.['cStat'] ?? '').trim();
-    const xMotivo = String(infProt?.['xMotivo'] ?? '').trim();
+    const cStat      = String(infProt?.['cStat'] ?? '').trim();
+    const xMotivo    = String(infProt?.['xMotivo'] ?? '').trim();
     const dhRegEvento = String(infProt?.['dhRegEvento'] ?? '').trim();
-    const detEvento = infEvento?.['detEvento'] as Record<string, unknown> | undefined;
-    const xJust = String(detEvento?.['xJust'] ?? '').trim();
-    // nProt do evento (para confirmar que foi registrado no SEFAZ)
-    const nProt = String(infProt?.['nProt'] ?? '').trim();
+    const detEvento  = infEvento?.['detEvento'] as Record<string, unknown> | undefined;
+    const xJust      = String(detEvento?.['xJust'] ?? '').trim();
+    const nProt      = String(infProt?.['nProt'] ?? detEvento?.['nProt'] ?? '').trim();
+
+    this.logger.debug(`Evento cancelamento detectado: chave=${chNFe} cStat=${cStat} arquivo=${filename}`);
 
     return {
       chave: chNFe,
       filename,
       tipo: 'CancelNFe',
       tpEvento,
-      cStat: cStat || '101',  // 101=NFe Cancelada, 135/136=Evento registrado
-      xMotivo: xMotivo || 'Cancelamento de NF-e',
-      dhRecbto: dhRegEvento || undefined,
-      xJust: xJust || undefined,
-      // nProt como parte do xMotivo se disponível
-      ...(nProt ? { xNomeEmit: `Protocolo: ${nProt}` } : {}),
+      cStat:     cStat || '101',
+      xMotivo:   xMotivo || 'Cancelamento de NF-e',
+      dhRecbto:  dhRegEvento || undefined,
+      xJust:     xJust || undefined,
+      xNomeEmit: nProt ? `Protocolo: ${nProt}` : undefined,
       autorizada: false,
     };
   }
