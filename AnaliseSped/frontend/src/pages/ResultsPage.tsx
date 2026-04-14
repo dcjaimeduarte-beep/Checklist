@@ -10,6 +10,7 @@ import {
   X,
   Loader2,
   ClipboardCheck,
+  ShieldAlert,
 } from 'lucide-react'
 
 import { useConfront } from '@/confront/ConfrontContext'
@@ -19,7 +20,20 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { SpedItem, XmlItem } from '@/types/confront'
 
-type TabId = 'resumo' | 'xml-sem-sped' | 'sped-sem-xml'
+type TabId = 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao'
+
+const CSTAT_LABEL: Record<string, string> = {
+  '100': 'Autorizado',
+  '150': 'Autorizado (dif. UF)',
+  '101': 'Cancelado',
+  '110': 'Uso Denegado',
+  '135': 'Evento registrado',
+  '155': 'Cancelamento homologado',
+  '210': 'NF-e não localizada',
+  '301': 'Denegado (emitente)',
+  '302': 'Denegado (destinatário)',
+  '999': 'Rejeição',
+}
 
 const SITUACAO_MAP: Record<string, { label: string; cls: string }> = {
   '00': { label: 'Regular',        cls: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' },
@@ -92,11 +106,15 @@ export function ResultsPage() {
     )
   }
 
-  const divergencias = result.xmlsNotInSped.length + result.spedNotInXml.length
+  const [authPage, setAuthPage] = useState(0)
+
+  const divergencias   = result.xmlsNotInSped.length + result.spedNotInXml.length
   const xmlItems: XmlItem[]   = result.xmlsNotInSped
   const spedItems: SpedItem[] = result.spedNotInXml
-  const xmlSlice  = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
-  const spedSlice = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
+  const authItems: XmlItem[]  = result.xmlsSemAutorizacao ?? []
+  const xmlSlice   = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
+  const spedSlice  = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
+  const authSlice  = authItems.slice(authPage * PAGE_SIZE, (authPage + 1) * PAGE_SIZE)
 
   async function handleDownload(type: 'excel' | 'pdf') {
     if (!sessionId) return
@@ -130,11 +148,13 @@ export function ResultsPage() {
   }
 
   // ── Summary cards ──────────────────────────────────────────────────────────
+  const semAuth = result.totalSemAutorizacao ?? authItems.length
   const summaryCards = [
-    { label: 'Entradas SPED',    value: result.totalSpedEntries,      icon: FileText,      color: 'text-primary',    bg: 'bg-primary/8' },
-    { label: 'XMLs enviados',    value: result.totalXmls,             icon: FolderOpen,    color: 'text-secondary',  bg: 'bg-secondary/8' },
-    { label: 'Conferidos (OK)',  value: result.totalMatches,          icon: CheckCircle2,  color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Divergências',     value: divergencias,                 icon: AlertTriangle, color: divergencias > 0 ? 'text-red-500' : 'text-emerald-600', bg: divergencias > 0 ? 'bg-red-50' : 'bg-emerald-50' },
+    { label: 'Entradas SPED',       value: result.totalSpedEntries, icon: FileText,      color: 'text-primary',     bg: 'bg-primary/8' },
+    { label: 'XMLs enviados',       value: result.totalXmls,        icon: FolderOpen,    color: 'text-secondary',   bg: 'bg-secondary/8' },
+    { label: 'Conferidos (OK)',     value: result.totalMatches,     icon: CheckCircle2,  color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Divergências',        value: divergencias,            icon: AlertTriangle, color: divergencias > 0 ? 'text-red-500' : 'text-emerald-600', bg: divergencias > 0 ? 'bg-red-50' : 'bg-emerald-50' },
+    { label: 'Sem autorização SEFAZ', value: semAuth,               icon: ShieldAlert,   color: semAuth > 0 ? 'text-orange-600' : 'text-emerald-600', bg: semAuth > 0 ? 'bg-orange-50' : 'bg-emerald-50' },
   ]
 
   return (
@@ -211,7 +231,7 @@ export function ResultsPage() {
       <main className="mx-auto w-full max-w-screen-xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
 
         {/* ── Cards resumo ──────────────────────────────────────────────── */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {summaryCards.map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="rounded-xl border border-border bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
@@ -228,21 +248,25 @@ export function ResultsPage() {
         {/* ── Tabs ──────────────────────────────────────────────────────── */}
         <div className="mb-4 flex overflow-x-auto gap-1 rounded-xl border border-border bg-white p-1 shadow-sm w-fit max-w-full">
           {([
-            { id: 'resumo'       as TabId, label: 'Resumo' },
-            { id: 'xml-sem-sped' as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
-            { id: 'sped-sem-xml' as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
-          ]).map(({ id, label }) => (
+            { id: 'resumo'          as TabId, label: 'Resumo' },
+            { id: 'xml-sem-sped'   as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
+            { id: 'sped-sem-xml'   as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
+            { id: 'sem-autorizacao' as TabId, label: `Sem autorização (${semAuth})`, alert: semAuth > 0 },
+          ]).map(({ id, label, alert }) => (
             <button
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
               className={cn(
-                'cursor-pointer whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                'cursor-pointer whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors inline-flex items-center gap-1.5',
                 activeTab === id
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-muted-foreground hover:text-foreground hover:bg-backgroundMuted',
               )}
             >
+              {alert && activeTab !== id && (
+                <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+              )}
               {label}
             </button>
           ))}
@@ -288,6 +312,21 @@ export function ResultsPage() {
                     </div>
                     <button type="button" onClick={() => setActiveTab('sped-sem-xml')}
                       className="cursor-pointer shrink-0 text-xs font-medium text-amber-600 hover:underline">
+                      Ver lista →
+                    </button>
+                  </div>
+                )}
+                {semAuth > 0 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4">
+                    <ShieldAlert className="h-5 w-5 shrink-0 text-orange-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-orange-700">
+                        {semAuth} XML{semAuth !== 1 ? 's' : ''} sem autorização SEFAZ
+                      </p>
+                      <p className="mt-0.5 text-xs text-orange-600">Documentos sem protocolo de autorização ou com status diferente de 100/150.</p>
+                    </div>
+                    <button type="button" onClick={() => setActiveTab('sem-autorizacao')}
+                      className="cursor-pointer shrink-0 text-xs font-medium text-orange-600 hover:underline">
                       Ver lista →
                     </button>
                   </div>
@@ -411,6 +450,65 @@ export function ResultsPage() {
           </div>
         )}
 
+        {/* ── Aba Sem Autorização ───────────────────────────────────────── */}
+        {activeTab === 'sem-autorizacao' && (
+          <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+            {authItems.length === 0 ? (
+              <EmptyState label="Todos os XMLs possuem autorização SEFAZ." />
+            ) : (
+              <>
+                <TableScrollWrapper>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-primary text-white">
+                        <Th>Chave de Acesso (44)</Th>
+                        <Th>Arquivo XML</Th>
+                        <Th>Tipo</Th>
+                        <Th>cStat</Th>
+                        <Th>Motivo SEFAZ</Th>
+                        <Th>Nº NF</Th>
+                        <Th>Emissão</Th>
+                        <Th>CNPJ Emitente</Th>
+                        <Th>Emitente</Th>
+                        <Th>Dt Recebto</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {authSlice.map((item, i) => (
+                        <tr key={item.chave + item.filename} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="font-mono text-[10px] leading-relaxed text-foreground break-all">{item.chave}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="block max-w-[180px] truncate text-muted-foreground" title={item.filename}>{item.filename}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top"><TipoBadge tipo={item.tipo} /></td>
+                          <td className="px-3 py-2.5 align-top">
+                            <AuthBadge cStat={item.cStat} />
+                          </td>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="block max-w-[220px] truncate text-muted-foreground" title={item.xMotivo}>
+                              {item.xMotivo ?? 'Sem protocolo de autorização'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{item.nNF ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(item.dhEmi)}</td>
+                          <td className="px-3 py-2.5 align-top font-mono whitespace-nowrap">{item.cnpjEmit ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="block max-w-[140px] truncate" title={item.xNomeEmit}>{item.xNomeEmit ?? '—'}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(item.dhRecbto)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
+                <Pagination total={authItems.length} page={authPage} pageSize={PAGE_SIZE} onChange={setAuthPage} />
+              </>
+            )}
+          </div>
+        )}
+
         <div className="mt-5 flex justify-end">
           <button type="button" onClick={() => { reset(); setPage('upload') }}
             className="cursor-pointer text-xs text-muted-foreground hover:text-foreground hover:underline">
@@ -509,6 +607,21 @@ function TableScrollWrapper({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/60 to-transparent sm:hidden" />
     </div>
   )
+}
+
+function AuthBadge({ cStat }: { cStat?: string }) {
+  if (!cStat) {
+    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap bg-gray-100 text-gray-600 ring-1 ring-gray-200">Sem protocolo</span>
+  }
+  const label = CSTAT_LABEL[cStat] ?? `cStat ${cStat}`
+  const isCancel = ['101', '135', '155'].includes(cStat)
+  const isDenied = ['110', '301', '302'].includes(cStat)
+  const cls = isCancel
+    ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+    : isDenied
+      ? 'bg-red-100 text-red-700 ring-1 ring-red-200'
+      : 'bg-orange-100 text-orange-700 ring-1 ring-orange-200'
+  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap', cls)}>{cStat} — {label}</span>
 }
 
 function EmptyState({ label }: { label: string }) {

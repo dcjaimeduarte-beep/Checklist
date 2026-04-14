@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { XMLParser } from 'fast-xml-parser';
 import {
+  CSTAT_AUTORIZADO,
   XmlDocType,
   XmlEntry,
   XmlParseError,
@@ -81,16 +82,25 @@ export class XmlParserService {
     filename: string,
     tipo: XmlDocType = 'NFe',
   ): XmlEntry | null {
-    // Tenta chave do protocolo primeiro (mais confiável)
     const prot = proc['protNFe'] as Record<string, unknown> | undefined;
     const infProt = prot?.['infProt'] as Record<string, unknown> | undefined;
     const chaveProto = infProt?.['chNFe'] as string | undefined;
+    const cStat = String(infProt?.['cStat'] ?? '').trim();
+    const xMotivo = String(infProt?.['xMotivo'] ?? '').trim();
+    const dhRecbto = String(infProt?.['dhRecbto'] ?? '').trim();
 
     const nfe = proc['NFe'] as Record<string, unknown> | undefined;
     const entry = this.extractFromNfe(nfe ?? {}, filename, tipo);
 
-    if (entry && chaveProto && chaveProto.length === 44) {
-      entry.chave = chaveProto;
+    if (entry) {
+      if (chaveProto && chaveProto.length === 44) entry.chave = chaveProto;
+      // Sobrescreve com dados reais do protocolo
+      if (cStat) {
+        entry.cStat = cStat;
+        entry.xMotivo = xMotivo || undefined;
+        entry.dhRecbto = dhRecbto || undefined;
+        entry.autorizada = CSTAT_AUTORIZADO.has(cStat);
+      }
     }
 
     return entry;
@@ -128,6 +138,8 @@ export class XmlParserService {
       cnpjEmit: String(emit?.['CNPJ'] ?? ''),
       xNomeEmit: String(emit?.['xNome'] ?? ''),
       vNF: String(icmsTot?.['vNF'] ?? ''),
+      // sem protocolo = não autorizada (default; sobrescrito por extractFromNfeProc)
+      autorizada: false,
     };
   }
 
@@ -138,12 +150,21 @@ export class XmlParserService {
     const prot = proc['protCTe'] as Record<string, unknown> | undefined;
     const infProt = prot?.['infProt'] as Record<string, unknown> | undefined;
     const chaveProto = infProt?.['chCTe'] as string | undefined;
+    const cStat = String(infProt?.['cStat'] ?? '').trim();
+    const xMotivo = String(infProt?.['xMotivo'] ?? '').trim();
+    const dhRecbto = String(infProt?.['dhRecbto'] ?? '').trim();
 
     const cte = proc['CTe'] as Record<string, unknown> | undefined;
     const entry = this.extractFromCte(cte ?? {}, filename);
 
-    if (entry && chaveProto && chaveProto.length === 44) {
-      entry.chave = chaveProto;
+    if (entry) {
+      if (chaveProto && chaveProto.length === 44) entry.chave = chaveProto;
+      if (cStat) {
+        entry.cStat = cStat;
+        entry.xMotivo = xMotivo || undefined;
+        entry.dhRecbto = dhRecbto || undefined;
+        entry.autorizada = CSTAT_AUTORIZADO.has(cStat);
+      }
     }
 
     return entry;
@@ -174,6 +195,7 @@ export class XmlParserService {
       cnpjEmit: String(emit?.['CNPJ'] ?? ''),
       xNomeEmit: String(emit?.['xNome'] ?? ''),
       vNF: String(vPrest?.['vTPrest'] ?? ''),
+      autorizada: false,
     };
   }
 }

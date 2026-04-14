@@ -28,6 +28,7 @@ export class ReportService {
     this.buildResumoSheet(wb, data);
     this.buildXmlsNotInSpedSheet(wb, data);
     this.buildSpedNotInXmlSheet(wb, data);
+    this.buildSemAutorizacaoSheet(wb, data);
 
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.from(buf);
@@ -65,6 +66,7 @@ export class ReportService {
       ['Documentos conferidos (OK)', data.totalMatches],
       ['XMLs não escriturados no SPED', data.xmlsNotInSped.length],
       ['SPED sem XML correspondente', data.spedNotInXml.length],
+      ['XMLs sem autorização SEFAZ', data.totalSemAutorizacao],
     ];
 
     for (const [label, value] of totais) {
@@ -154,6 +156,48 @@ export class ReportService {
     }
   }
 
+  private buildSemAutorizacaoSheet(wb: ExcelJS.Workbook, data: ConfrontResultDto) {
+    const ws = wb.addWorksheet('Sem Autorização SEFAZ');
+
+    const headers = [
+      'Chave de Acesso', 'Arquivo XML', 'Tipo', 'Nº NF/CT-e',
+      'Série', 'Data Emissão', 'CNPJ Emitente', 'Razão Social',
+      'cStat', 'Motivo SEFAZ', 'Dt Recebimento',
+    ];
+    this.addNavyRow(ws, headers, headers.length);
+
+    ws.columns = [
+      { width: 46 }, { width: 35 }, { width: 8 }, { width: 12 },
+      { width: 8 }, { width: 22 }, { width: 18 }, { width: 35 },
+      { width: 8 }, { width: 45 }, { width: 22 },
+    ];
+
+    const items = data.xmlsSemAutorizacao ?? [];
+    items.forEach((item, i) => {
+      const row = ws.addRow([
+        item.chave,
+        item.filename,
+        item.tipo,
+        item.nNF ?? '',
+        item.serie ?? '',
+        this.formatDhEmi(item.dhEmi),
+        item.cnpjEmit ?? '',
+        item.xNomeEmit ?? '',
+        item.cStat ?? 'S/N',
+        item.xMotivo ?? 'Sem protocolo de autorização',
+        item.dhRecbto ? this.formatDhEmi(item.dhRecbto) : '',
+      ]);
+      if (i % 2 === 0) {
+        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_LIGHT } };
+      }
+    });
+
+    if (items.length === 0) {
+      const row = ws.addRow(['Todos os XMLs possuem autorização SEFAZ.']);
+      row.getCell(1).font = { italic: true, color: { argb: 'FF27AE60' } };
+    }
+  }
+
   private addNavyRow(ws: ExcelJS.Worksheet, values: (string | number)[], colSpan: number) {
     const row = ws.addRow(values);
     row.height = 22;
@@ -218,6 +262,7 @@ export class ReportService {
         ['Documentos conferidos (OK)', data.totalMatches],
         ['XMLs não escriturados no SPED', data.xmlsNotInSped.length],
         ['SPED sem XML correspondente', data.spedNotInXml.length],
+        ['XMLs sem autorização SEFAZ', data.totalSemAutorizacao],
       ];
       for (const [k, v] of totais) {
         const isDivergencia = String(k).includes('não') || String(k).includes('sem');
@@ -269,6 +314,28 @@ export class ReportService {
         data.spedNotInXml.length === 0
           ? ['Observação']
           : ['Chave', 'Modelo', 'Nº Doc', 'Dt Doc', 'Situação'],
+      );
+
+      doc.moveDown();
+
+      // Tabela XMLs sem autorização
+      const semAuth = data.xmlsSemAutorizacao ?? [];
+      this.pdfSection(
+        doc,
+        `XMLs SEM AUTORIZAÇÃO SEFAZ (${semAuth.length})`,
+        navy,
+        semAuth.length === 0
+          ? [['Todos os XMLs possuem autorização SEFAZ.']]
+          : semAuth.map((x) => [
+              this.truncate(x.chave, 44),
+              x.cStat ?? 'S/N',
+              this.truncate(x.xMotivo ?? 'Sem protocolo', 30),
+              this.truncate(x.filename, 20),
+              x.dhRecbto ? this.formatDhEmi(x.dhRecbto) : '',
+            ]),
+        semAuth.length === 0
+          ? ['Observação']
+          : ['Chave', 'cStat', 'Motivo SEFAZ', 'Arquivo', 'Dt Recebto'],
       );
 
       // Rodapé
@@ -398,6 +465,7 @@ export class ReportService {
             <tr style="background:#eef;"><td style="font-weight:bold; padding: 4px 8px;">Conferidos (OK)</td><td>${data.totalMatches}</td></tr>
             <tr style="${data.xmlsNotInSped.length > 0 ? 'background:#fde8e8;' : ''}"><td style="font-weight:bold; padding: 4px 8px;">XMLs não no SPED</td><td><strong>${data.xmlsNotInSped.length}</strong></td></tr>
             <tr style="${data.spedNotInXml.length > 0 ? 'background:#fde8e8;' : ''}"><td style="font-weight:bold; padding: 4px 8px;">SPED sem XML</td><td><strong>${data.spedNotInXml.length}</strong></td></tr>
+            <tr style="${data.totalSemAutorizacao > 0 ? 'background:#fde8e8;' : ''}"><td style="font-weight:bold; padding: 4px 8px;">XMLs sem autorização SEFAZ</td><td><strong>${data.totalSemAutorizacao}</strong></td></tr>
           </table>
           <p style="margin-top: 20px; color: #666; font-size: 12px;">Relatório em anexo (Excel + PDF). Gerado em ${new Date().toLocaleString('pt-BR')} pelo sistema AnaliseSped.</p>
         </div>

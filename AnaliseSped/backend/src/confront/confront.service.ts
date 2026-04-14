@@ -45,10 +45,29 @@ export class ConfrontService {
       xmlResult.entries,
     );
 
+    // 4. XMLs sem autorização SEFAZ (todos os XMLs, não só os não encontrados no SPED)
+    const xmlsSemAutorizacao: XmlItemDto[] = xmlResult.entries
+      .filter((e) => !e.autorizada)
+      .map((e) => ({
+        chave: e.chave,
+        filename: e.filename,
+        tipo: e.tipo,
+        nNF: e.nNF,
+        serie: e.serie,
+        dhEmi: e.dhEmi,
+        cnpjEmit: e.cnpjEmit,
+        xNomeEmit: e.xNomeEmit,
+        vNF: e.vNF,
+        cStat: e.cStat,
+        xMotivo: e.xMotivo,
+        dhRecbto: e.dhRecbto,
+        autorizada: e.autorizada,
+      }));
+
     const totalMatches =
       spedResult.entries.length - spedNotInXml.length;
 
-    // 4. Persistir sessão
+    // 5. Persistir sessão
     const session = this.sessionRepo.create({
       spedFilename,
       spedCnpj: spedResult.info.cnpj,
@@ -61,12 +80,14 @@ export class ConfrontService {
       totalMatches,
       xmlsNotInSpedJson: JSON.stringify(xmlsNotInSped),
       spedNotInXmlJson: JSON.stringify(spedNotInXml),
+      xmlsSemAutorizacaoJson: JSON.stringify(xmlsSemAutorizacao),
+      totalSemAutorizacao: xmlsSemAutorizacao.length,
     });
 
     await this.sessionRepo.save(session);
     this.logger.log(`Sessão criada: ${session.id}`);
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao);
   }
 
   async getSession(id: string): Promise<ConfrontResultDto> {
@@ -75,8 +96,9 @@ export class ConfrontService {
 
     const xmlsNotInSped: XmlItemDto[] = JSON.parse(session.xmlsNotInSpedJson ?? '[]');
     const spedNotInXml: SpedItemDto[] = JSON.parse(session.spedNotInXmlJson ?? '[]');
+    const xmlsSemAutorizacao: XmlItemDto[] = JSON.parse(session.xmlsSemAutorizacaoJson ?? '[]');
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, []);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, [], xmlsSemAutorizacao);
   }
 
   async listSessions(page = 1, limit = 20): Promise<ConfrontSessionSummaryDto[]> {
@@ -129,6 +151,10 @@ export class ConfrontService {
           cnpjEmit: xml.cnpjEmit,
           xNomeEmit: xml.xNomeEmit,
           vNF: xml.vNF,
+          cStat: xml.cStat,
+          xMotivo: xml.xMotivo,
+          dhRecbto: xml.dhRecbto,
+          autorizada: xml.autorizada,
         });
       }
     }
@@ -157,6 +183,7 @@ export class ConfrontService {
     xmlsNotInSped: XmlItemDto[],
     spedNotInXml: SpedItemDto[],
     xmlErrors: Array<{ filename: string; reason: string }>,
+    xmlsSemAutorizacao: XmlItemDto[] = [],
   ): ConfrontResultDto {
     return {
       sessionId: session.id,
@@ -175,6 +202,8 @@ export class ConfrontService {
       xmlsNotInSped,
       spedNotInXml,
       xmlErrors,
+      xmlsSemAutorizacao,
+      totalSemAutorizacao: session.totalSemAutorizacao ?? xmlsSemAutorizacao.length,
     };
   }
 }

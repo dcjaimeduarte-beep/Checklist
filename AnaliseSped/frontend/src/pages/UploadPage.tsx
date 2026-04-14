@@ -88,13 +88,17 @@ export function UploadPage() {
   const canRun = spedFile !== null && xmlFiles.length > 0 && !isRunning
 
   return (
-    <div className="flex min-h-screen flex-col bg-backgroundMuted">
-      {/* Cabeçalho */}
-      <header className="border-b border-border bg-white px-6 py-4 shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
+    <div className="flex min-h-screen flex-col bg-[#F2F5F7]">
+      {/* Cabeçalho navy com orbs — padrão Seven */}
+      <header className="relative overflow-hidden bg-[#0d1f30]">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="login-orb login-orb-1" style={{ opacity: 0.2 }} />
+          <div className="login-orb login-orb-2" style={{ opacity: 0.15 }} />
+        </div>
+        <div className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
           <div>
-            <h1 className="text-lg font-semibold text-primary">AnaliseSped</h1>
-            <p className="text-xs text-muted-foreground">Confronto SPED Fiscal × XMLs de NF-e/CT-e</p>
+            <p className="text-[11px] font-semibold tracking-widest uppercase text-white/40">Seven · AnaliseSped</p>
+            <h1 className="text-base font-semibold text-white leading-tight">Confronto SPED Fiscal × XMLs</h1>
           </div>
         </div>
       </header>

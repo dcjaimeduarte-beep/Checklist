@@ -16,6 +16,14 @@ export interface XmlItem {
   cnpjEmit?: string
   xNomeEmit?: string
   vNF?: string
+  /** Código de status SEFAZ (100=Autorizado, 101=Cancelado etc.) */
+  cStat?: string
+  /** Descrição do status SEFAZ */
+  xMotivo?: string
+  /** Data/hora de recebimento pelo SEFAZ */
+  dhRecbto?: string
+  /** true se cStat é 100 ou 150 */
+  autorizada?: boolean
 }
 
 export interface SpedItem {
@@ -40,6 +48,8 @@ export interface ConfrontResultDto {
   xmlsNotInSped: XmlItem[]
   spedNotInXml: SpedItem[]
   xmlErrors: Array<{ filename: string; reason: string }>
+  xmlsSemAutorizacao: XmlItem[]
+  totalSemAutorizacao: number
 }
 
 export interface ConfrontSessionSummary {

@@ -41,4 +41,10 @@ export class ConfrontSession {
 
   @Column({ type: 'text', nullable: true })
   spedNotInXmlJson: string;
+
+  @Column({ type: 'text', nullable: true })
+  xmlsSemAutorizacaoJson: string;
+
+  @Column({ default: 0 })
+  totalSemAutorizacao: number;
 }
