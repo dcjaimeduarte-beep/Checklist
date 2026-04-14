@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { CfopSummary, SpedItem, XmlItem } from '@/types/confront'
 
-type TabId = 'dashboard' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
+type TabId = 'dashboard' | 'cfop-agrupado' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
 
 const CSTAT_LABEL: Record<string, string> = {
   '100': 'Autorizado',
@@ -253,6 +253,7 @@ export function ResultsPage() {
         <div className="mb-4 flex overflow-x-auto gap-1 rounded-xl border border-border bg-white p-1 shadow-sm w-fit max-w-full">
           {([
             { id: 'dashboard'       as TabId, label: 'Dashboard' },
+            { id: 'cfop-agrupado'   as TabId, label: 'CFOP Agrupado' },
             { id: 'resumo'          as TabId, label: 'Resumo' },
             { id: 'xml-sem-sped'    as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
             { id: 'sped-sem-xml'    as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
@@ -281,6 +282,11 @@ export function ResultsPage() {
         {/* ── Aba Dashboard ─────────────────────────────────────────────── */}
         {activeTab === 'dashboard' && (
           <DashboardTab result={result} />
+        )}
+
+        {/* ── Aba CFOP Agrupado ─────────────────────────────────────────── */}
+        {activeTab === 'cfop-agrupado' && (
+          <CfopAgrupadoTab result={result} />
         )}
 
         {/* ── Aba Resumo ────────────────────────────────────────────────── */}
@@ -789,6 +795,144 @@ function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useCon
             </TableScrollWrapper>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ── CFOP Agrupado Tab ─────────────────────────────────────────────────────────
+
+function CfopAgrupadoTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
+  const cfopSummary = result.dashboard?.cfopSummary ?? []
+
+  type CfopGroup = {
+    cfop: string; cstIcms: string
+    vlBcIcms: number; vlIcms: number; vlBcIcmsSt: number; vlIcmsSt: number; vlOpr: number
+  }
+
+  function buildGrouped(source: typeof cfopSummary): CfopGroup[] {
+    const map = new Map<string, CfopGroup>()
+    for (const row of source) {
+      const key = `${row.cfop}|${row.cstIcms}`
+      const existing = map.get(key)
+      if (existing) {
+        existing.vlBcIcms   += row.vlBcIcms
+        existing.vlIcms     += row.vlIcms
+        existing.vlBcIcmsSt += row.vlBcIcmsSt
+        existing.vlIcmsSt   += row.vlIcmsSt
+        existing.vlOpr      += row.vlOpr
+      } else {
+        map.set(key, {
+          cfop: row.cfop, cstIcms: row.cstIcms,
+          vlBcIcms: row.vlBcIcms, vlIcms: row.vlIcms,
+          vlBcIcmsSt: row.vlBcIcmsSt, vlIcmsSt: row.vlIcmsSt,
+          vlOpr: row.vlOpr,
+        })
+      }
+    }
+    return [...map.values()].sort((a, b) =>
+      a.cfop.localeCompare(b.cfop) || a.cstIcms.localeCompare(b.cstIcms),
+    )
+  }
+
+  // CFOP 1xx/2xx/3xx = Entradas; 5xx/6xx/7xx = Saídas
+  const entradas = buildGrouped(cfopSummary.filter(r => ['1','2','3'].includes(r.cfop[0])))
+  const saidas   = buildGrouped(cfopSummary.filter(r => ['5','6','7'].includes(r.cfop[0])))
+
+  const totals = (rows: CfopGroup[]) => ({
+    opr:  rows.reduce((s, r) => s + r.vlOpr, 0),
+    icms: rows.reduce((s, r) => s + r.vlIcms, 0),
+    st:   rows.reduce((s, r) => s + r.vlIcmsSt, 0),
+  })
+
+  const totalEnt = totals(entradas)
+  const totalSai = totals(saidas)
+  const totalGeral = {
+    opr:  totalEnt.opr  + totalSai.opr,
+    icms: totalEnt.icms + totalSai.icms,
+    st:   totalEnt.st   + totalSai.st,
+  }
+
+  function CfopTable({ rows, sectionTotal }: { rows: CfopGroup[]; sectionTotal: typeof totalEnt }) {
+    if (rows.length === 0) {
+      return <p className="px-6 py-4 text-xs text-muted-foreground">Nenhum registro nesta direção.</p>
+    }
+    return (
+      <TableScrollWrapper>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-[#0d1f30]/80 text-white text-left">
+              <th className="px-3 py-2.5 font-semibold whitespace-nowrap">CFOP</th>
+              <th className="px-3 py-2.5 font-semibold whitespace-nowrap">CST ICMS</th>
+              <th className="px-3 py-2.5 font-semibold text-right whitespace-nowrap">VL BC ICMS</th>
+              <th className="px-3 py-2.5 font-semibold text-right whitespace-nowrap">VL ICMS</th>
+              <th className="px-3 py-2.5 font-semibold text-right whitespace-nowrap">VL BC ST</th>
+              <th className="px-3 py-2.5 font-semibold text-right whitespace-nowrap">VL ICMS ST</th>
+              <th className="px-3 py-2.5 font-semibold text-right whitespace-nowrap">VL Operação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.cfop + row.cstIcms} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                <td className="px-3 py-2.5 font-mono font-semibold text-primary whitespace-nowrap">{row.cfop}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap">{row.cstIcms}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlBcIcms  > 0 ? BRL(row.vlBcIcms)  : '—'}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlIcms    > 0 ? BRL(row.vlIcms)    : '—'}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlBcIcmsSt > 0 ? BRL(row.vlBcIcmsSt) : '—'}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlIcmsSt  > 0 ? BRL(row.vlIcmsSt)  : '—'}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-semibold text-foreground">{BRL(row.vlOpr)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-primary/5 font-semibold border-t-2 border-primary/20">
+              <td className="px-3 py-2 text-xs font-bold text-primary" colSpan={2}>SUBTOTAL</td>
+              <td className="px-3 py-2 text-right text-xs tabular-nums" colSpan={2}>{BRL(sectionTotal.icms)}</td>
+              <td className="px-3 py-2 text-right text-xs tabular-nums" colSpan={2}>{BRL(sectionTotal.st)}</td>
+              <td className="px-3 py-2 text-right text-xs tabular-nums font-bold text-primary">{BRL(sectionTotal.opr)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </TableScrollWrapper>
+    )
+  }
+
+  if (cfopSummary.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-white shadow-sm p-10 text-center">
+        <p className="text-sm text-muted-foreground">Nenhum registro C190 encontrado no SPED.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Entradas */}
+      <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        <div className="px-6 py-3 border-b border-border bg-blue-50 flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0" />
+          <p className="text-sm font-semibold text-blue-800">Entradas (CFOP 1xx / 2xx / 3xx)</p>
+        </div>
+        <CfopTable rows={entradas} sectionTotal={totalEnt} />
+      </div>
+
+      {/* Saídas */}
+      <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        <div className="px-6 py-3 border-b border-border bg-orange-50 flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
+          <p className="text-sm font-semibold text-orange-800">Saídas (CFOP 5xx / 6xx / 7xx)</p>
+        </div>
+        <CfopTable rows={saidas} sectionTotal={totalSai} />
+      </div>
+
+      {/* Total geral */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-6 py-3 flex flex-wrap items-center gap-6">
+        <p className="text-xs font-bold text-primary">TOTAL GERAL</p>
+        <div className="flex gap-6 text-xs tabular-nums">
+          <span className="text-muted-foreground">VL ICMS: <span className="font-semibold text-foreground">{BRL(totalGeral.icms)}</span></span>
+          <span className="text-muted-foreground">VL ICMS ST: <span className="font-semibold text-foreground">{BRL(totalGeral.st)}</span></span>
+          <span className="text-muted-foreground">VL Operação: <span className="font-bold text-primary">{BRL(totalGeral.opr)}</span></span>
+        </div>
       </div>
     </div>
   )
