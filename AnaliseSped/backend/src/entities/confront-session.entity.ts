@@ -59,4 +59,8 @@ export class ConfrontSession {
   /** JSON com totais e resumo por CFOP (dashboard) */
   @Column({ type: 'text', nullable: true })
   dashboardJson: string;
+
+  /** JSON com relatório de auditoria fiscal */
+  @Column({ type: 'text', nullable: true })
+  auditJson: string;
 }

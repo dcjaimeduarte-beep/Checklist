@@ -8,6 +8,8 @@ import { XmlParserService } from '../xml-parser/xml-parser.service';
 import { SpedEntry } from '../sped/sped.types';
 import { XmlEntry } from '../xml-parser/xml-parser.types';
 import {
+  AuditItemDto,
+  AuditReportDto,
   ConfrontResultDto,
   ConfrontSessionSummaryDto,
   DashboardDto,
@@ -65,7 +67,7 @@ export class ConfrontService {
     }
 
     // 4. Confrontar
-    const { xmlsNotInSped, spedNotInXml } = this.compare(
+    const { xmlsNotInSped, spedNotInXml, matchedWithValueDiff } = this.compare(
       spedEntries,
       xmlEntries,
     );
@@ -96,7 +98,19 @@ export class ConfrontService {
     // 6. Calcular dashboard (totais + CFOP)
     const dashboard = this.buildDashboard(spedEntries, xmlEntries, spedResult.cfopSummary);
 
-    // 7. Persistir sessão
+    // 7. Relatório de auditoria
+    const audit = this.buildAuditReport(
+      spedEntries.length,
+      xmlEntries.length,
+      totalMatches,
+      dashboard.totalVlSpedGeral,
+      dashboard.totalVlXmlGeral,
+      xmlsNotInSped.length,
+      spedNotInXml.length,
+      matchedWithValueDiff,
+    );
+
+    // 8. Persistir sessão
     const session = this.sessionRepo.create({
       spedFilename,
       spedCnpj: spedResult.info.cnpj,
@@ -114,12 +128,13 @@ export class ConfrontService {
       totalSemAutorizacao: xmlsSemAutorizacao.length,
       xmlErrorsJson: JSON.stringify(xmlResult.errors),
       dashboardJson: JSON.stringify(dashboard),
+      auditJson: JSON.stringify(audit),
     });
 
     await this.sessionRepo.save(session);
     this.logger.log(`Sessão criada: ${session.id}`);
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao, dashboard);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao, dashboard, audit);
   }
 
   async getSession(id: string): Promise<ConfrontResultDto> {
@@ -131,8 +146,9 @@ export class ConfrontService {
     const xmlsSemAutorizacao: XmlItemDto[] = JSON.parse(session.xmlsSemAutorizacaoJson ?? '[]');
     const xmlErrors: Array<{ filename: string; reason: string }> = JSON.parse(session.xmlErrorsJson ?? '[]');
     const dashboard: DashboardDto = JSON.parse(session.dashboardJson ?? 'null') ?? this.emptyDashboard();
+    const audit: AuditReportDto = JSON.parse(session.auditJson ?? 'null') ?? this.emptyAudit();
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao, undefined, dashboard);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao, undefined, dashboard, audit);
   }
 
   async listSessions(page = 1, limit = 20): Promise<ConfrontSessionSummaryDto[]> {
@@ -164,7 +180,7 @@ export class ConfrontService {
   private compare(
     spedEntries: SpedEntry[],
     xmlEntries: XmlEntry[],
-  ): { xmlsNotInSped: XmlItemDto[]; spedNotInXml: SpedItemDto[] } {
+  ): { xmlsNotInSped: XmlItemDto[]; spedNotInXml: SpedItemDto[]; matchedWithValueDiff: AuditItemDto[] } {
     const spedChaves = new Map<string, SpedEntry>(
       spedEntries.map((e) => [e.chave, e]),
     );
@@ -212,7 +228,34 @@ export class ConfrontService {
       }
     }
 
-    return { xmlsNotInSped, spedNotInXml };
+    // Pares encontrados nos dois lados: comparar valores
+    const matchedWithValueDiff: AuditItemDto[] = [];
+    for (const [chave, sped] of spedChaves) {
+      const xml = xmlChaves.get(chave);
+      if (xml) {
+        const vlSped = sped.vlDoc ?? 0;
+        const vlXml  = parseFloat(xml.vNF ?? '0') || 0;
+        const diferenca = Math.abs(vlSped - vlXml);
+        if (diferenca > 0.01) {
+          matchedWithValueDiff.push({
+            chave,
+            registro:   sped.registro,
+            numDoc:     sped.numDoc,
+            dtDoc:      sped.dtDoc,
+            indOper:    sped.indOper,
+            nNF:        xml.nNF,
+            dhEmi:      xml.dhEmi,
+            cnpjEmit:   xml.cnpjEmit,
+            xNomeEmit:  xml.xNomeEmit,
+            vlSped,
+            vlXml,
+            diferenca,
+          });
+        }
+      }
+    }
+
+    return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff };
   }
 
   private buildDashboard(
@@ -246,6 +289,81 @@ export class ConfrontService {
     };
   }
 
+  private buildAuditReport(
+    totalSpedCount: number,
+    totalXmlCount: number,
+    matchedCount: number,
+    totalSpedValue: number,
+    totalXmlValue: number,
+    xmlsNotInSpedCount: number,
+    spedNotInXmlCount: number,
+    matchedWithValueDiff: AuditItemDto[],
+  ): AuditReportDto {
+    const totalValueDiff = Math.abs(totalSpedValue - totalXmlValue);
+    const verdictMessages: string[] = [];
+    let verdict: 'ok' | 'atencao' | 'divergencia' = 'ok';
+
+    if (spedNotInXmlCount > 0) {
+      verdictMessages.push(
+        `${spedNotInXmlCount} registro(s) escriturado(s) no SPED sem XML correspondente.`,
+      );
+      verdict = 'divergencia';
+    }
+    if (xmlsNotInSpedCount > 0) {
+      verdictMessages.push(
+        `${xmlsNotInSpedCount} XML(s) não escriturado(s) no SPED.`,
+      );
+      verdict = 'divergencia';
+    }
+    if (totalValueDiff > 0.01) {
+      const pct = totalSpedValue > 0
+        ? ((totalValueDiff / totalSpedValue) * 100).toFixed(2)
+        : '—';
+      verdictMessages.push(
+        `Diferença de valor total: R$ ${totalValueDiff.toFixed(2)} (${pct}%) — SPED R$ ${totalSpedValue.toFixed(2)} × XML R$ ${totalXmlValue.toFixed(2)}.`,
+      );
+      if (verdict !== 'divergencia') {
+        verdict = totalValueDiff > 100 ||
+          (totalSpedValue > 0 && totalValueDiff / totalSpedValue > 0.01)
+          ? 'divergencia'
+          : 'atencao';
+      }
+    }
+    if (matchedWithValueDiff.length > 0) {
+      const totalDivDoc = matchedWithValueDiff.reduce((s, r) => s + r.diferenca, 0);
+      verdictMessages.push(
+        `${matchedWithValueDiff.length} documento(s) conferidos com divergência de valor (soma: R$ ${totalDivDoc.toFixed(2)}).`,
+      );
+      if (verdict === 'ok') verdict = 'atencao';
+    }
+
+    if (verdictMessages.length === 0) {
+      verdictMessages.push(
+        `Conferência concluída: ${matchedCount} documento(s) com chave, quantidade e valores consistentes entre SPED e XML.`,
+      );
+    }
+
+    return {
+      totalSpedCount,
+      totalXmlCount,
+      matchedCount,
+      totalSpedValue,
+      totalXmlValue,
+      totalValueDiff,
+      matchedWithValueDiff,
+      verdict,
+      verdictMessages,
+    };
+  }
+
+  private emptyAudit(): AuditReportDto {
+    return {
+      totalSpedCount: 0, totalXmlCount: 0, matchedCount: 0,
+      totalSpedValue: 0, totalXmlValue: 0, totalValueDiff: 0,
+      matchedWithValueDiff: [], verdict: 'ok', verdictMessages: [],
+    };
+  }
+
   private emptyDashboard(): DashboardDto {
     return {
       totalVlSpedGeral: 0, totalVlSpedEntradas: 0, totalVlSpedSaidas: 0,
@@ -262,6 +380,7 @@ export class ConfrontService {
     xmlsSemAutorizacao: XmlItemDto[] = [],
     filtroEmissao: 'todas' | 'proprias' | 'terceiros' = 'todas',
     dashboard: DashboardDto = this.emptyDashboard(),
+    audit: AuditReportDto = this.emptyAudit(),
   ): ConfrontResultDto {
     return {
       sessionId: session.id,
@@ -285,6 +404,7 @@ export class ConfrontService {
       apenasProprías: (session.filtroEmissao ?? filtroEmissao) === 'proprias',
       filtroEmissao: (session.filtroEmissao ?? filtroEmissao) as 'todas' | 'proprias' | 'terceiros',
       dashboard,
+      audit,
     };
   }
 }

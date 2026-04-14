@@ -59,6 +59,7 @@ export interface ConfrontResultDto {
   filtroEmissao: 'todas' | 'proprias' | 'terceiros'
   apenasProprías: boolean
   dashboard: DashboardData
+  audit: AuditReport
 }
 
 export interface CfopSummary {
@@ -80,6 +81,33 @@ export interface DashboardData {
   totalVlXmlEntradas: number
   totalVlXmlSaidas: number
   cfopSummary: CfopSummary[]
+}
+
+export interface AuditItem {
+  chave: string
+  registro: string
+  numDoc?: string
+  dtDoc?: string
+  indOper?: string
+  nNF?: string
+  dhEmi?: string
+  cnpjEmit?: string
+  xNomeEmit?: string
+  vlSped: number
+  vlXml: number
+  diferenca: number
+}
+
+export interface AuditReport {
+  totalSpedCount: number
+  totalXmlCount: number
+  matchedCount: number
+  totalSpedValue: number
+  totalXmlValue: number
+  totalValueDiff: number
+  matchedWithValueDiff: AuditItem[]
+  verdict: 'ok' | 'atencao' | 'divergencia'
+  verdictMessages: string[]
 }
 
 export interface ConfrontSessionSummary {

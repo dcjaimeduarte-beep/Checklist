@@ -67,6 +67,35 @@ export class SpedItemDto {
   vlDoc?: number;
 }
 
+export class AuditItemDto {
+  chave: string;
+  registro: string;
+  numDoc?: string;
+  dtDoc?: string;
+  indOper?: string;
+  nNF?: string;
+  dhEmi?: string;
+  cnpjEmit?: string;
+  xNomeEmit?: string;
+  vlSped: number;
+  vlXml: number;
+  diferenca: number;
+}
+
+export class AuditReportDto {
+  totalSpedCount: number;
+  totalXmlCount: number;
+  matchedCount: number;
+  totalSpedValue: number;
+  totalXmlValue: number;
+  totalValueDiff: number;
+  /** Documentos presentes em ambos mas com VL_DOC ≠ vNF */
+  matchedWithValueDiff: AuditItemDto[];
+  /** 'ok' | 'atencao' | 'divergencia' */
+  verdict: string;
+  verdictMessages: string[];
+}
+
 export class ConfrontResultDto {
   sessionId: string;
   createdAt: string;
@@ -87,6 +116,8 @@ export class ConfrontResultDto {
   apenasProprías: boolean;
   /** Totais e resumo por CFOP para o dashboard */
   dashboard: DashboardDto;
+  /** Relatório de auditoria fiscal */
+  audit: AuditReportDto;
 }
 
 export class ConfrontSessionSummaryDto {

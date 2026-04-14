@@ -18,9 +18,9 @@ import { usePage } from '@/App'
 import { downloadExcel, downloadPdf, sendEmailReport } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { CfopSummary, SpedItem, XmlItem } from '@/types/confront'
+import type { AuditItem, CfopSummary, SpedItem, XmlItem } from '@/types/confront'
 
-type TabId = 'dashboard' | 'cfop-agrupado' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
+type TabId = 'auditoria' | 'dashboard' | 'cfop-agrupado' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
 
 const CSTAT_LABEL: Record<string, string> = {
   '100': 'Autorizado',
@@ -82,7 +82,7 @@ export function ResultsPage() {
   const { result, sessionId, reset } = useConfront()
   const { setPage } = usePage()
 
-  const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
+  const [activeTab, setActiveTab]       = useState<TabId>('auditoria')
   const [emailOpen, setEmailOpen]       = useState(false)
   const [emailTo, setEmailTo]           = useState('')
   const [emailMsg, setEmailMsg]         = useState('')
@@ -252,6 +252,7 @@ export function ResultsPage() {
         {/* ── Tabs ──────────────────────────────────────────────────────── */}
         <div className="mb-4 flex overflow-x-auto gap-1 rounded-xl border border-border bg-white p-1 shadow-sm w-fit max-w-full">
           {([
+            { id: 'auditoria'       as TabId, label: 'Auditoria Fiscal' },
             { id: 'dashboard'       as TabId, label: 'Dashboard' },
             { id: 'cfop-agrupado'   as TabId, label: 'CFOP Agrupado' },
             { id: 'resumo'          as TabId, label: 'Resumo' },
@@ -278,6 +279,11 @@ export function ResultsPage() {
             </button>
           ))}
         </div>
+
+        {/* ── Aba Auditoria Fiscal ──────────────────────────────────────── */}
+        {activeTab === 'auditoria' && (
+          <AuditoriaTab result={result} />
+        )}
 
         {/* ── Aba Dashboard ─────────────────────────────────────────────── */}
         {activeTab === 'dashboard' && (
@@ -679,6 +685,177 @@ function TableScrollWrapper({ children }: { children: React.ReactNode }) {
       </div>
       {/* Sombra fade à direita como indicador de scroll */}
       <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/60 to-transparent sm:hidden" />
+    </div>
+  )
+}
+
+// ── Auditoria Fiscal Tab ──────────────────────────────────────────────────────
+
+const VERDICT_CFG = {
+  ok:          { label: 'APROVADO',    bg: 'bg-emerald-50', border: 'border-emerald-300', dot: 'bg-emerald-500', text: 'text-emerald-800', badge: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },
+  atencao:     { label: 'ATENÇÃO',     bg: 'bg-amber-50',   border: 'border-amber-300',   dot: 'bg-amber-500',   text: 'text-amber-800',   badge: 'bg-amber-100 text-amber-800 ring-amber-200'   },
+  divergencia: { label: 'DIVERGÊNCIA', bg: 'bg-red-50',     border: 'border-red-300',     dot: 'bg-red-500',     text: 'text-red-800',     badge: 'bg-red-100 text-red-800 ring-red-200'         },
+}
+
+function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
+  const audit = result.audit ?? {
+    totalSpedCount: result.totalSpedEntries,
+    totalXmlCount: result.totalXmls,
+    matchedCount: result.totalMatches,
+    totalSpedValue: result.dashboard?.totalVlSpedGeral ?? 0,
+    totalXmlValue: result.dashboard?.totalVlXmlGeral ?? 0,
+    totalValueDiff: 0,
+    matchedWithValueDiff: [] as AuditItem[],
+    verdict: 'ok' as const,
+    verdictMessages: [],
+  }
+
+  const cfg = VERDICT_CFG[audit.verdict as keyof typeof VERDICT_CFG] ?? VERDICT_CFG.ok
+
+  const diffRows = [...(audit.matchedWithValueDiff ?? [])].sort((a, b) => b.diferenca - a.diferenca)
+
+  const checks: Array<{ label: string; ok: boolean; detail: string }> = [
+    {
+      label: 'Quantidade de documentos',
+      ok: audit.totalSpedCount === audit.totalXmlCount,
+      detail: `SPED: ${audit.totalSpedCount} | XML: ${audit.totalXmlCount}`,
+    },
+    {
+      label: 'Documentos conferidos (chave)',
+      ok: audit.matchedCount === audit.totalSpedCount && audit.matchedCount === audit.totalXmlCount,
+      detail: `${audit.matchedCount} de ${Math.max(audit.totalSpedCount, audit.totalXmlCount)} pares encontrados`,
+    },
+    {
+      label: 'Valor total SPED × XML',
+      ok: audit.totalValueDiff <= 0.01,
+      detail: audit.totalValueDiff > 0.01
+        ? `Diferença: R$ ${BRL(audit.totalValueDiff)} (SPED R$ ${BRL(audit.totalSpedValue)} | XML R$ ${BRL(audit.totalXmlValue)})`
+        : `R$ ${BRL(audit.totalSpedValue)} — valores idênticos`,
+    },
+    {
+      label: 'Valores por documento',
+      ok: diffRows.length === 0,
+      detail: diffRows.length === 0
+        ? 'Nenhuma divergência de valor nos pares conferidos'
+        : `${diffRows.length} documento(s) com valor diferente entre SPED e XML`,
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+
+      {/* Veredicto */}
+      <div className={cn('rounded-xl border-2 p-5 flex items-start gap-4', cfg.bg, cfg.border)}>
+        <span className={cn('mt-0.5 h-4 w-4 rounded-full shrink-0', cfg.dot)} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className={cn('text-base font-bold tracking-wide', cfg.text)}>{cfg.label}</p>
+            <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1', cfg.badge)}>
+              Auditoria Fiscal SPED × XML
+            </span>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {audit.verdictMessages.map((msg, i) => (
+              <li key={i} className={cn('text-sm', cfg.text)}>{msg}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Checklist de pontos auditados */}
+      <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        <div className="px-6 py-3 border-b border-border bg-[#F8FAFC]">
+          <p className="text-sm font-semibold text-foreground">Pontos verificados</p>
+        </div>
+        <ul className="divide-y divide-border">
+          {checks.map(({ label, ok, detail }) => (
+            <li key={label} className="flex items-center gap-4 px-6 py-3">
+              <span className={cn(
+                'shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold',
+                ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
+              )}>
+                {ok ? '✓' : '✗'}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{label}</p>
+                <p className="text-xs text-muted-foreground">{detail}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Tabela de divergências de valor nos pares conferidos */}
+      {diffRows.length > 0 && (
+        <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+          <div className="px-6 py-3 border-b border-border bg-amber-50 flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
+            <p className="text-sm font-semibold text-amber-800">
+              Documentos conferidos com valor divergente ({diffRows.length})
+            </p>
+          </div>
+          <TableScrollWrapper>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-[#0d1f30] text-white text-left">
+                  <th className="px-3 py-3 font-semibold whitespace-nowrap">Chave (44)</th>
+                  <th className="px-3 py-3 font-semibold whitespace-nowrap">Nº Doc</th>
+                  <th className="px-3 py-3 font-semibold whitespace-nowrap">Data</th>
+                  <th className="px-3 py-3 font-semibold whitespace-nowrap">Oper.</th>
+                  <th className="px-3 py-3 font-semibold whitespace-nowrap">Emitente</th>
+                  <th className="px-3 py-3 font-semibold text-right whitespace-nowrap">VL SPED</th>
+                  <th className="px-3 py-3 font-semibold text-right whitespace-nowrap">VL XML</th>
+                  <th className="px-3 py-3 font-semibold text-right whitespace-nowrap">Diferença</th>
+                </tr>
+              </thead>
+              <tbody>
+                {diffRows.map((row, i) => (
+                  <tr key={row.chave} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                    <td className="px-3 py-2.5 align-top">
+                      <span className="font-mono text-[10px] text-foreground break-all leading-relaxed">{row.chave}</span>
+                    </td>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">{row.numDoc ?? '—'}</td>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(row.dtDoc)}</td>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      <span className={cn(
+                        'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                        row.indOper === '0' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' : 'bg-orange-50 text-orange-700 ring-1 ring-orange-200',
+                      )}>
+                        {row.indOper === '0' ? 'Entrada' : 'Saída'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 align-top">
+                      <span className="block max-w-[160px] truncate" title={row.xNomeEmit}>{row.xNomeEmit ?? row.cnpjEmit ?? '—'}</span>
+                    </td>
+                    <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap">{BRL(row.vlSped)}</td>
+                    <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap">{BRL(row.vlXml)}</td>
+                    <td className="px-3 py-2.5 align-top text-right tabular-nums whitespace-nowrap font-semibold text-red-600">{BRL(row.diferenca)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-amber-50 border-t-2 border-amber-200 font-semibold">
+                  <td colSpan={7} className="px-3 py-2 text-xs font-bold text-amber-800">TOTAL DIFERENÇA</td>
+                  <td className="px-3 py-2 text-right text-xs tabular-nums font-bold text-red-600">
+                    {BRL(diffRows.reduce((s, r) => s + r.diferenca, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </TableScrollWrapper>
+        </div>
+      )}
+
+      {/* Estado vazio — tudo OK */}
+      {diffRows.length === 0 && audit.verdict === 'ok' && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-8 flex flex-col items-center text-center gap-2">
+          <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+          <p className="text-sm font-semibold text-emerald-800">Documentos conferidos sem divergências de valor</p>
+          <p className="text-xs text-emerald-700">
+            Todos os {audit.matchedCount} pares apresentam VL_DOC (SPED) idêntico ao vNF (XML).
+          </p>
+        </div>
+      )}
     </div>
   )
 }
