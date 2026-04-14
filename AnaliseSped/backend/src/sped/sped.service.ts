@@ -87,6 +87,7 @@ export class SpedService {
   private parseC100(fields: string[]): SpedEntry | null {
     // |C100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|NUM_DOC[8]|CHV_NFE[9]|DT_DOC[10]|...
     const indOper = fields[2] ?? '';
+    const indEmit = fields[3] ?? '';
     const codMod = fields[5] ?? '';
     const codSit = fields[6] ?? '';
     const ser = fields[7] ?? '';
@@ -94,18 +95,16 @@ export class SpedService {
     const chave = (fields[9] ?? '').replace(/\D/g, '');
     const dtDoc = fields[10] ?? '';
 
-    // Ignorar situações de numeração inutilizada
     if (SPED_SIT_IGNORAR.has(codSit)) return null;
-
-    // Ignorar chaves inválidas
     if (chave.length !== 44) return null;
 
-    return { registro: 'C100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper };
+    return { registro: 'C100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit };
   }
 
   private parseD100(fields: string[]): SpedEntry | null {
     // |D100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|SUB[8]|NUM_DOC[9]|CHV_CTE[10]|DT_DOC[11]|...
     const indOper = fields[2] ?? '';
+    const indEmit = fields[3] ?? '';
     const codMod = fields[5] ?? '';
     const codSit = fields[6] ?? '';
     const ser = fields[7] ?? '';
@@ -116,6 +115,6 @@ export class SpedService {
     if (SPED_SIT_IGNORAR.has(codSit)) return null;
     if (chave.length !== 44) return null;
 
-    return { registro: 'D100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper };
+    return { registro: 'D100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit };
   }
 }

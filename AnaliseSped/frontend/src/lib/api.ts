@@ -31,10 +31,12 @@ export async function confrontRequest(
   spedFile: File,
   xmlFiles: File[],
   onProgress?: (pct: number) => void,
+  filtroEmissao: 'todas' | 'proprias' | 'terceiros' = 'todas',
 ): Promise<ConfrontResultDto> {
   const formData = new FormData()
   formData.append('sped', spedFile)
   for (const xml of xmlFiles) formData.append('xmls', xml)
+  formData.append('filtroEmissao', filtroEmissao)
 
   // XHR para poder reportar progresso de upload
   return new Promise<ConfrontResultDto>((resolve, reject) => {

@@ -35,6 +35,8 @@ export interface SpedItem {
   dtDoc?: string
   codSit?: string
   indOper?: string
+  /** IND_EMIT: '0' = emissão própria, '1' = terceiros */
+  indEmit?: string
 }
 
 export interface ConfrontResultDto {
@@ -50,6 +52,8 @@ export interface ConfrontResultDto {
   xmlErrors: Array<{ filename: string; reason: string }>
   xmlsSemAutorizacao: XmlItem[]
   totalSemAutorizacao: number
+  filtroEmissao: 'todas' | 'proprias' | 'terceiros'
+  apenasProprías: boolean
 }
 
 export interface ConfrontSessionSummary {

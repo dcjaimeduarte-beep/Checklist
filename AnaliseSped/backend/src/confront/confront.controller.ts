@@ -36,7 +36,10 @@ export class ConfrontController {
       limits: { fileSize: 300 * 1024 * 1024 },
     }),
   )
-  async run(@UploadedFiles() files: Express.Multer.File[]) {
+  async run(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('filtroEmissao') filtroEmissaoRaw?: string,
+  ) {
     const allFiles = files ?? [];
 
     const spedFile = allFiles.find((f) => f.fieldname === 'sped');
@@ -48,10 +51,16 @@ export class ConfrontController {
       .filter((f) => f.fieldname === 'xmls')
       .map((f) => ({ buffer: f.buffer, originalname: f.originalname }));
 
+    const filtroEmissao =
+      filtroEmissaoRaw === 'proprias' || filtroEmissaoRaw === 'terceiros'
+        ? filtroEmissaoRaw
+        : 'todas';
+
     return this.confrontService.run(
       spedFile.buffer,
       spedFile.originalname,
       xmlFiles,
+      filtroEmissao,
     );
   }
 

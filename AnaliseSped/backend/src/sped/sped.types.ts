@@ -15,6 +15,8 @@ export interface SpedEntry {
   dtDoc: string;
   codSit: string;
   indOper: string;
+  /** IND_EMIT: '0' = emissão própria, '1' = terceiros */
+  indEmit: string;
 }
 
 export interface SpedParseResult {

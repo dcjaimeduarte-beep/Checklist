@@ -32,6 +32,7 @@ export class ConfrontService {
     spedBuffer: Buffer,
     spedFilename: string,
     xmlFiles: Array<{ buffer: Buffer; originalname: string }>,
+    filtroEmissao: 'todas' | 'proprias' | 'terceiros' = 'todas',
   ): Promise<ConfrontResultDto> {
     // 1. Parsear SPED
     const spedResult = this.spedService.parse(spedBuffer);
@@ -39,14 +40,27 @@ export class ConfrontService {
     // 2. Parsear XMLs
     const xmlResult = this.xmlParserService.parseMany(xmlFiles);
 
-    // 3. Confrontar
+    // 3. Aplicar filtro de emissão
+    //    IND_EMIT: '0' = emissão própria, '1' = terceiros
+    let spedEntries = spedResult.entries;
+    let xmlEntries  = xmlResult.entries;
+
+    if (filtroEmissao === 'proprias') {
+      spedEntries = spedEntries.filter((e) => e.indEmit === '0');
+      xmlEntries  = xmlEntries.filter((e) => !e.cnpjEmit || e.cnpjEmit === spedResult.info.cnpj);
+    } else if (filtroEmissao === 'terceiros') {
+      spedEntries = spedEntries.filter((e) => e.indEmit === '1');
+      xmlEntries  = xmlEntries.filter((e) => e.cnpjEmit && e.cnpjEmit !== spedResult.info.cnpj);
+    }
+
+    // 4. Confrontar
     const { xmlsNotInSped, spedNotInXml } = this.compare(
-      spedResult.entries,
-      xmlResult.entries,
+      spedEntries,
+      xmlEntries,
     );
 
-    // 4. XMLs sem autorização SEFAZ (todos os XMLs, não só os não encontrados no SPED)
-    const xmlsSemAutorizacao: XmlItemDto[] = xmlResult.entries
+    // 5. XMLs sem autorização SEFAZ (do conjunto filtrado)
+    const xmlsSemAutorizacao: XmlItemDto[] = xmlEntries
       .filter((e) => !e.autorizada)
       .map((e) => ({
         chave: e.chave,
@@ -67,7 +81,7 @@ export class ConfrontService {
     const totalMatches =
       spedResult.entries.length - spedNotInXml.length;
 
-    // 5. Persistir sessão
+    // 6. Persistir sessão
     const session = this.sessionRepo.create({
       spedFilename,
       spedCnpj: spedResult.info.cnpj,
@@ -75,9 +89,10 @@ export class ConfrontService {
       spedDtIni: spedResult.info.dtIni,
       spedDtFin: spedResult.info.dtFin,
       spedUf: spedResult.info.uf,
-      totalSpedEntries: spedResult.entries.length,
-      totalXmls: xmlResult.entries.length,
+      totalSpedEntries: spedEntries.length,
+      totalXmls: xmlEntries.length,
       totalMatches,
+      filtroEmissao,
       xmlsNotInSpedJson: JSON.stringify(xmlsNotInSped),
       spedNotInXmlJson: JSON.stringify(spedNotInXml),
       xmlsSemAutorizacaoJson: JSON.stringify(xmlsSemAutorizacao),
@@ -87,7 +102,7 @@ export class ConfrontService {
     await this.sessionRepo.save(session);
     this.logger.log(`Sessão criada: ${session.id}`);
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao);
   }
 
   async getSession(id: string): Promise<ConfrontResultDto> {
@@ -171,6 +186,7 @@ export class ConfrontService {
           dtDoc: sped.dtDoc,
           codSit: sped.codSit,
           indOper: sped.indOper,
+          indEmit: sped.indEmit,
         });
       }
     }
@@ -184,6 +200,7 @@ export class ConfrontService {
     spedNotInXml: SpedItemDto[],
     xmlErrors: Array<{ filename: string; reason: string }>,
     xmlsSemAutorizacao: XmlItemDto[] = [],
+    filtroEmissao: 'todas' | 'proprias' | 'terceiros' = 'todas',
   ): ConfrontResultDto {
     return {
       sessionId: session.id,
@@ -204,6 +221,8 @@ export class ConfrontService {
       xmlErrors,
       xmlsSemAutorizacao,
       totalSemAutorizacao: session.totalSemAutorizacao ?? xmlsSemAutorizacao.length,
+      apenasProprías: (session.filtroEmissao ?? filtroEmissao) === 'proprias',
+      filtroEmissao: (session.filtroEmissao ?? filtroEmissao) as 'todas' | 'proprias' | 'terceiros',
     };
   }
 }

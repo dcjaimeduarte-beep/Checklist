@@ -47,4 +47,8 @@ export class ConfrontSession {
 
   @Column({ default: 0 })
   totalSemAutorizacao: number;
+
+  /** Filtro aplicado: 'todas' | 'proprias' | 'terceiros' */
+  @Column({ type: 'text', default: 'todas' })
+  filtroEmissao: string;
 }

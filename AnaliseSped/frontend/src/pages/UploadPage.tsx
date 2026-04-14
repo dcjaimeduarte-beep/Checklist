@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { FileText, FolderOpen, Upload, X, AlertCircle, RefreshCw } from 'lucide-react'
+import { FileText, FolderOpen, Upload, X, AlertCircle, RefreshCw, Filter } from 'lucide-react'
 
 import { useConfront } from '@/confront/ConfrontContext'
 import { usePage } from '@/App'
@@ -15,6 +15,7 @@ export function UploadPage() {
   const [xmlFiles, setXmlFiles] = useState<File[]>([])
   const [spedDragOver, setSpedDragOver] = useState(false)
   const [xmlDragOver, setXmlDragOver] = useState(false)
+  const [filtroEmissao, setFiltroEmissao] = useState<'todas' | 'proprias' | 'terceiros'>('todas')
 
   const spedInputRef = useRef<HTMLInputElement>(null)
   const xmlInputRef = useRef<HTMLInputElement>(null)
@@ -75,7 +76,7 @@ export function UploadPage() {
       const result = await confrontRequest(spedFile, xmlFiles, (pct) => {
         setProgress(pct)
         if (pct >= 90) setStatus('processing')
-      })
+      }, filtroEmissao)
       setResult(result)
       setStatus('done')
       setPage('resultados')
@@ -280,6 +281,41 @@ export function UploadPage() {
               </div>
             )}
           </section>
+        </div>
+
+        {/* ── Filtro de emissão ── */}
+        <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/10">
+              <Filter className="h-4 w-4 text-secondary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Escopo do confronto</h3>
+              <p className="text-xs text-muted-foreground">Quais notas fiscais incluir na análise</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {([
+              { value: 'todas',     label: 'Todas as notas',        desc: 'Próprias e de terceiros' },
+              { value: 'proprias',  label: 'Apenas notas próprias', desc: 'Emitidas por esta empresa (IND_EMIT = 0)' },
+              { value: 'terceiros', label: 'Apenas de terceiros',   desc: 'Recebidas de fornecedores (IND_EMIT = 1)' },
+            ] as const).map(({ value, label, desc }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFiltroEmissao(value)}
+                className={cn(
+                  'cursor-pointer flex-1 rounded-lg border-2 px-4 py-3 text-left transition-all',
+                  filtroEmissao === value
+                    ? 'border-secondary bg-secondary/5'
+                    : 'border-border hover:border-secondary/40 hover:bg-backgroundMuted',
+                )}
+              >
+                <p className={cn('text-sm font-semibold', filtroEmissao === value ? 'text-secondary' : 'text-foreground')}>{label}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Progresso / Erro ── */}

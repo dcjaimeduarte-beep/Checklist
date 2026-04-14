@@ -35,6 +35,8 @@ export class SpedItemDto {
   dtDoc?: string;
   codSit?: string;
   indOper?: string;
+  /** IND_EMIT: '0' = emissão própria, '1' = terceiros */
+  indEmit?: string;
 }
 
 export class ConfrontResultDto {
@@ -51,6 +53,10 @@ export class ConfrontResultDto {
   /** XMLs que não possuem autorização SEFAZ (sem protocolo ou cStat ≠ 100/150) */
   xmlsSemAutorizacao: XmlItemDto[];
   totalSemAutorizacao: number;
+  /** Filtro de emissão aplicado no confronto */
+  filtroEmissao: 'todas' | 'proprias' | 'terceiros';
+  /** true se o confronto foi feito filtrando apenas notas de emissão própria */
+  apenasProprías: boolean;
 }
 
 export class ConfrontSessionSummaryDto {

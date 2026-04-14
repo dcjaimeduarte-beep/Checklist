@@ -93,6 +93,7 @@ export function ResultsPage() {
   const [dlPdf, setDlPdf]               = useState(false)
   const [xmlPage, setXmlPage]           = useState(0)
   const [spedPage, setSpedPage]         = useState(0)
+  const [authPage, setAuthPage]         = useState(0)
 
   if (!result) {
     return (
@@ -105,8 +106,6 @@ export function ResultsPage() {
       </div>
     )
   }
-
-  const [authPage, setAuthPage] = useState(0)
 
   const divergencias   = result.xmlsNotInSped.length + result.spedNotInXml.length
   const xmlItems: XmlItem[]   = result.xmlsNotInSped
@@ -224,6 +223,11 @@ export function ResultsPage() {
             <span><span className="text-white/70 font-medium">UF:</span> {result.spedInfo.uf}</span>
             <span><span className="text-white/70 font-medium">Período:</span> {formatDate(result.spedInfo.dtIni)} → {formatDate(result.spedInfo.dtFin)}</span>
             <span className="hidden md:inline"><span className="text-white/70 font-medium">Arquivo:</span> {result.spedFilename}</span>
+            {result.filtroEmissao && result.filtroEmissao !== 'todas' && (
+              <span className="inline-flex items-center rounded-full bg-secondary/30 px-2 py-0.5 text-[10px] font-semibold text-white">
+                {result.filtroEmissao === 'proprias' ? 'Notas próprias' : 'Notas de terceiros'}
+              </span>
+            )}
           </div>
         </div>
       </header>
