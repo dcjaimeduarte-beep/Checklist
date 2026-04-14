@@ -59,6 +59,18 @@ const TIPO_CLS: Record<string, string> = {
   'CTe':   'bg-indigo-100  text-indigo-700 ring-1 ring-indigo-200',
 }
 
+/** Gera nome de arquivo: {NomeEmpresa}_{MM-AAAA}.{ext} */
+function buildFilename(nome: string, dtIni: string, ext: string): string {
+  const nomeSanitizado = nome
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // remove acentos
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .slice(0, 50)
+  const mes = dtIni.length >= 8 ? `${dtIni.slice(2, 4)}-${dtIni.slice(4, 8)}` : dtIni
+  return `${nomeSanitizado}_${mes}.${ext}`
+}
+
 function formatDate(dt?: string): string {
   if (!dt) return '—'
   if (dt.includes('T') || dt.includes('-')) return new Date(dt).toLocaleDateString('pt-BR')
@@ -127,7 +139,7 @@ export function ResultsPage() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `confronto_${result.spedInfo.cnpj}_${result.spedInfo.dtIni}.${ext}`
+      a.download = buildFilename(result.spedInfo.nome, result.spedInfo.dtIni, ext)
       a.click()
       URL.revokeObjectURL(url)
     } finally {
