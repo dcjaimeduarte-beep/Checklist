@@ -804,17 +804,16 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
         {/* Explicação das diferenças */}
         <div className="border-t border-border divide-y divide-border">
 
-          {/* Diferença 1: XML vs SPED C100 — pode ser problema */}
-          <div className={cn(
-            'px-6 py-4 flex flex-col sm:flex-row sm:items-start gap-3',
-            Math.abs(diffXmlVsSped) > 0.01 ? 'bg-red-50' : 'bg-emerald-50',
-          )}>
-            <div className="flex items-center gap-3 shrink-0 sm:w-56">
-              <span className="text-orange-500 font-bold text-sm shrink-0">XML</span>
-              <span className="text-xs text-muted-foreground">→</span>
-              <span className="text-primary font-bold text-sm shrink-0">SPED C100</span>
+          {/* Diferença 1: XML vs SPED C100 */}
+          <div className={cn('px-6 py-4', Math.abs(diffXmlVsSped) > 0.01 ? 'bg-red-50' : 'bg-emerald-50')}>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-orange-500 font-bold text-sm">XML</span>
+                <span className="text-muted-foreground text-sm">→</span>
+                <span className="text-primary font-bold text-sm">SPED C100</span>
+              </div>
               <span className={cn(
-                'ml-auto sm:ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 whitespace-nowrap',
+                'inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1 whitespace-nowrap shrink-0',
                 Math.abs(diffXmlVsSped) > 0.01
                   ? 'bg-red-100 text-red-700 ring-red-200'
                   : 'bg-emerald-100 text-emerald-700 ring-emerald-200',
@@ -822,42 +821,40 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
                 {Math.abs(diffXmlVsSped) > 0.01 ? '⚠ INVESTIGAR' : '✓ OK'}
               </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className={cn('text-sm font-semibold', Math.abs(diffXmlVsSped) > 0.01 ? 'text-red-800' : 'text-emerald-800')}>
-                {Math.abs(diffXmlVsSped) > 0.01
-                  ? `Diferença de R$ ${BRL(Math.abs(diffXmlVsSped))} — divergência de escrituração`
-                  : 'Sem diferença — XML e SPED C100 conferem'}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Essa diferença exige ação: pode haver XMLs não escriturados no SPED, notas com VL_DOC zerado,
-                ou documentos no SPED sem XML correspondente. Veja as abas <strong>XMLs não no SPED</strong>,{' '}
-                <strong>SPED sem XML</strong> e <strong>Documentos com valor divergente</strong> abaixo.
-              </p>
-            </div>
+            <p className={cn('text-sm font-semibold mb-1', Math.abs(diffXmlVsSped) > 0.01 ? 'text-red-800' : 'text-emerald-800')}>
+              {Math.abs(diffXmlVsSped) > 0.01
+                ? `Diferença de R$ ${BRL(Math.abs(diffXmlVsSped))} — divergência de escrituração`
+                : 'Sem diferença — XML e SPED C100 conferem'}
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Essa diferença exige ação: pode haver XMLs não escriturados no SPED, notas com VL_DOC zerado
+              ou documentos no SPED sem XML correspondente. Veja as abas <strong>XMLs não no SPED</strong>,{' '}
+              <strong>SPED sem XML</strong> e <strong>Documentos com valor divergente</strong>.
+            </p>
           </div>
 
           {/* Diferença 2: C100 vs C190 — normal */}
-          <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-start gap-3 bg-blue-50/50">
-            <div className="flex items-center gap-3 shrink-0 sm:w-56">
-              <span className="text-primary font-bold text-sm shrink-0">SPED C100</span>
-              <span className="text-xs text-muted-foreground">→</span>
-              <span className="text-indigo-700 font-bold text-sm shrink-0">SPED C190</span>
-              <span className="ml-auto sm:ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 whitespace-nowrap bg-blue-100 text-blue-700 ring-blue-200">
+          <div className="px-6 py-4 bg-blue-50/40">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-primary font-bold text-sm">SPED C100</span>
+                <span className="text-muted-foreground text-sm">→</span>
+                <span className="text-indigo-700 font-bold text-sm">SPED C190</span>
+              </div>
+              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1 whitespace-nowrap shrink-0 bg-blue-100 text-blue-700 ring-blue-200">
                 ℹ NORMAL
               </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-blue-900">
-                {diffC100VsC190 > 0.01
-                  ? `Diferença de R$ ${BRL(diffC100VsC190)} — esperada por design do SPED`
-                  : 'Sem diferença entre C100 e C190'}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                O <strong>VL_DOC</strong> (C100) é o valor total da nota (mercadoria + frete + seguro + despesas).
-                O <strong>VL_OPR</strong> (C190) é o valor da operação, que exclui frete, seguro e despesas acessórias
-                para fins de apuração do ICMS. Essa diferença é prevista na legislação — não requer correção.
-              </p>
-            </div>
+            <p className="text-sm font-semibold text-blue-900 mb-1">
+              {diffC100VsC190 > 0.01
+                ? `Diferença de R$ ${BRL(diffC100VsC190)} — esperada por design do SPED`
+                : 'Sem diferença entre C100 e C190'}
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              O <strong>VL_DOC</strong> (C100) é o valor total da nota incluindo frete, seguro e despesas acessórias.
+              O <strong>VL_OPR</strong> (C190) exclui esses itens pois representa apenas o valor da operação
+              para fins de apuração do ICMS. Diferença prevista na legislação — não requer correção.
+            </p>
           </div>
         </div>
       </div>
