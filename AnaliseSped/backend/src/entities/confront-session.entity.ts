@@ -55,4 +55,8 @@ export class ConfrontSession {
   /** JSON com arquivos XML que falharam no parse */
   @Column({ type: 'text', nullable: true })
   xmlErrorsJson: string;
+
+  /** JSON com totais e resumo por CFOP (dashboard) */
+  @Column({ type: 'text', nullable: true })
+  dashboardJson: string;
 }

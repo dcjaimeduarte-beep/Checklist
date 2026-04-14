@@ -17,11 +17,26 @@ export interface SpedEntry {
   indOper: string;
   /** IND_EMIT: '0' = emissão própria, '1' = terceiros */
   indEmit: string;
+  /** Valor total do documento (VL_DOC) */
+  vlDoc: number;
+}
+
+/** Resumo por CFOP extraído do registro C190 do SPED */
+export interface SpedC190 {
+  cstIcms: string;
+  cfop: string;
+  aliqIcms: number;
+  vlBcIcms: number;
+  vlIcms: number;
+  vlBcIcmsSt: number;
+  vlIcmsSt: number;
+  vlOpr: number;
 }
 
 export interface SpedParseResult {
   info: SpedInfo;
   entries: SpedEntry[];
+  cfopSummary: SpedC190[];
   invalidLines: number;
 }
 

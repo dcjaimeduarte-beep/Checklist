@@ -18,9 +18,9 @@ import { usePage } from '@/App'
 import { downloadExcel, downloadPdf, sendEmailReport } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { SpedItem, XmlItem } from '@/types/confront'
+import type { CfopSummary, SpedItem, XmlItem } from '@/types/confront'
 
-type TabId = 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
+type TabId = 'dashboard' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
 
 const CSTAT_LABEL: Record<string, string> = {
   '100': 'Autorizado',
@@ -82,7 +82,7 @@ export function ResultsPage() {
   const { result, sessionId, reset } = useConfront()
   const { setPage } = usePage()
 
-  const [activeTab, setActiveTab]       = useState<TabId>('resumo')
+  const [activeTab, setActiveTab]       = useState<TabId>('dashboard')
   const [emailOpen, setEmailOpen]       = useState(false)
   const [emailTo, setEmailTo]           = useState('')
   const [emailMsg, setEmailMsg]         = useState('')
@@ -252,11 +252,12 @@ export function ResultsPage() {
         {/* ── Tabs ──────────────────────────────────────────────────────── */}
         <div className="mb-4 flex overflow-x-auto gap-1 rounded-xl border border-border bg-white p-1 shadow-sm w-fit max-w-full">
           {([
+            { id: 'dashboard'       as TabId, label: 'Dashboard' },
             { id: 'resumo'          as TabId, label: 'Resumo' },
-            { id: 'xml-sem-sped'   as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
-            { id: 'sped-sem-xml'   as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
-            { id: 'sem-autorizacao'  as TabId, label: `Sem autorização (${semAuth})`,                       alert: semAuth > 0 },
-            { id: 'erros-leitura'   as TabId, label: `Erros de leitura (${result.xmlErrors.length})`,       alert: result.xmlErrors.length > 0 },
+            { id: 'xml-sem-sped'    as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
+            { id: 'sped-sem-xml'    as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
+            { id: 'sem-autorizacao' as TabId, label: `Sem autorização (${semAuth})`,               alert: semAuth > 0 },
+            { id: 'erros-leitura'   as TabId, label: `Erros de leitura (${result.xmlErrors.length})`, alert: result.xmlErrors.length > 0 },
           ]).map(({ id, label, alert }) => (
             <button
               key={id}
@@ -276,6 +277,11 @@ export function ResultsPage() {
             </button>
           ))}
         </div>
+
+        {/* ── Aba Dashboard ─────────────────────────────────────────────── */}
+        {activeTab === 'dashboard' && (
+          <DashboardTab result={result} />
+        )}
 
         {/* ── Aba Resumo ────────────────────────────────────────────────── */}
         {activeTab === 'resumo' && (
@@ -663,6 +669,127 @@ function TableScrollWrapper({ children }: { children: React.ReactNode }) {
       </div>
       {/* Sombra fade à direita como indicador de scroll */}
       <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/60 to-transparent sm:hidden" />
+    </div>
+  )
+}
+
+// ── Dashboard Tab ─────────────────────────────────────────────────────────────
+
+function BRL(value: number) {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function DashboardTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
+  const db = result.dashboard ?? {
+    totalVlSpedGeral: 0, totalVlSpedEntradas: 0, totalVlSpedSaidas: 0,
+    totalVlXmlGeral: 0,  totalVlXmlEntradas: 0,  totalVlXmlSaidas: 0,
+    cfopSummary: [],
+  }
+
+  const cfopRows: CfopSummary[] = [...db.cfopSummary].sort((a, b) =>
+    a.cfop.localeCompare(b.cfop),
+  )
+
+  const totalCfopOpr  = cfopRows.reduce((s, r) => s + r.vlOpr, 0)
+  const totalCfopIcms = cfopRows.reduce((s, r) => s + r.vlIcms, 0)
+  const totalCfopSt   = cfopRows.reduce((s, r) => s + r.vlIcmsSt, 0)
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Totais SPED ── */}
+      <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">S</span>
+          Valores apurados — SPED Fiscal
+        </h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {[
+            { label: 'Total geral (VL_DOC)',  value: db.totalVlSpedGeral,    cls: 'text-primary' },
+            { label: 'Entradas (IND_OPER=0)', value: db.totalVlSpedEntradas, cls: 'text-blue-600' },
+            { label: 'Saídas (IND_OPER=1)',   value: db.totalVlSpedSaidas,   cls: 'text-orange-600' },
+          ].map(({ label, value, cls }) => (
+            <div key={label} className="rounded-lg border border-border bg-[#F8FAFC] px-4 py-3">
+              <p className="text-[11px] text-muted-foreground">{label}</p>
+              <p className={cn('mt-1 text-lg font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Totais XML ── */}
+      <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary/10 text-[10px] font-bold text-secondary">X</span>
+          Valores apurados — XMLs enviados
+        </h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {[
+            { label: 'Total geral (vNF)',    value: db.totalVlXmlGeral,    cls: 'text-secondary' },
+            { label: 'Entradas (tpNF=0)',    value: db.totalVlXmlEntradas, cls: 'text-blue-600' },
+            { label: 'Saídas (tpNF=1)',      value: db.totalVlXmlSaidas,   cls: 'text-orange-600' },
+          ].map(({ label, value, cls }) => (
+            <div key={label} className="rounded-lg border border-border bg-[#F8FAFC] px-4 py-3">
+              <p className="text-[11px] text-muted-foreground">{label}</p>
+              <p className={cn('mt-1 text-lg font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Resumo por CFOP ── */}
+      <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-border px-5 py-3">
+          <h3 className="text-sm font-semibold text-foreground">Resumo por CFOP — Registro C190</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Totais de operações agrupados por CFOP conforme escrituração no SPED</p>
+        </div>
+        {cfopRows.length === 0 ? (
+          <div className="flex flex-col items-center py-10 text-center">
+            <p className="text-sm text-muted-foreground">Nenhum registro C190 encontrado no SPED.</p>
+          </div>
+        ) : (
+          <>
+            <TableScrollWrapper>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-primary text-white">
+                    <Th>CFOP</Th>
+                    <Th>CST ICMS</Th>
+                    <Th>Alíq. ICMS %</Th>
+                    <Th right>VL Base ICMS</Th>
+                    <Th right>VL ICMS</Th>
+                    <Th right>VL BC ICMS ST</Th>
+                    <Th right>VL ICMS ST</Th>
+                    <Th right>VL Operação</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cfopRows.map((row, i) => (
+                    <tr key={row.cfop + row.cstIcms + i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                      <td className="px-3 py-2.5 font-mono font-semibold text-primary whitespace-nowrap">{row.cfop}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{row.cstIcms}</td>
+                      <td className="px-3 py-2.5 text-center tabular-nums">{row.aliqIcms > 0 ? `${row.aliqIcms}%` : '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlBcIcms > 0 ? BRL(row.vlBcIcms) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlIcms > 0 ? BRL(row.vlIcms) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlBcIcmsSt > 0 ? BRL(row.vlBcIcmsSt) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{row.vlIcmsSt > 0 ? BRL(row.vlIcmsSt) : '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-semibold text-foreground">{BRL(row.vlOpr)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-primary/5 font-semibold border-t-2 border-primary/20">
+                    <td className="px-3 py-2.5 text-xs font-bold text-primary" colSpan={3}>TOTAL</td>
+                    <td className="px-3 py-2.5 text-right text-xs tabular-nums" colSpan={2}>{BRL(totalCfopIcms)}</td>
+                    <td className="px-3 py-2.5 text-right text-xs tabular-nums" colSpan={2}>{BRL(totalCfopSt)}</td>
+                    <td className="px-3 py-2.5 text-right text-xs tabular-nums font-bold text-primary">{BRL(totalCfopOpr)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </TableScrollWrapper>
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -56,6 +56,28 @@ export interface ConfrontResultDto {
   totalSemAutorizacao: number
   filtroEmissao: 'todas' | 'proprias' | 'terceiros'
   apenasProprías: boolean
+  dashboard: DashboardData
+}
+
+export interface CfopSummary {
+  cfop: string
+  cstIcms: string
+  aliqIcms: number
+  vlBcIcms: number
+  vlIcms: number
+  vlBcIcmsSt: number
+  vlIcmsSt: number
+  vlOpr: number
+}
+
+export interface DashboardData {
+  totalVlSpedGeral: number
+  totalVlSpedEntradas: number
+  totalVlSpedSaidas: number
+  totalVlXmlGeral: number
+  totalVlXmlEntradas: number
+  totalVlXmlSaidas: number
+  cfopSummary: CfopSummary[]
 }
 
 export interface ConfrontSessionSummary {

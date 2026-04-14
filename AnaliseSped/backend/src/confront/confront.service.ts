@@ -10,6 +10,7 @@ import { XmlEntry } from '../xml-parser/xml-parser.types';
 import {
   ConfrontResultDto,
   ConfrontSessionSummaryDto,
+  DashboardDto,
   SpedItemDto,
   XmlItemDto,
 } from './dto/confront-result.dto';
@@ -92,7 +93,10 @@ export class ConfrontService {
     const totalMatches =
       spedResult.entries.length - spedNotInXml.length;
 
-    // 6. Persistir sessão
+    // 6. Calcular dashboard (totais + CFOP)
+    const dashboard = this.buildDashboard(spedEntries, xmlEntries, spedResult.cfopSummary);
+
+    // 7. Persistir sessão
     const session = this.sessionRepo.create({
       spedFilename,
       spedCnpj: spedResult.info.cnpj,
@@ -109,12 +113,13 @@ export class ConfrontService {
       xmlsSemAutorizacaoJson: JSON.stringify(xmlsSemAutorizacao),
       totalSemAutorizacao: xmlsSemAutorizacao.length,
       xmlErrorsJson: JSON.stringify(xmlResult.errors),
+      dashboardJson: JSON.stringify(dashboard),
     });
 
     await this.sessionRepo.save(session);
     this.logger.log(`Sessão criada: ${session.id}`);
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao, dashboard);
   }
 
   async getSession(id: string): Promise<ConfrontResultDto> {
@@ -125,8 +130,9 @@ export class ConfrontService {
     const spedNotInXml: SpedItemDto[] = JSON.parse(session.spedNotInXmlJson ?? '[]');
     const xmlsSemAutorizacao: XmlItemDto[] = JSON.parse(session.xmlsSemAutorizacaoJson ?? '[]');
     const xmlErrors: Array<{ filename: string; reason: string }> = JSON.parse(session.xmlErrorsJson ?? '[]');
+    const dashboard: DashboardDto = JSON.parse(session.dashboardJson ?? 'null') ?? this.emptyDashboard();
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao, undefined, dashboard);
   }
 
   async listSessions(page = 1, limit = 20): Promise<ConfrontSessionSummaryDto[]> {
@@ -208,6 +214,45 @@ export class ConfrontService {
     return { xmlsNotInSped, spedNotInXml };
   }
 
+  private buildDashboard(
+    spedEntries: SpedEntry[],
+    xmlEntries: XmlEntry[],
+    cfopSummary: import('../sped/sped.types').SpedC190[],
+  ): DashboardDto {
+    const sumSped = (filter: (e: SpedEntry) => boolean) =>
+      spedEntries.filter(filter).reduce((s, e) => s + (e.vlDoc ?? 0), 0);
+
+    const sumXml = (filter: (e: XmlEntry) => boolean) =>
+      xmlEntries.filter(filter).reduce((s, e) => s + (parseFloat(e.vNF ?? '0') || 0), 0);
+
+    return {
+      totalVlSpedGeral:    sumSped(() => true),
+      totalVlSpedEntradas: sumSped((e) => e.indOper === '0'),
+      totalVlSpedSaidas:   sumSped((e) => e.indOper === '1'),
+      totalVlXmlGeral:     sumXml(() => true),
+      totalVlXmlEntradas:  sumXml((e) => e.tpNF === '0'),
+      totalVlXmlSaidas:    sumXml((e) => e.tpNF === '1'),
+      cfopSummary: cfopSummary.map((c) => ({
+        cfop: c.cfop,
+        cstIcms: c.cstIcms,
+        aliqIcms: c.aliqIcms,
+        vlBcIcms: c.vlBcIcms,
+        vlIcms: c.vlIcms,
+        vlBcIcmsSt: c.vlBcIcmsSt,
+        vlIcmsSt: c.vlIcmsSt,
+        vlOpr: c.vlOpr,
+      })),
+    };
+  }
+
+  private emptyDashboard(): DashboardDto {
+    return {
+      totalVlSpedGeral: 0, totalVlSpedEntradas: 0, totalVlSpedSaidas: 0,
+      totalVlXmlGeral: 0,  totalVlXmlEntradas: 0,  totalVlXmlSaidas: 0,
+      cfopSummary: [],
+    };
+  }
+
   private toDto(
     session: ConfrontSession,
     xmlsNotInSped: XmlItemDto[],
@@ -215,6 +260,7 @@ export class ConfrontService {
     xmlErrors: Array<{ filename: string; reason: string }>,
     xmlsSemAutorizacao: XmlItemDto[] = [],
     filtroEmissao: 'todas' | 'proprias' | 'terceiros' = 'todas',
+    dashboard: DashboardDto = this.emptyDashboard(),
   ): ConfrontResultDto {
     return {
       sessionId: session.id,
@@ -237,6 +283,7 @@ export class ConfrontService {
       totalSemAutorizacao: session.totalSemAutorizacao ?? xmlsSemAutorizacao.length,
       apenasProprías: (session.filtroEmissao ?? filtroEmissao) === 'proprias',
       filtroEmissao: (session.filtroEmissao ?? filtroEmissao) as 'todas' | 'proprias' | 'terceiros',
+      dashboard,
     };
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  SpedC190,
   SpedEntry,
   SpedInfo,
   SpedParseResult,
@@ -24,6 +25,7 @@ export class SpedService {
 
     const lines = text.split(/\r?\n/);
     const entries: SpedEntry[] = [];
+    const cfopSummary: SpedC190[] = [];
     let info: SpedInfo = {
       cnpj: '',
       nome: '',
@@ -48,30 +50,30 @@ export class SpedService {
 
       if (reg === 'C100') {
         const entry = this.parseC100(fields);
-        if (entry) {
-          entries.push(entry);
-        } else {
-          invalidLines++;
-        }
+        if (entry) entries.push(entry);
+        else invalidLines++;
         continue;
       }
 
       if (reg === 'D100') {
         const entry = this.parseD100(fields);
-        if (entry) {
-          entries.push(entry);
-        } else {
-          invalidLines++;
-        }
+        if (entry) entries.push(entry);
+        else invalidLines++;
+        continue;
+      }
+
+      if (reg === 'C190') {
+        const c190 = this.parseC190(fields);
+        if (c190) cfopSummary.push(c190);
         continue;
       }
     }
 
     this.logger.log(
-      `SPED parseado: ${entries.length} entradas, ${invalidLines} linhas inválidas. CNPJ=${info.cnpj}`,
+      `SPED parseado: ${entries.length} entradas, ${cfopSummary.length} CFOPs, ${invalidLines} linhas inválidas. CNPJ=${info.cnpj}`,
     );
 
-    return { info, entries, invalidLines };
+    return { info, entries, cfopSummary, invalidLines };
   }
 
   private parseHeader(fields: string[]): SpedInfo {
@@ -85,36 +87,59 @@ export class SpedService {
   }
 
   private parseC100(fields: string[]): SpedEntry | null {
-    // |C100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|NUM_DOC[8]|CHV_NFE[9]|DT_DOC[10]|...
+    // |C100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|NUM_DOC[8]|CHV_NFE[9]|DT_DOC[10]|DT_E_S[11]|VL_DOC[12]|
     const indOper = fields[2] ?? '';
     const indEmit = fields[3] ?? '';
-    const codMod = fields[5] ?? '';
-    const codSit = fields[6] ?? '';
-    const ser = fields[7] ?? '';
-    const numDoc = fields[8] ?? '';
-    const chave = (fields[9] ?? '').replace(/\D/g, '');
-    const dtDoc = fields[10] ?? '';
+    const codMod  = fields[5] ?? '';
+    const codSit  = fields[6] ?? '';
+    const ser     = fields[7] ?? '';
+    const numDoc  = fields[8] ?? '';
+    const chave   = (fields[9] ?? '').replace(/\D/g, '');
+    const dtDoc   = fields[10] ?? '';
+    const vlDoc   = this.parseNum(fields[12]);
 
     if (SPED_SIT_IGNORAR.has(codSit)) return null;
     if (chave.length !== 44) return null;
 
-    return { registro: 'C100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit };
+    return { registro: 'C100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit, vlDoc };
   }
 
   private parseD100(fields: string[]): SpedEntry | null {
-    // |D100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|SUB[8]|NUM_DOC[9]|CHV_CTE[10]|DT_DOC[11]|...
+    // |D100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|SUB[8]|NUM_DOC[9]|CHV_CTE[10]|DT_DOC[11]|DT_A_P[12]|TP_CT-e[13]|CHV_CTE_REF[14]|VL_DOC[15]|
     const indOper = fields[2] ?? '';
     const indEmit = fields[3] ?? '';
-    const codMod = fields[5] ?? '';
-    const codSit = fields[6] ?? '';
-    const ser = fields[7] ?? '';
-    const numDoc = fields[9] ?? '';
-    const chave = (fields[10] ?? '').replace(/\D/g, '');
-    const dtDoc = fields[11] ?? '';
+    const codMod  = fields[5] ?? '';
+    const codSit  = fields[6] ?? '';
+    const ser     = fields[7] ?? '';
+    const numDoc  = fields[9] ?? '';
+    const chave   = (fields[10] ?? '').replace(/\D/g, '');
+    const dtDoc   = fields[11] ?? '';
+    const vlDoc   = this.parseNum(fields[15]);
 
     if (SPED_SIT_IGNORAR.has(codSit)) return null;
     if (chave.length !== 44) return null;
 
-    return { registro: 'D100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit };
+    return { registro: 'D100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit, vlDoc };
+  }
+
+  private parseC190(fields: string[]): SpedC190 | null {
+    // |C190|CST_ICMS[2]|CFOP[3]|ALIQ_ICMS[4]|VL_BC_ICMS[5]|VL_ICMS[6]|VL_BC_ICMS_ST[7]|VL_ICMS_ST[8]|VL_RED_BC[9]|VL_OPR[10]|
+    const cfop = (fields[3] ?? '').trim();
+    if (!cfop) return null;
+    return {
+      cstIcms:    (fields[2] ?? '').trim(),
+      cfop,
+      aliqIcms:   this.parseNum(fields[4]),
+      vlBcIcms:   this.parseNum(fields[5]),
+      vlIcms:     this.parseNum(fields[6]),
+      vlBcIcmsSt: this.parseNum(fields[7]),
+      vlIcmsSt:   this.parseNum(fields[8]),
+      vlOpr:      this.parseNum(fields[10]),
+    };
+  }
+
+  private parseNum(raw: string | undefined): number {
+    if (!raw) return 0;
+    return parseFloat(raw.replace(',', '.')) || 0;
   }
 }

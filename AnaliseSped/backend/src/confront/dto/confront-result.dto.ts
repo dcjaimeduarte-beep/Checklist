@@ -1,3 +1,27 @@
+export class CfopSummaryDto {
+  cfop: string;
+  cstIcms: string;
+  aliqIcms: number;
+  vlBcIcms: number;
+  vlIcms: number;
+  vlBcIcmsSt: number;
+  vlIcmsSt: number;
+  vlOpr: number;
+}
+
+export class DashboardDto {
+  /** Valor total dos documentos no SPED (VL_DOC) */
+  totalVlSpedGeral: number;
+  totalVlSpedEntradas: number;
+  totalVlSpedSaidas: number;
+  /** Valor total dos XMLs enviados (vNF) */
+  totalVlXmlGeral: number;
+  totalVlXmlEntradas: number;
+  totalVlXmlSaidas: number;
+  /** Resumo por CFOP do C190 */
+  cfopSummary: CfopSummaryDto[];
+}
+
 export class SpedInfoDto {
   cnpj: string;
   nome: string;
@@ -59,6 +83,8 @@ export class ConfrontResultDto {
   filtroEmissao: 'todas' | 'proprias' | 'terceiros';
   /** true se o confronto foi feito filtrando apenas notas de emissão própria */
   apenasProprías: boolean;
+  /** Totais e resumo por CFOP para o dashboard */
+  dashboard: DashboardDto;
 }
 
 export class ConfrontSessionSummaryDto {
