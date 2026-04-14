@@ -1263,9 +1263,12 @@ function DashboardTab({
         return xmlCfops.some(c => cfopFilterSet.has(c))
       })
     : result.xmlsNotInSped ?? []
-  const filteredXmlVnf  = xmlFiltered.reduce((s, r) => s + (Number(r.vNF)  || 0), 0)
-  const filteredXmlIcms = xmlFiltered.reduce((s, r) => s + (Number(r.vICMS) || 0), 0)
-  const filteredXmlSt   = xmlFiltered.reduce((s, r) => s + (Number(r.vST)   || 0), 0)
+  const filteredXmlVnf      = xmlFiltered.reduce((s, r) => s + (Number(r.vNF)   || 0), 0)
+  const filteredXmlEntradas  = xmlFiltered.filter(r => r.tpNF === '0').reduce((s, r) => s + (Number(r.vNF) || 0), 0)
+  const filteredXmlSaidas    = xmlFiltered.filter(r => r.tpNF === '1').reduce((s, r) => s + (Number(r.vNF) || 0), 0)
+  const filteredXmlBcIcms    = xmlFiltered.reduce((s, r) => s + (Number(r.vBC)   || 0), 0)
+  const filteredXmlIcms      = xmlFiltered.reduce((s, r) => s + (Number(r.vICMS) || 0), 0)
+  const filteredXmlSt        = xmlFiltered.reduce((s, r) => s + (Number(r.vST)   || 0), 0)
 
   return (
     <div className="space-y-5">
@@ -1356,28 +1359,53 @@ function DashboardTab({
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary/10 text-[10px] font-bold text-secondary">X</span>
           Valores apurados — XMLs enviados
           {isDashFiltered && (
-            <span className="ml-auto rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">
-              Não escriturados com esses CFOPs: {xmlFiltered.length} doc(s)
+            <span className="ml-auto rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+              Filtrado: {[...cfopFilterSet].join(', ')}
             </span>
           )}
         </h3>
+
         {isDashFiltered ? (
-          // Quando filtrado: mostra XMLs não escriturados no SPED com esses CFOPs
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          /* Bloco filtrado — mesmo estilo do C190 */
+          <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700">VL NF — XMLs não escriturados</span>
+              <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[9px] font-bold text-white">
+                {xmlFiltered.length} doc{xmlFiltered.length !== 1 ? 's' : ''}
+              </span>
+              <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
+                {[...cfopFilterSet].join(', ')}
+              </span>
+            </div>
+            <p className="mb-2 text-[10px] text-amber-700/80">
+              Documentos com esses CFOPs presentes na pasta XML mas não escriturados no SPED
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {[
-                { label: `VL NF (${xmlFiltered.length} doc${xmlFiltered.length !== 1 ? 's' : ''} não escriturados)`, value: filteredXmlVnf,  cls: 'text-amber-700' },
-                { label: 'VL ICMS (não escriturados)',                                                                  value: filteredXmlIcms, cls: 'text-blue-600' },
-                { label: 'VL ICMS ST (não escriturados)',                                                               value: filteredXmlSt,   cls: 'text-orange-600' },
+                { label: 'VL NF total (vNF)',    value: filteredXmlVnf,     cls: 'text-amber-700' },
+                { label: 'Entradas (tpNF=0)',    value: filteredXmlEntradas, cls: 'text-blue-600'  },
+                { label: 'Saídas (tpNF=1)',      value: filteredXmlSaidas,   cls: 'text-orange-600'},
               ].map(({ label, value, cls }) => (
-                <div key={label} className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                  <p className="text-[11px] text-amber-700">{label}</p>
-                  <p className={cn('mt-1 text-lg font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
+                <div key={label} className="rounded-md bg-white px-3 py-2 border border-amber-200">
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                  <p className={cn('mt-0.5 text-base font-bold tabular-nums', cls)}>R$ {BRL(value)}</p>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-muted-foreground">
-              * Apenas documentos XML <strong>não escriturados no SPED</strong> com o(s) CFOP(s) filtrado(s). Documentos conferidos (presentes em ambos) não são detalhados por CFOP individualmente.
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {[
+                { label: 'BC ICMS',    value: filteredXmlBcIcms },
+                { label: 'VL ICMS',    value: filteredXmlIcms   },
+                { label: 'VL ICMS ST', value: filteredXmlSt     },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-md bg-white px-3 py-2 border border-amber-200">
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">R$ {BRL(value)}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] text-amber-700/70">
+              * Documentos conferidos (presentes em ambos os lados) não são detalhados por CFOP individualmente.
             </p>
           </div>
         ) : (
