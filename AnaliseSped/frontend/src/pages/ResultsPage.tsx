@@ -18,9 +18,9 @@ import { usePage } from '@/App'
 import { downloadExcel, downloadPdf, sendEmailReport } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { AuditItem, CfopSummary, SpedItem, XmlItem } from '@/types/confront'
+import type { AuditItem, CancelamentoItem, CfopSummary, SpedItem, XmlItem } from '@/types/confront'
 
-type TabId = 'auditoria' | 'dashboard' | 'cfop-agrupado' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
+type TabId = 'auditoria' | 'dashboard' | 'cfop-agrupado' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'cancelamentos' | 'erros-leitura'
 
 const CSTAT_LABEL: Record<string, string> = {
   '100': 'Autorizado',
@@ -94,6 +94,7 @@ export function ResultsPage() {
   const [xmlPage, setXmlPage]           = useState(0)
   const [spedPage, setSpedPage]         = useState(0)
   const [authPage, setAuthPage]         = useState(0)
+  const [cancelPage, setCancelPage]     = useState(0)
 
   if (!result) {
     return (
@@ -111,9 +112,11 @@ export function ResultsPage() {
   const xmlItems: XmlItem[]   = result.xmlsNotInSped
   const spedItems: SpedItem[] = result.spedNotInXml
   const authItems: XmlItem[]  = result.xmlsSemAutorizacao ?? []
-  const xmlSlice   = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
-  const spedSlice  = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
-  const authSlice  = authItems.slice(authPage * PAGE_SIZE, (authPage + 1) * PAGE_SIZE)
+  const cancelItems: CancelamentoItem[] = result.cancelamentos ?? []
+  const xmlSlice    = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
+  const spedSlice   = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
+  const authSlice   = authItems.slice(authPage * PAGE_SIZE, (authPage + 1) * PAGE_SIZE)
+  const cancelSlice = cancelItems.slice(cancelPage * PAGE_SIZE, (cancelPage + 1) * PAGE_SIZE)
 
   async function handleDownload(type: 'excel' | 'pdf') {
     if (!sessionId || !result) return
@@ -147,13 +150,15 @@ export function ResultsPage() {
   }
 
   // ── Summary cards ──────────────────────────────────────────────────────────
-  const semAuth = result.totalSemAutorizacao ?? authItems.length
+  const semAuth    = result.totalSemAutorizacao ?? authItems.length
+  const totalCanc  = result.totalCancelamentos ?? cancelItems.length
   const summaryCards = [
-    { label: 'Entradas SPED',       value: result.totalSpedEntries, icon: FileText,      color: 'text-primary',     bg: 'bg-primary/8' },
-    { label: 'XMLs enviados',       value: result.totalXmls,        icon: FolderOpen,    color: 'text-secondary',   bg: 'bg-secondary/8' },
-    { label: 'Conferidos (OK)',     value: result.totalMatches,     icon: CheckCircle2,  color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Divergências',        value: divergencias,            icon: AlertTriangle, color: divergencias > 0 ? 'text-red-500' : 'text-emerald-600', bg: divergencias > 0 ? 'bg-red-50' : 'bg-emerald-50' },
-    { label: 'Sem autorização SEFAZ', value: semAuth,               icon: ShieldAlert,   color: semAuth > 0 ? 'text-orange-600' : 'text-emerald-600', bg: semAuth > 0 ? 'bg-orange-50' : 'bg-emerald-50' },
+    { label: 'Entradas SPED',         value: result.totalSpedEntries, icon: FileText,      color: 'text-primary',     bg: 'bg-primary/8' },
+    { label: 'XMLs enviados',         value: result.totalXmls,        icon: FolderOpen,    color: 'text-secondary',   bg: 'bg-secondary/8' },
+    { label: 'Conferidos (OK)',       value: result.totalMatches,     icon: CheckCircle2,  color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Divergências',          value: divergencias,            icon: AlertTriangle, color: divergencias > 0 ? 'text-red-500' : 'text-emerald-600', bg: divergencias > 0 ? 'bg-red-50' : 'bg-emerald-50' },
+    { label: 'Sem autorização SEFAZ', value: semAuth,                 icon: ShieldAlert,   color: semAuth > 0 ? 'text-orange-600' : 'text-emerald-600', bg: semAuth > 0 ? 'bg-orange-50' : 'bg-emerald-50' },
+    { label: 'Cancelamentos',         value: totalCanc,               icon: X,             color: totalCanc > 0 ? 'text-purple-600' : 'text-muted-foreground', bg: totalCanc > 0 ? 'bg-purple-50' : 'bg-muted/20' },
   ]
 
   return (
@@ -235,7 +240,7 @@ export function ResultsPage() {
       <main className="mx-auto w-full max-w-screen-xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
 
         {/* ── Cards resumo ──────────────────────────────────────────────── */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {summaryCards.map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="rounded-xl border border-border bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
@@ -258,8 +263,9 @@ export function ResultsPage() {
             { id: 'resumo'          as TabId, label: 'Resumo' },
             { id: 'xml-sem-sped'    as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
             { id: 'sped-sem-xml'    as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
-            { id: 'sem-autorizacao' as TabId, label: `Sem autorização (${semAuth})`,               alert: semAuth > 0 },
-            { id: 'erros-leitura'   as TabId, label: `Erros de leitura (${result.xmlErrors.length})`, alert: result.xmlErrors.length > 0 },
+            { id: 'sem-autorizacao' as TabId, label: `Sem autorização (${semAuth})`,                  alert: semAuth > 0 },
+            { id: 'cancelamentos'   as TabId, label: `Cancelamentos (${totalCanc})`,                   alert: false },
+            { id: 'erros-leitura'   as TabId, label: `Erros de leitura (${result.xmlErrors.length})`,  alert: result.xmlErrors.length > 0 },
           ]).map(({ id, label, alert }) => (
             <button
               key={id}
@@ -394,7 +400,15 @@ export function ResultsPage() {
                         <Th>Emissão</Th>
                         <Th>CNPJ Emitente</Th>
                         <Th>Emitente</Th>
-                        <Th right>Valor (R$)</Th>
+                        <Th>CFOP(s)</Th>
+                        <Th right>VL NF (R$)</Th>
+                        <Th right>BC ICMS</Th>
+                        <Th right>VL ICMS</Th>
+                        <Th right>BC ST</Th>
+                        <Th right>VL ICMS ST</Th>
+                        <Th right>VL IPI</Th>
+                        <Th right>VL PIS</Th>
+                        <Th right>VL COFINS</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -415,9 +429,12 @@ export function ResultsPage() {
                           <td className="px-3 py-2.5 align-top">
                             <span className="block max-w-[160px] truncate" title={item.xNomeEmit}>{item.xNomeEmit ?? '—'}</span>
                           </td>
-                          <td className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
-                            {item.vNF ? Number(item.vNF).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
-                          </td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap font-mono text-[10px] text-muted-foreground">{item.cfops ?? '—'}</td>
+                          {[item.vNF, item.vBC, item.vICMS, item.vBCST, item.vST, item.vIPI, item.vPIS, item.vCOFINS].map((v, idx) => (
+                            <td key={idx} className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
+                              {v && Number(v) > 0 ? Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
+                            </td>
+                          ))}
                         </tr>
                       ))}
                     </tbody>
@@ -448,7 +465,14 @@ export function ResultsPage() {
                         <Th>Data Doc</Th>
                         <Th>Situação</Th>
                         <Th>Operação</Th>
-                        <Th right>Valor (R$)</Th>
+                        <Th right>VL DOC (R$)</Th>
+                        <Th right>BC ICMS</Th>
+                        <Th right>VL ICMS</Th>
+                        <Th right>BC ST</Th>
+                        <Th right>VL ICMS ST</Th>
+                        <Th right>VL IPI</Th>
+                        <Th right>VL PIS</Th>
+                        <Th right>VL COFINS</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -473,9 +497,11 @@ export function ResultsPage() {
                               {item.indOper === '0' ? 'Entrada' : 'Saída'}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
-                            {item.vlDoc != null ? item.vlDoc.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
-                          </td>
+                          {[item.vlDoc, item.vlBcIcms, item.vlIcms, item.vlBcIcmsSt, item.vlIcmsSt, item.vlIpi, item.vlPis, item.vlCofins].map((v, idx) => (
+                            <td key={idx} className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
+                              {v != null && v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
+                            </td>
+                          ))}
                         </tr>
                       ))}
                     </tbody>
@@ -544,6 +570,16 @@ export function ResultsPage() {
               </>
             )}
           </div>
+        )}
+
+        {/* ── Aba Cancelamentos ─────────────────────────────────────────── */}
+        {activeTab === 'cancelamentos' && (
+          <CancelamentosTab
+            items={cancelItems}
+            slice={cancelSlice}
+            page={cancelPage}
+            onPageChange={setCancelPage}
+          />
         )}
 
         {/* ── Aba Erros de Leitura ──────────────────────────────────────── */}
@@ -1357,6 +1393,149 @@ function Pagination({ total, page, pageSize, onChange }: {
           className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-backgroundMuted transition-colors">
           Próximo →
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Cancelamentos Tab ──────────────────────────────────────────────────────────
+
+const CANCEL_SITUACAO: Record<string, { label: string; cls: string; dot: string }> = {
+  ok:      { label: 'Cancelado em ambos',     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+  atencao: { label: 'Ativo no SPED!',         cls: 'bg-red-50    text-red-700    border-red-200',       dot: 'bg-red-500'     },
+  info:    { label: 'Não escriturada',         cls: 'bg-gray-50   text-gray-600   border-gray-200',      dot: 'bg-gray-400'    },
+}
+
+function CancelamentosTab({
+  items, slice, page, onPageChange,
+}: {
+  items: CancelamentoItem[]
+  slice: CancelamentoItem[]
+  page: number
+  onPageChange: (p: number) => void
+}) {
+  const totalAtencao = items.filter((i) => i.situacao === 'atencao').length
+
+  return (
+    <div className="space-y-4">
+      {/* Legenda */}
+      <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Eventos de Cancelamento (tpEvento 110111)</h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          Arquivos XML reconhecidos como eventos de cancelamento de NF-e. Cada evento é cruzado com o SPED para verificar consistência.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {Object.entries(CANCEL_SITUACAO).map(([key, cfg]) => (
+            <div key={key} className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium', cfg.cls)}>
+              <span className={cn('h-2 w-2 rounded-full', cfg.dot)} />
+              {cfg.label}
+            </div>
+          ))}
+        </div>
+        {totalAtencao > 0 && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+            <p className="text-xs text-red-700 font-medium">
+              {totalAtencao} nota{totalAtencao !== 1 ? 's' : ''} cancelada{totalAtencao !== 1 ? 's' : ''} no XML mas escriturada{totalAtencao !== 1 ? 's' : ''} como <strong>ativa</strong> no SPED — requer ajuste!
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center py-14 text-center">
+            <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-500" />
+            <p className="text-sm font-medium text-emerald-700">Nenhum evento de cancelamento encontrado.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Para processar cancelamentos, inclua os arquivos de evento XML (procEventoNFe) na pasta selecionada.
+            </p>
+          </div>
+        ) : (
+          <>
+            <TableScrollWrapper>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-primary text-white">
+                    <Th>Situação</Th>
+                    <Th>Chave de Acesso (44)</Th>
+                    <Th>Arquivo Evento</Th>
+                    <Th>Nº NF</Th>
+                    <Th>Dt Cancelamento</Th>
+                    <Th>cStat Evento</Th>
+                    <Th>Motivo SEFAZ</Th>
+                    <Th>Justificativa</Th>
+                    <Th>No SPED?</Th>
+                    <Th>COD_SIT SPED</Th>
+                    <Th right>VL DOC SPED</Th>
+                    <Th>Registro</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slice.map((item, i) => {
+                    const cfg = CANCEL_SITUACAO[item.situacao] ?? CANCEL_SITUACAO.info
+                    return (
+                      <tr key={item.chave + item.filename} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                        <td className="px-3 py-2.5 align-top">
+                          <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap', cfg.cls)}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dot)} />
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <span className="font-mono text-[10px] leading-relaxed text-foreground break-all">{item.chave}</span>
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <span className="block max-w-[180px] truncate text-muted-foreground" title={item.filename}>{item.filename}</span>
+                        </td>
+                        <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">{item.nNF || '—'}</td>
+                        <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(item.dhCancelamento)}</td>
+                        <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                          <span className={cn(
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                            ['135', '136'].includes(item.cStatEvento)
+                              ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+                              : 'bg-amber-100 text-amber-700 ring-1 ring-amber-200',
+                          )}>
+                            {item.cStatEvento || '—'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <span className="block max-w-[200px] truncate text-muted-foreground" title={item.xMotivoEvento}>{item.xMotivoEvento || '—'}</span>
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <span className="block max-w-[200px] truncate text-muted-foreground" title={item.xJust}>{item.xJust || '—'}</span>
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <span className={cn(
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                            item.noSped
+                              ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-200'
+                              : 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
+                          )}>
+                            {item.noSped ? 'Sim' : 'Não'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          {item.noSped ? <SituacaoBadge codSit={item.codSitSped} /> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
+                          {item.vlDocSped != null && item.vlDocSped > 0
+                            ? item.vlDocSped.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 align-top font-mono whitespace-nowrap text-muted-foreground">
+                          {item.registroSped || '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </TableScrollWrapper>
+            <Pagination total={items.length} page={page} pageSize={PAGE_SIZE} onChange={onPageChange} />
+          </>
+        )}
       </div>
     </div>
   )

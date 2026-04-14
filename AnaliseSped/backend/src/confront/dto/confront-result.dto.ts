@@ -40,6 +40,16 @@ export class XmlItemDto {
   cnpjEmit?: string;
   xNomeEmit?: string;
   vNF?: string;
+  cfops?: string;
+  vBC?: string;
+  vICMS?: string;
+  vBCST?: string;
+  vST?: string;
+  vIPI?: string;
+  vPIS?: string;
+  vCOFINS?: string;
+  vDesc?: string;
+  vFrete?: string;
   /** tpNF do XML: '0' = Entrada, '1' = Saída (perspectiva do emitente) */
   tpNF?: string;
   /** Código de status SEFAZ (100=Autorizado, 101=Cancelado, etc.) */
@@ -63,8 +73,49 @@ export class SpedItemDto {
   indOper?: string;
   /** IND_EMIT: '0' = emissão própria, '1' = terceiros */
   indEmit?: string;
-  /** VL_DOC do registro C100/D100 */
   vlDoc?: number;
+  vlBcIcms?: number;
+  vlIcms?: number;
+  vlBcIcmsSt?: number;
+  vlIcmsSt?: number;
+  vlIpi?: number;
+  vlPis?: number;
+  vlCofins?: number;
+}
+
+/** Evento de cancelamento processado e cruzado com SPED */
+export class CancelamentoItemDto {
+  /** Chave de acesso da NF-e cancelada */
+  chave: string;
+  /** Nome do arquivo do evento */
+  filename: string;
+  /** Número da NF-e (extraído da chave, posição 25-33) */
+  nNF: string;
+  /** Data/hora de registro do evento no SEFAZ */
+  dhCancelamento?: string;
+  /** Código de status do evento (135/136 = registrado, outros = erro) */
+  cStatEvento: string;
+  /** Descrição do status do evento */
+  xMotivoEvento: string;
+  /** Justificativa do cancelamento informada pelo contribuinte */
+  xJust?: string;
+  /** Número do protocolo do evento */
+  nProt?: string;
+  /** true se a chave está escriturada no SPED */
+  noSped: boolean;
+  /** COD_SIT do registro no SPED (02=Cancelado, etc.) — presente se noSped=true */
+  codSitSped?: string;
+  /** VL_DOC do registro no SPED — presente se noSped=true */
+  vlDocSped?: number;
+  /** Registro SPED onde foi encontrado (C100 ou D100) */
+  registroSped?: string;
+  /**
+   * Situação da consolidação:
+   * 'ok'        = noSped && codSitSped==='02' (cancelado em ambos)
+   * 'atencao'   = noSped && codSitSped!=='02' (ativo no SPED, cancelado no XML)
+   * 'info'      = !noSped (não escriturado — normal para cancelamentos)
+   */
+  situacao: 'ok' | 'atencao' | 'info';
 }
 
 export class AuditItemDto {
@@ -126,6 +177,9 @@ export class ConfrontResultDto {
   dashboard: DashboardDto;
   /** Relatório de auditoria fiscal */
   audit: AuditReportDto;
+  /** Eventos de cancelamento (tpEvento 110111) consolidados com o SPED */
+  cancelamentos: CancelamentoItemDto[];
+  totalCancelamentos: number;
 }
 
 export class ConfrontSessionSummaryDto {

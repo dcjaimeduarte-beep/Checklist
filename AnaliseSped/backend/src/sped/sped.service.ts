@@ -88,38 +88,54 @@ export class SpedService {
 
   private parseC100(fields: string[]): SpedEntry | null {
     // |C100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|NUM_DOC[8]|CHV_NFE[9]|DT_DOC[10]|DT_E_S[11]|VL_DOC[12]|
-    const indOper = fields[2] ?? '';
-    const indEmit = fields[3] ?? '';
-    const codMod  = fields[5] ?? '';
-    const codSit  = fields[6] ?? '';
-    const ser     = fields[7] ?? '';
-    const numDoc  = fields[8] ?? '';
-    const chave   = (fields[9] ?? '').replace(/\D/g, '');
-    const dtDoc   = fields[10] ?? '';
-    const vlDoc   = this.parseNum(fields[12]);
+    // VL_DESC[13]|VL_ABO[14]|VL_MERC[15]|VL_FRETE[16]|VL_SEG[17]|VL_OUT_DA[18]|VL_BC_ICMS[19]|VL_ICMS[20]|VL_BC_ICMS_ST[21]|VL_ICMS_ST[22]|VL_IPI[23]|VL_PIS[24]|VL_COFINS[25]|
+    const indOper    = fields[2] ?? '';
+    const indEmit    = fields[3] ?? '';
+    const codMod     = fields[5] ?? '';
+    const codSit     = fields[6] ?? '';
+    const ser        = fields[7] ?? '';
+    const numDoc     = fields[8] ?? '';
+    const chave      = (fields[9] ?? '').replace(/\D/g, '');
+    const dtDoc      = fields[10] ?? '';
+    const vlDoc      = this.parseNum(fields[12]);
+    const vlBcIcms   = this.parseNum(fields[19]);
+    const vlIcms     = this.parseNum(fields[20]);
+    const vlBcIcmsSt = this.parseNum(fields[21]);
+    const vlIcmsSt   = this.parseNum(fields[22]);
+    const vlIpi      = this.parseNum(fields[23]);
+    const vlPis      = this.parseNum(fields[24]);
+    const vlCofins   = this.parseNum(fields[25]);
 
     if (SPED_SIT_IGNORAR.has(codSit)) return null;
     if (chave.length !== 44) return null;
 
-    return { registro: 'C100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit, vlDoc };
+    return { registro: 'C100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit, vlDoc, vlBcIcms, vlIcms, vlBcIcmsSt, vlIcmsSt, vlIpi, vlPis, vlCofins };
   }
 
   private parseD100(fields: string[]): SpedEntry | null {
     // |D100|IND_OPER[2]|IND_EMIT[3]|COD_PART[4]|COD_MOD[5]|COD_SIT[6]|SER[7]|SUB[8]|NUM_DOC[9]|CHV_CTE[10]|DT_DOC[11]|DT_A_P[12]|TP_CT-e[13]|CHV_CTE_REF[14]|VL_DOC[15]|
-    const indOper = fields[2] ?? '';
-    const indEmit = fields[3] ?? '';
-    const codMod  = fields[5] ?? '';
-    const codSit  = fields[6] ?? '';
-    const ser     = fields[7] ?? '';
-    const numDoc  = fields[9] ?? '';
-    const chave   = (fields[10] ?? '').replace(/\D/g, '');
-    const dtDoc   = fields[11] ?? '';
-    const vlDoc   = this.parseNum(fields[15]);
+    // VL_DESC[16]|VL_MERC[17]|...|VL_BC_ICMS[21]|VL_ICMS[22]|VL_BC_ICMS_ST[23]|VL_ICMS_ST[24]|...|VL_PIS[26]|VL_COFINS[27]|
+    const indOper    = fields[2] ?? '';
+    const indEmit    = fields[3] ?? '';
+    const codMod     = fields[5] ?? '';
+    const codSit     = fields[6] ?? '';
+    const ser        = fields[7] ?? '';
+    const numDoc     = fields[9] ?? '';
+    const chave      = (fields[10] ?? '').replace(/\D/g, '');
+    const dtDoc      = fields[11] ?? '';
+    const vlDoc      = this.parseNum(fields[15]);
+    // D100 não tem IPI — campos de ICMS em posições diferentes
+    const vlBcIcms   = this.parseNum(fields[21]);
+    const vlIcms     = this.parseNum(fields[22]);
+    const vlBcIcmsSt = this.parseNum(fields[23]);
+    const vlIcmsSt   = this.parseNum(fields[24]);
+    const vlPis      = this.parseNum(fields[26]);
+    const vlCofins   = this.parseNum(fields[27]);
 
     if (SPED_SIT_IGNORAR.has(codSit)) return null;
     if (chave.length !== 44) return null;
 
-    return { registro: 'D100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit, vlDoc };
+    return { registro: 'D100', chave, codMod, ser, numDoc, dtDoc, codSit, indOper, indEmit, vlDoc, vlBcIcms, vlIcms, vlBcIcmsSt, vlIcmsSt, vlIpi: 0, vlPis, vlCofins };
   }
 
   private parseC190(fields: string[]): SpedC190 | null {

@@ -10,6 +10,7 @@ import { XmlEntry } from '../xml-parser/xml-parser.types';
 import {
   AuditItemDto,
   AuditReportDto,
+  CancelamentoItemDto,
   ConfrontResultDto,
   ConfrontSessionSummaryDto,
   DashboardDto,
@@ -43,10 +44,14 @@ export class ConfrontService {
     // 2. Parsear XMLs
     const xmlResult = this.xmlParserService.parseMany(xmlFiles);
 
-    // 3. Aplicar filtro de emissão
+    // 3. Separar eventos de cancelamento dos XMLs regulares
+    const cancelEntries = xmlResult.entries.filter((e) => e.tipo === 'CancelNFe');
+    const regularXmlAll = xmlResult.entries.filter((e) => e.tipo !== 'CancelNFe');
+
+    // Aplicar filtro de emissão
     //    IND_EMIT: '0' = emissão própria, '1' = terceiros
     let spedEntries = spedResult.entries;
-    let xmlEntries  = xmlResult.entries;
+    let xmlEntries  = regularXmlAll;
 
     if (filtroEmissao === 'proprias') {
       spedEntries = spedEntries.filter((e) => e.indEmit === '0');
@@ -75,28 +80,19 @@ export class ConfrontService {
     // 5. XMLs sem autorização SEFAZ (do conjunto filtrado)
     const xmlsSemAutorizacao: XmlItemDto[] = xmlEntries
       .filter((e) => !e.autorizada)
-      .map((e) => ({
-        chave: e.chave,
-        filename: e.filename,
-        tipo: e.tipo,
-        nNF: e.nNF,
-        serie: e.serie,
-        dhEmi: e.dhEmi,
-        cnpjEmit: e.cnpjEmit,
-        xNomeEmit: e.xNomeEmit,
-        vNF: e.vNF,
-        tpNF: e.tpNF,
-        cStat: e.cStat,
-        xMotivo: e.xMotivo,
-        dhRecbto: e.dhRecbto,
-        autorizada: e.autorizada,
-      }));
+      .map((e) => this.toXmlItemDto(e.chave, e));
 
     const totalMatches =
       spedEntries.length - spedNotInXml.length;
 
     // 6. Calcular dashboard (totais + CFOP)
     const dashboard = this.buildDashboard(spedEntries, xmlEntries, spedResult.cfopSummary);
+
+    // 6b. Consolidar eventos de cancelamento com SPED (usa ALL entries sem filtro)
+    const allSpedMap = new Map<string, SpedEntry>(
+      spedResult.entries.map((e) => [e.chave, e]),
+    );
+    const cancelamentos = this.buildCancelamentos(cancelEntries, allSpedMap);
 
     // 7. Relatório de auditoria
     const totalVlXmlNotInSped  = xmlsNotInSped.reduce((s, e) => s + (parseFloat(e.vNF ?? '0') || 0), 0);
@@ -136,12 +132,14 @@ export class ConfrontService {
       xmlErrorsJson: JSON.stringify(xmlResult.errors),
       dashboardJson: JSON.stringify(dashboard),
       auditJson: JSON.stringify(audit),
+      cancelamentosJson: JSON.stringify(cancelamentos),
+      totalCancelamentos: cancelamentos.length,
     });
 
     await this.sessionRepo.save(session);
     this.logger.log(`Sessão criada: ${session.id}`);
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao, dashboard, audit);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao, dashboard, audit, cancelamentos);
   }
 
   async getSession(id: string): Promise<ConfrontResultDto> {
@@ -154,8 +152,9 @@ export class ConfrontService {
     const xmlErrors: Array<{ filename: string; reason: string }> = JSON.parse(session.xmlErrorsJson ?? '[]');
     const dashboard: DashboardDto = JSON.parse(session.dashboardJson ?? 'null') ?? this.emptyDashboard();
     const audit: AuditReportDto = JSON.parse(session.auditJson ?? 'null') ?? this.emptyAudit();
+    const cancelamentos: CancelamentoItemDto[] = JSON.parse(session.cancelamentosJson ?? '[]');
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao, undefined, dashboard, audit);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao, undefined, dashboard, audit, cancelamentos);
   }
 
   async listSessions(page = 1, limit = 20): Promise<ConfrontSessionSummaryDto[]> {
@@ -204,40 +203,14 @@ export class ConfrontService {
     const xmlsNotInSped: XmlItemDto[] = [];
     for (const [chave, xml] of xmlChaves) {
       if (!spedChaves.has(chave)) {
-        xmlsNotInSped.push({
-          chave,
-          filename: xml.filename,
-          tipo: xml.tipo,
-          nNF: xml.nNF,
-          serie: xml.serie,
-          dhEmi: xml.dhEmi,
-          cnpjEmit: xml.cnpjEmit,
-          xNomeEmit: xml.xNomeEmit,
-          vNF: xml.vNF,
-          tpNF: xml.tpNF,
-          cStat: xml.cStat,
-          xMotivo: xml.xMotivo,
-          dhRecbto: xml.dhRecbto,
-          autorizada: xml.autorizada,
-        });
+        xmlsNotInSped.push(this.toXmlItemDto(chave, xml));
       }
     }
 
     const spedNotInXml: SpedItemDto[] = [];
     for (const [chave, sped] of spedChaves) {
       if (!xmlChaves.has(chave)) {
-        spedNotInXml.push({
-          chave,
-          registro: sped.registro,
-          codMod: sped.codMod,
-          ser: sped.ser,
-          numDoc: sped.numDoc,
-          dtDoc: sped.dtDoc,
-          codSit: sped.codSit,
-          indOper: sped.indOper,
-          indEmit: sped.indEmit,
-          vlDoc: sped.vlDoc,
-        });
+        spedNotInXml.push(this.toSpedItemDto(chave, sped));
       }
     }
 
@@ -276,6 +249,49 @@ export class ConfrontService {
     return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff, totalVlSpedMatched, totalVlXmlMatched };
   }
 
+  /**
+   * Consolida eventos de cancelamento (tpEvento=110111) com registros do SPED.
+   * Classifica cada evento como:
+   * - 'ok'      → chave encontrada no SPED com COD_SIT='02' (cancelado em ambos)
+   * - 'atencao' → chave encontrada no SPED com COD_SIT≠'02' (ativo no SPED, cancelado no XML!)
+   * - 'info'    → chave ausente do SPED (normal: canceladas não precisam ser escrituradas)
+   */
+  private buildCancelamentos(
+    cancelEntries: import('../xml-parser/xml-parser.types').XmlEntry[],
+    allSpedMap: Map<string, SpedEntry>,
+  ): CancelamentoItemDto[] {
+    return cancelEntries.map((evt) => {
+      // Número da NF-e extraído da chave (posição 25, comprimento 9)
+      const nNF = evt.chave.substring(25, 34).replace(/^0+/, '') || evt.chave.substring(25, 34);
+      const spedEntry = allSpedMap.get(evt.chave);
+      const noSped = !!spedEntry;
+
+      let situacao: 'ok' | 'atencao' | 'info';
+      if (!noSped) {
+        situacao = 'info';       // ausente do SPED — normal para cancelamentos
+      } else if (spedEntry.codSit === '02') {
+        situacao = 'ok';         // escriturado como cancelado — consistente
+      } else {
+        situacao = 'atencao';    // escriturado como ativo no SPED — divergência!
+      }
+
+      return {
+        chave: evt.chave,
+        filename: evt.filename,
+        nNF,
+        dhCancelamento: evt.dhRecbto,
+        cStatEvento: evt.cStat ?? '',
+        xMotivoEvento: evt.xMotivo ?? '',
+        xJust: evt.xJust,
+        noSped,
+        codSitSped: spedEntry?.codSit,
+        vlDocSped: spedEntry?.vlDoc,
+        registroSped: spedEntry?.registro,
+        situacao,
+      };
+    });
+  }
+
   private buildDashboard(
     spedEntries: SpedEntry[],
     xmlEntries: XmlEntry[],
@@ -304,6 +320,32 @@ export class ConfrontService {
         vlIcmsSt: c.vlIcmsSt,
         vlOpr: c.vlOpr,
       })),
+    };
+  }
+
+  private toXmlItemDto(chave: string, xml: XmlEntry): XmlItemDto {
+    return {
+      chave, filename: xml.filename, tipo: xml.tipo,
+      nNF: xml.nNF, serie: xml.serie, dhEmi: xml.dhEmi,
+      cnpjEmit: xml.cnpjEmit, xNomeEmit: xml.xNomeEmit,
+      vNF: xml.vNF, cfops: xml.cfops,
+      vBC: xml.vBC, vICMS: xml.vICMS,
+      vBCST: xml.vBCST, vST: xml.vST,
+      vIPI: xml.vIPI, vPIS: xml.vPIS, vCOFINS: xml.vCOFINS,
+      vDesc: xml.vDesc, vFrete: xml.vFrete,
+      tpNF: xml.tpNF, cStat: xml.cStat, xMotivo: xml.xMotivo,
+      dhRecbto: xml.dhRecbto, autorizada: xml.autorizada,
+    };
+  }
+
+  private toSpedItemDto(chave: string, sped: SpedEntry): SpedItemDto {
+    return {
+      chave, registro: sped.registro, codMod: sped.codMod,
+      ser: sped.ser, numDoc: sped.numDoc, dtDoc: sped.dtDoc,
+      codSit: sped.codSit, indOper: sped.indOper, indEmit: sped.indEmit,
+      vlDoc: sped.vlDoc, vlBcIcms: sped.vlBcIcms, vlIcms: sped.vlIcms,
+      vlBcIcmsSt: sped.vlBcIcmsSt, vlIcmsSt: sped.vlIcmsSt,
+      vlIpi: sped.vlIpi, vlPis: sped.vlPis, vlCofins: sped.vlCofins,
     };
   }
 
@@ -412,6 +454,7 @@ export class ConfrontService {
     filtroEmissao: 'todas' | 'proprias' | 'terceiros' = 'todas',
     dashboard: DashboardDto = this.emptyDashboard(),
     audit: AuditReportDto = this.emptyAudit(),
+    cancelamentos: CancelamentoItemDto[] = [],
   ): ConfrontResultDto {
     return {
       sessionId: session.id,
@@ -436,6 +479,8 @@ export class ConfrontService {
       filtroEmissao: (session.filtroEmissao ?? filtroEmissao) as 'todas' | 'proprias' | 'terceiros',
       dashboard,
       audit,
+      cancelamentos,
+      totalCancelamentos: session.totalCancelamentos ?? cancelamentos.length,
     };
   }
 }

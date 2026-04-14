@@ -19,6 +19,20 @@ export interface SpedEntry {
   indEmit: string;
   /** Valor total do documento (VL_DOC) */
   vlDoc: number;
+  /** Base de cálculo do ICMS (VL_BC_ICMS) */
+  vlBcIcms: number;
+  /** Valor do ICMS (VL_ICMS) */
+  vlIcms: number;
+  /** Base de cálculo do ICMS ST (VL_BC_ICMS_ST) */
+  vlBcIcmsSt: number;
+  /** Valor do ICMS ST (VL_ICMS_ST) */
+  vlIcmsSt: number;
+  /** Valor do IPI (VL_IPI) */
+  vlIpi: number;
+  /** Valor do PIS (VL_PIS) */
+  vlPis: number;
+  /** Valor do COFINS (VL_COFINS) */
+  vlCofins: number;
 }
 
 /** Resumo por CFOP extraído do registro C190 do SPED */

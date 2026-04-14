@@ -63,4 +63,11 @@ export class ConfrontSession {
   /** JSON com relatório de auditoria fiscal */
   @Column({ type: 'text', nullable: true })
   auditJson: string;
+
+  /** JSON com eventos de cancelamento consolidados */
+  @Column({ type: 'text', nullable: true })
+  cancelamentosJson: string;
+
+  @Column({ default: 0 })
+  totalCancelamentos: number;
 }

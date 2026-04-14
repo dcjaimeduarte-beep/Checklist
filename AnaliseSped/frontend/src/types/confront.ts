@@ -16,6 +16,16 @@ export interface XmlItem {
   cnpjEmit?: string
   xNomeEmit?: string
   vNF?: string
+  cfops?: string
+  vBC?: string
+  vICMS?: string
+  vBCST?: string
+  vST?: string
+  vIPI?: string
+  vPIS?: string
+  vCOFINS?: string
+  vDesc?: string
+  vFrete?: string
   /** tpNF: '0' = Entrada, '1' = Saída (perspectiva do emitente) */
   tpNF?: string
   /** Código de status SEFAZ (100=Autorizado, 101=Cancelado etc.) */
@@ -39,8 +49,14 @@ export interface SpedItem {
   indOper?: string
   /** IND_EMIT: '0' = emissão própria, '1' = terceiros */
   indEmit?: string
-  /** VL_DOC do registro C100/D100 */
   vlDoc?: number
+  vlBcIcms?: number
+  vlIcms?: number
+  vlBcIcmsSt?: number
+  vlIcmsSt?: number
+  vlIpi?: number
+  vlPis?: number
+  vlCofins?: number
 }
 
 export interface ConfrontResultDto {
@@ -60,6 +76,8 @@ export interface ConfrontResultDto {
   apenasProprías: boolean
   dashboard: DashboardData
   audit: AuditReport
+  cancelamentos: CancelamentoItem[]
+  totalCancelamentos: number
 }
 
 export interface CfopSummary {
@@ -112,6 +130,21 @@ export interface AuditReport {
   matchedWithValueDiff: AuditItem[]
   verdict: 'ok' | 'atencao' | 'divergencia'
   verdictMessages: string[]
+}
+
+export interface CancelamentoItem {
+  chave: string
+  filename: string
+  nNF: string
+  dhCancelamento?: string
+  cStatEvento: string
+  xMotivoEvento: string
+  xJust?: string
+  noSped: boolean
+  codSitSped?: string
+  vlDocSped?: number
+  registroSped?: string
+  situacao: 'ok' | 'atencao' | 'info'
 }
 
 export interface ConfrontSessionSummary {

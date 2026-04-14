@@ -74,6 +74,11 @@ export class XmlParserService {
       return this.extractFromNfeProc(doc['nfceProc'] as Record<string, unknown>, filename, 'NFC-e');
     }
 
+    // --- Evento de cancelamento NF-e (tpEvento 110111) ---
+    if (doc['procEventoNFe']) {
+      return this.extractFromEventoNFe(doc['procEventoNFe'] as Record<string, unknown>, filename);
+    }
+
     return null;
   }
 
@@ -124,21 +129,42 @@ export class XmlParserService {
     const mod = String(ide?.['mod'] ?? '');
     const tipoFinal: XmlDocType = mod === '65' ? 'NFC-e' : tipo;
 
-    const emit = infNFe['emit'] as Record<string, unknown> | undefined;
-    const total = infNFe['total'] as Record<string, unknown> | undefined;
+    const emit    = infNFe['emit']  as Record<string, unknown> | undefined;
+    const total   = infNFe['total'] as Record<string, unknown> | undefined;
     const icmsTot = total?.['ICMSTot'] as Record<string, unknown> | undefined;
+
+    // CFOPs únicos dos itens da nota
+    const det = infNFe['det'];
+    const detArr: Record<string, unknown>[] = Array.isArray(det) ? det : det ? [det as Record<string, unknown>] : [];
+    const cfopSet = new Set<string>();
+    for (const item of detArr) {
+      const cfop = String((item['prod'] as Record<string, unknown>)?.['CFOP'] ?? '').trim();
+      if (cfop) cfopSet.add(cfop);
+    }
+
+    const str = (v: unknown) => { const s = String(v ?? '').trim(); return s || undefined; };
 
     return {
       chave,
       filename,
       tipo: tipoFinal,
-      nNF: String(ide?.['nNF'] ?? ''),
-      serie: String(ide?.['serie'] ?? ''),
-      dhEmi: String(ide?.['dhEmi'] ?? ide?.['dEmi'] ?? ''),
-      cnpjEmit: String(emit?.['CNPJ'] ?? ''),
-      xNomeEmit: String(emit?.['xNome'] ?? ''),
-      vNF: String(icmsTot?.['vNF'] ?? ''),
-      tpNF: ide?.['tpNF'] !== undefined ? String(ide['tpNF']) : undefined,
+      nNF:       str(ide?.['nNF']),
+      serie:     str(ide?.['serie']),
+      dhEmi:     str(ide?.['dhEmi'] ?? ide?.['dEmi']),
+      cnpjEmit:  str(emit?.['CNPJ']),
+      xNomeEmit: str(emit?.['xNome']),
+      vNF:       str(icmsTot?.['vNF']),
+      cfops:     cfopSet.size > 0 ? [...cfopSet].sort().join(', ') : undefined,
+      vBC:       str(icmsTot?.['vBC']),
+      vICMS:     str(icmsTot?.['vICMS']),
+      vBCST:     str(icmsTot?.['vBCST']),
+      vST:       str(icmsTot?.['vST']),
+      vIPI:      str(icmsTot?.['vIPI']),
+      vPIS:      str(icmsTot?.['vPIS']),
+      vCOFINS:   str(icmsTot?.['vCOFINS']),
+      vDesc:     str(icmsTot?.['vDesc']),
+      vFrete:    str(icmsTot?.['vFrete']),
+      tpNF:      ide?.['tpNF'] !== undefined ? String(ide['tpNF']) : undefined,
       autorizada: false,
     };
   }
@@ -168,6 +194,45 @@ export class XmlParserService {
     }
 
     return entry;
+  }
+
+  private extractFromEventoNFe(
+    proc: Record<string, unknown>,
+    filename: string,
+  ): XmlEntry | null {
+    const evento = proc['evento'] as Record<string, unknown> | undefined;
+    const infEvento = evento?.['infEvento'] as Record<string, unknown> | undefined;
+    const retEvento = proc['retEvento'] as Record<string, unknown> | undefined;
+    const infProt = retEvento?.['infProt'] as Record<string, unknown> | undefined;
+
+    const chNFe = String(infEvento?.['chNFe'] ?? '').replace(/\D/g, '');
+    if (chNFe.length !== 44) return null;
+
+    const tpEvento = String(infEvento?.['tpEvento'] ?? '').trim();
+    // Processar apenas eventos de cancelamento (110111)
+    if (tpEvento !== '110111') return null;
+
+    const cStat = String(infProt?.['cStat'] ?? '').trim();
+    const xMotivo = String(infProt?.['xMotivo'] ?? '').trim();
+    const dhRegEvento = String(infProt?.['dhRegEvento'] ?? '').trim();
+    const detEvento = infEvento?.['detEvento'] as Record<string, unknown> | undefined;
+    const xJust = String(detEvento?.['xJust'] ?? '').trim();
+    // nProt do evento (para confirmar que foi registrado no SEFAZ)
+    const nProt = String(infProt?.['nProt'] ?? '').trim();
+
+    return {
+      chave: chNFe,
+      filename,
+      tipo: 'CancelNFe',
+      tpEvento,
+      cStat: cStat || '101',  // 101=NFe Cancelada, 135/136=Evento registrado
+      xMotivo: xMotivo || 'Cancelamento de NF-e',
+      dhRecbto: dhRegEvento || undefined,
+      xJust: xJust || undefined,
+      // nProt como parte do xMotivo se disponível
+      ...(nProt ? { xNomeEmit: `Protocolo: ${nProt}` } : {}),
+      autorizada: false,
+    };
   }
 
   private extractFromCte(
