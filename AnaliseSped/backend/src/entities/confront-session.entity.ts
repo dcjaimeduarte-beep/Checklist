@@ -1,0 +1,44 @@
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity('confront_sessions')
+export class ConfrontSession {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @Column({ nullable: true })
+  spedFilename: string;
+
+  @Column({ nullable: true })
+  spedCnpj: string;
+
+  @Column({ nullable: true })
+  spedNome: string;
+
+  @Column({ nullable: true })
+  spedDtIni: string;
+
+  @Column({ nullable: true })
+  spedDtFin: string;
+
+  @Column({ nullable: true })
+  spedUf: string;
+
+  @Column({ default: 0 })
+  totalSpedEntries: number;
+
+  @Column({ default: 0 })
+  totalXmls: number;
+
+  @Column({ default: 0 })
+  totalMatches: number;
+
+  // JSON serializado com os itens de divergência
+  @Column({ type: 'text', nullable: true })
+  xmlsNotInSpedJson: string;
+
+  @Column({ type: 'text', nullable: true })
+  spedNotInXmlJson: string;
+}
