@@ -51,4 +51,8 @@ export class ConfrontSession {
   /** Filtro aplicado: 'todas' | 'proprias' | 'terceiros' */
   @Column({ type: 'text', default: 'todas' })
   filtroEmissao: string;
+
+  /** JSON com arquivos XML que falharam no parse */
+  @Column({ type: 'text', nullable: true })
+  xmlErrorsJson: string;
 }

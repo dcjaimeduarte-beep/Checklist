@@ -108,6 +108,7 @@ export class ConfrontService {
       spedNotInXmlJson: JSON.stringify(spedNotInXml),
       xmlsSemAutorizacaoJson: JSON.stringify(xmlsSemAutorizacao),
       totalSemAutorizacao: xmlsSemAutorizacao.length,
+      xmlErrorsJson: JSON.stringify(xmlResult.errors),
     });
 
     await this.sessionRepo.save(session);
@@ -123,8 +124,9 @@ export class ConfrontService {
     const xmlsNotInSped: XmlItemDto[] = JSON.parse(session.xmlsNotInSpedJson ?? '[]');
     const spedNotInXml: SpedItemDto[] = JSON.parse(session.spedNotInXmlJson ?? '[]');
     const xmlsSemAutorizacao: XmlItemDto[] = JSON.parse(session.xmlsSemAutorizacaoJson ?? '[]');
+    const xmlErrors: Array<{ filename: string; reason: string }> = JSON.parse(session.xmlErrorsJson ?? '[]');
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, [], xmlsSemAutorizacao);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao);
   }
 
   async listSessions(page = 1, limit = 20): Promise<ConfrontSessionSummaryDto[]> {

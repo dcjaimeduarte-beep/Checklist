@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { SpedItem, XmlItem } from '@/types/confront'
 
-type TabId = 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao'
+type TabId = 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'erros-leitura'
 
 const CSTAT_LABEL: Record<string, string> = {
   '100': 'Autorizado',
@@ -255,7 +255,8 @@ export function ResultsPage() {
             { id: 'resumo'          as TabId, label: 'Resumo' },
             { id: 'xml-sem-sped'   as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
             { id: 'sped-sem-xml'   as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
-            { id: 'sem-autorizacao' as TabId, label: `Sem autorização (${semAuth})`, alert: semAuth > 0 },
+            { id: 'sem-autorizacao'  as TabId, label: `Sem autorização (${semAuth})`,                       alert: semAuth > 0 },
+            { id: 'erros-leitura'   as TabId, label: `Erros de leitura (${result.xmlErrors.length})`,       alert: result.xmlErrors.length > 0 },
           ]).map(({ id, label, alert }) => (
             <button
               key={id}
@@ -336,10 +337,18 @@ export function ResultsPage() {
                   </div>
                 )}
                 {result.xmlErrors.length > 0 && (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p className="text-xs text-gray-500">
-                      {result.xmlErrors.length} arquivo{result.xmlErrors.length !== 1 ? 's' : ''} XML ignorado{result.xmlErrors.length !== 1 ? 's' : ''} por erro de leitura.
-                    </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <AlertTriangle className="h-5 w-5 shrink-0 text-gray-400" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-700">
+                        {result.xmlErrors.length} arquivo{result.xmlErrors.length !== 1 ? 's' : ''} XML ignorado{result.xmlErrors.length !== 1 ? 's' : ''} por erro de leitura
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">Arquivos que não puderam ser lidos ou não são XMLs válidos de NF-e/CT-e.</p>
+                    </div>
+                    <button type="button" onClick={() => setActiveTab('erros-leitura')}
+                      className="cursor-pointer shrink-0 text-xs font-medium text-gray-600 hover:underline">
+                      Ver lista →
+                    </button>
                   </div>
                 )}
               </div>
@@ -510,6 +519,49 @@ export function ResultsPage() {
                   </table>
                 </TableScrollWrapper>
                 <Pagination total={authItems.length} page={authPage} pageSize={PAGE_SIZE} onChange={setAuthPage} />
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Aba Erros de Leitura ──────────────────────────────────────── */}
+        {activeTab === 'erros-leitura' && (
+          <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+            {result.xmlErrors.length === 0 ? (
+              <EmptyState label="Nenhum arquivo XML com erro de leitura." />
+            ) : (
+              <>
+                <div className="border-b border-border bg-amber-50 px-4 py-3">
+                  <p className="text-xs text-amber-700">
+                    Estes arquivos foram encontrados na pasta mas não puderam ser interpretados como NF-e ou CT-e válidos.
+                    Verifique se são XMLs com autorização SEFAZ ou se houve problema de encoding/corrupção.
+                  </p>
+                </div>
+                <TableScrollWrapper>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-primary text-white">
+                        <Th>Arquivo</Th>
+                        <Th>Motivo do erro</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.xmlErrors.map((err, i) => (
+                        <tr key={err.filename + i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="font-mono text-[11px] text-foreground">{err.filename}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top text-muted-foreground">
+                            {err.reason}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
+                <div className="border-t border-border bg-[#F8FAFC] px-4 py-2.5">
+                  <p className="text-xs text-muted-foreground">{result.xmlErrors.length} arquivo{result.xmlErrors.length !== 1 ? 's' : ''} com erro</p>
+                </div>
               </>
             )}
           </div>
