@@ -1004,6 +1004,51 @@ function AuditoriaTab({
         </div>
       </div>
 
+      {/* ── Comparativo filtrado por CFOP (apenas quando filtro ativo) ── */}
+      {isFiltered && (() => {
+        const diff = filteredXmlNotInSpedVnf - totalC190Opr
+        const pct  = totalC190Opr > 0 ? Math.abs(diff / totalC190Opr * 100) : 0
+        const hasDiff = Math.abs(diff) > 0.01
+        return (
+          <div className={cn(
+            'rounded-xl border-2 p-5',
+            hasDiff ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50',
+          )}>
+            <div className="flex items-center gap-3 flex-wrap mb-3">
+              <span className={cn('h-3 w-3 rounded-full shrink-0', hasDiff ? 'bg-amber-500' : 'bg-emerald-500')} />
+              <p className={cn('text-sm font-bold tracking-wide', hasDiff ? 'text-amber-800' : 'text-emerald-800')}>
+                Comparativo — CFOP{cfopFilterSet.size !== 1 ? 's' : ''}: {[...cfopFilterSet].join(', ')}
+              </p>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                {filteredCfopSummary.length} linha{filteredCfopSummary.length !== 1 ? 's' : ''} C190
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 mb-3">
+              <div className="rounded-lg border border-primary/20 bg-white px-4 py-3">
+                <p className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-0.5">SPED — VL Operação C190</p>
+                <p className="text-lg font-bold tabular-nums text-primary">R$ {BRL(totalC190Opr)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">VL ICMS: R$ {BRL(totalC190Icms)} · ST: R$ {BRL(totalC190IcmsSt)}</p>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-white px-4 py-3">
+                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">XML — VL NF (não escriturados)</p>
+                <p className="text-lg font-bold tabular-nums text-amber-700">R$ {BRL(filteredXmlNotInSpedVnf)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{xmlNotInSpedFiltered.length} doc{xmlNotInSpedFiltered.length !== 1 ? 's' : ''} sem escrituração</p>
+              </div>
+              <div className={cn('rounded-lg border px-4 py-3', hasDiff ? 'border-amber-300 bg-amber-100' : 'border-emerald-200 bg-emerald-50')}>
+                <p className={cn('text-[10px] font-semibold uppercase tracking-wide mb-0.5', hasDiff ? 'text-amber-800' : 'text-emerald-700')}>Diferença</p>
+                <p className={cn('text-lg font-bold tabular-nums', hasDiff ? 'text-amber-800' : 'text-emerald-700')}>
+                  {hasDiff ? `R$ ${BRL(Math.abs(diff))}` : '—'}
+                </p>
+                {hasDiff && <p className="text-[10px] text-amber-700 mt-0.5">{pct.toFixed(2)}% sobre o C190</p>}
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              * SPED C190 inclui todos os documentos escriturados com esses CFOPs. XML refere-se apenas aos documentos <strong>não escriturados no SPED</strong> — documentos conferidos não são detalhados por CFOP individualmente.
+            </p>
+          </div>
+        )
+      })()}
+
       {/* Veredicto */}
       <div className={cn('rounded-xl border-2 p-5 flex items-start gap-4', cfg.bg, cfg.border)}>
         <span className={cn('mt-0.5 h-4 w-4 rounded-full shrink-0', cfg.dot)} />
@@ -1013,6 +1058,11 @@ function AuditoriaTab({
             <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1', cfg.badge)}>
               Auditoria Fiscal SPED × XML
             </span>
+            {isFiltered && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                total geral
+              </span>
+            )}
           </div>
           <ul className="mt-2 space-y-1">
             {audit.verdictMessages.map((msg, i) => (
