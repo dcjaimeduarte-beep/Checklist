@@ -307,7 +307,7 @@ export function ResultsPage() {
         </div>
 
         {/* ── Barra de filtro de CFOP (Dashboard + CFOP Agrupado) ──────── */}
-        {(activeTab === 'dashboard' || activeTab === 'cfop-agrupado') && (
+        {(activeTab === 'auditoria' || activeTab === 'dashboard' || activeTab === 'cfop-agrupado') && (
           <div className={cn(
             'mb-4 flex items-center gap-3 rounded-xl border px-4 py-2.5 shadow-sm transition-colors',
             isCfopFiltered
@@ -344,7 +344,7 @@ export function ResultsPage() {
 
         {/* ── Aba Auditoria Fiscal ──────────────────────────────────────── */}
         {activeTab === 'auditoria' && (
-          <AuditoriaTab result={result} />
+          <AuditoriaTab result={result} cfopFilterSet={cfopFilterSet} />
         )}
 
         {/* ── Aba Dashboard ─────────────────────────────────────────────── */}
@@ -789,7 +789,15 @@ const VERDICT_CFG = {
   divergencia: { label: 'DIVERGÊNCIA', bg: 'bg-red-50',     border: 'border-red-300',     dot: 'bg-red-500',     text: 'text-red-800',     badge: 'bg-red-100 text-red-800 ring-red-200'         },
 }
 
-function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
+function AuditoriaTab({
+  result,
+  cfopFilterSet,
+}: {
+  result: NonNullable<ReturnType<typeof useConfront>['result']>
+  cfopFilterSet: Set<string>
+}) {
+  const isFiltered = cfopFilterSet.size > 0
+
   // Defaults garantem compatibilidade com sessões antigas que não têm os novos campos
   const auditDefaults = {
     totalSpedCount: result.totalSpedEntries,
@@ -812,6 +820,26 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
   const diffRows = [...(audit.matchedWithValueDiff ?? [])].sort((a, b) => b.diferenca - a.diferenca)
 
   const matchedDiff = audit.totalVlSpedMatched - audit.totalVlXmlMatched
+
+  // C190: filtrado por CFOP quando ativo
+  const allCfopSummary = result.dashboard?.cfopSummary ?? []
+  const filteredCfopSummary = isFiltered
+    ? allCfopSummary.filter(r => cfopFilterSet.has(r.cfop))
+    : allCfopSummary
+  const totalC190Opr = filteredCfopSummary.reduce((s, r) => s + r.vlOpr, 0)
+  const totalC190Icms  = filteredCfopSummary.reduce((s, r) => s + r.vlIcms, 0)
+  const totalC190IcmsSt = filteredCfopSummary.reduce((s, r) => s + r.vlIcmsSt, 0)
+
+  // XMLs não escriturados filtrados por CFOP
+  const xmlNotInSpedAll = result.xmlsNotInSped ?? []
+  const xmlNotInSpedFiltered = isFiltered
+    ? xmlNotInSpedAll.filter(xml => {
+        if (!xml.cfops) return false
+        const xmlCfops = xml.cfops.split(/[\s,]+/).map(c => c.trim())
+        return xmlCfops.some(c => cfopFilterSet.has(c))
+      })
+    : xmlNotInSpedAll
+  const filteredXmlNotInSpedVnf = xmlNotInSpedFiltered.reduce((s, r) => s + (Number(r.vNF) || 0), 0)
 
   const checks: Array<{ label: string; ok: boolean; detail: string }> = [
     {
@@ -840,12 +868,10 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
     },
   ]
 
-  // Total C190 VL_OPR (soma de todos os CFOPs do SPED)
-  const totalC190Opr = (result.dashboard?.cfopSummary ?? []).reduce((s, r) => s + r.vlOpr, 0)
-
-  // Diferenças
-  const diffXmlVsSped   = audit.totalXmlValue - audit.totalSpedValue          // XML - C100
-  const diffC100VsC190  = Math.abs(audit.totalSpedValue - totalC190Opr)       // C100 - C190 (normal)
+  // Diferenças (usam totais gerais — C100 não tem detalhe por CFOP)
+  const diffXmlVsSped   = audit.totalXmlValue - audit.totalSpedValue
+  const diffC100VsC190All = Math.abs(audit.totalSpedValue - (result.dashboard?.cfopSummary ?? []).reduce((s, r) => s + r.vlOpr, 0))
+  const diffC100VsC190  = isFiltered ? Math.abs(audit.totalSpedValue - totalC190Opr) : diffC100VsC190All
 
   return (
     <div className="flex flex-col gap-4">
@@ -853,32 +879,47 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
       {/* ── Mapa das Diferenças ─────────────────────────────────────── */}
       <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-border bg-[#0d1f30]">
-          <p className="text-sm font-bold text-white">Mapa das Diferenças</p>
-          <p className="mt-0.5 text-xs text-white/60">De onde vem cada número e o que o contador precisa investigar</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-bold text-white">Mapa das Diferenças</p>
+              <p className="mt-0.5 text-xs text-white/60">De onde vem cada número e o que o contador precisa investigar</p>
+            </div>
+            {isFiltered && (
+              <span className="rounded-full bg-primary/40 border border-primary/60 px-2.5 py-0.5 text-[10px] font-bold text-white ml-auto">
+                Filtrado: {[...cfopFilterSet].join(', ')}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Três fontes de valor */}
         <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
           {/* XML */}
-          <div className="px-6 py-5 flex flex-col gap-1">
+          <div className={cn('px-6 py-5 flex flex-col gap-1', isFiltered && 'opacity-60')}>
             <div className="flex items-center gap-2 mb-1">
               <span className="h-2.5 w-2.5 rounded-full bg-orange-400 shrink-0" />
               <p className="text-[11px] font-bold text-orange-700 uppercase tracking-wide">XMLs enviados</p>
+              {isFiltered && <span className="ml-auto text-[9px] text-muted-foreground rounded-full bg-muted px-1.5">total geral</span>}
             </div>
             <p className="text-xs text-muted-foreground">Campo <code className="bg-muted px-1 rounded">vNF</code> de cada arquivo XML</p>
             <p className="mt-2 text-xl font-bold tabular-nums text-foreground">R$ {BRL(audit.totalXmlValue)}</p>
-            <p className="text-[11px] text-muted-foreground">Valor nominal das notas fiscais eletrônicas</p>
+            <p className="text-[11px] text-muted-foreground">
+              {isFiltered ? 'Sem detalhe por CFOP para documentos conferidos' : 'Valor nominal das notas fiscais eletrônicas'}
+            </p>
           </div>
 
           {/* SPED C100 */}
-          <div className="px-6 py-5 flex flex-col gap-1">
+          <div className={cn('px-6 py-5 flex flex-col gap-1', isFiltered && 'opacity-60')}>
             <div className="flex items-center gap-2 mb-1">
               <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0" />
               <p className="text-[11px] font-bold text-primary uppercase tracking-wide">SPED — Registro C100</p>
+              {isFiltered && <span className="ml-auto text-[9px] text-muted-foreground rounded-full bg-muted px-1.5">total geral</span>}
             </div>
             <p className="text-xs text-muted-foreground">Campo <code className="bg-muted px-1 rounded">VL_DOC</code> de cada documento</p>
             <p className="mt-2 text-xl font-bold tabular-nums text-foreground">R$ {BRL(audit.totalSpedValue)}</p>
-            <p className="text-[11px] text-muted-foreground">Valor total de cada nota escriturada individualmente</p>
+            <p className="text-[11px] text-muted-foreground">
+              {isFiltered ? 'C100 não tem detalhe por CFOP' : 'Valor total de cada nota escriturada individualmente'}
+            </p>
           </div>
 
           {/* SPED C190 */}
@@ -886,10 +927,22 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
             <div className="flex items-center gap-2 mb-1">
               <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 shrink-0" />
               <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wide">SPED — Registro C190</p>
+              {isFiltered && (
+                <span className="ml-auto text-[9px] font-semibold text-indigo-700 rounded-full bg-indigo-50 border border-indigo-200 px-1.5">filtrado</span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">Campo <code className="bg-muted px-1 rounded">VL_OPR</code> por CFOP/CST</p>
             <p className="mt-2 text-xl font-bold tabular-nums text-foreground">R$ {BRL(totalC190Opr)}</p>
-            <p className="text-[11px] text-muted-foreground">Valor das operações — base para apuração do ICMS</p>
+            {isFiltered ? (
+              <div className="mt-1 space-y-0.5">
+                <p className="text-[11px] text-indigo-700">
+                  {filteredCfopSummary.length} linha{filteredCfopSummary.length !== 1 ? 's' : ''} C190 — CFOPs: {[...cfopFilterSet].join(', ')}
+                </p>
+                <p className="text-[10px] text-muted-foreground">VL ICMS: R$ {BRL(totalC190Icms)} · ST: R$ {BRL(totalC190IcmsSt)}</p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">Valor das operações — base para apuração do ICMS</p>
+            )}
           </div>
         </div>
 
@@ -996,7 +1049,11 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
       <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
         <div className="px-6 py-3 border-b border-border bg-[#F8FAFC]">
           <p className="text-sm font-semibold text-foreground">Decomposição dos valores</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">De onde vem a diferença entre o total SPED e o total XML</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {isFiltered
+              ? `XMLs não escriturados filtrados por: ${[...cfopFilterSet].join(', ')} — pares conferidos e SPED sem XML exibem total geral (sem detalhe por CFOP)`
+              : 'De onde vem a diferença entre o total SPED e o total XML'}
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -1010,50 +1067,61 @@ function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useCon
               </tr>
             </thead>
             <tbody>
-              <tr className="bg-white border-b border-border">
+              <tr className={cn('border-b border-border', isFiltered ? 'bg-white/60' : 'bg-white')}>
                 <td className="px-4 py-3">
-                  <p className="font-medium text-foreground">Pares conferidos (chave OK)</p>
-                  <p className="text-muted-foreground">Documentos presentes nos dois lados</p>
+                  <p className={cn('font-medium', isFiltered ? 'text-muted-foreground' : 'text-foreground')}>Pares conferidos (chave OK)</p>
+                  <p className="text-muted-foreground">Documentos presentes nos dois lados{isFiltered ? ' — total geral' : ''}</p>
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums">{audit.matchedCount}</td>
-                <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{BRL(audit.totalVlSpedMatched)}</td>
-                <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{BRL(audit.totalVlXmlMatched)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{audit.matchedCount}</td>
+                <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap text-muted-foreground">{BRL(audit.totalVlSpedMatched)}</td>
+                <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap text-muted-foreground">{BRL(audit.totalVlXmlMatched)}</td>
                 <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', Math.abs(matchedDiff) > 0.01 ? 'text-red-600' : 'text-emerald-600')}>
                   {Math.abs(matchedDiff) > 0.01 ? BRL(Math.abs(matchedDiff)) : '—'}
                 </td>
               </tr>
               <tr className="bg-[#F2F5F7] border-b border-border">
                 <td className="px-4 py-3">
-                  <p className="font-medium text-foreground">XMLs sem escrituração no SPED</p>
-                  <p className="text-muted-foreground">XMLs enviados que não constam no SPED</p>
+                  <p className="font-medium text-foreground">
+                    XMLs sem escrituração no SPED
+                    {isFiltered && (
+                      <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">filtrado</span>
+                    )}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {isFiltered
+                      ? `${xmlNotInSpedFiltered.length} de ${xmlNotInSpedAll.length} XMLs com CFOP ${[...cfopFilterSet].join(', ')}`
+                      : 'XMLs enviados que não constam no SPED'}
+                  </p>
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums">{result.xmlsNotInSped.length}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{isFiltered ? xmlNotInSpedFiltered.length : result.xmlsNotInSped.length}</td>
                 <td className="px-4 py-3 text-right text-muted-foreground">—</td>
-                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap', audit.totalVlXmlNotInSped > 0 ? 'text-red-600 font-semibold' : '')}>
-                  {audit.totalVlXmlNotInSped > 0 ? BRL(audit.totalVlXmlNotInSped) : '—'}
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap', (isFiltered ? filteredXmlNotInSpedVnf : audit.totalVlXmlNotInSped) > 0 ? 'text-red-600 font-semibold' : '')}>
+                  {(isFiltered ? filteredXmlNotInSpedVnf : audit.totalVlXmlNotInSped) > 0
+                    ? BRL(isFiltered ? filteredXmlNotInSpedVnf : audit.totalVlXmlNotInSped) : '—'}
                 </td>
-                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', audit.totalVlXmlNotInSped > 0 ? 'text-red-600' : 'text-emerald-600')}>
-                  {audit.totalVlXmlNotInSped > 0 ? BRL(audit.totalVlXmlNotInSped) : '—'}
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', (isFiltered ? filteredXmlNotInSpedVnf : audit.totalVlXmlNotInSped) > 0 ? 'text-red-600' : 'text-emerald-600')}>
+                  {(isFiltered ? filteredXmlNotInSpedVnf : audit.totalVlXmlNotInSped) > 0
+                    ? BRL(isFiltered ? filteredXmlNotInSpedVnf : audit.totalVlXmlNotInSped) : '—'}
                 </td>
               </tr>
-              <tr className="bg-white border-b border-border">
+              <tr className={cn('border-b border-border', isFiltered ? 'bg-white/60' : 'bg-white')}>
                 <td className="px-4 py-3">
-                  <p className="font-medium text-foreground">SPED sem XML correspondente</p>
-                  <p className="text-muted-foreground">Chaves no SPED sem arquivo XML enviado</p>
+                  <p className={cn('font-medium', isFiltered ? 'text-muted-foreground' : 'text-foreground')}>SPED sem XML correspondente</p>
+                  <p className="text-muted-foreground">Chaves no SPED sem arquivo XML enviado{isFiltered ? ' — total geral' : ''}</p>
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums">{result.spedNotInXml.length}</td>
-                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap', audit.totalVlSpedNotInXml > 0 ? 'text-red-600 font-semibold' : '')}>
+                <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{result.spedNotInXml.length}</td>
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap', audit.totalVlSpedNotInXml > 0 ? 'text-muted-foreground' : '')}>
                   {audit.totalVlSpedNotInXml > 0 ? BRL(audit.totalVlSpedNotInXml) : '—'}
                 </td>
                 <td className="px-4 py-3 text-right text-muted-foreground">—</td>
-                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', audit.totalVlSpedNotInXml > 0 ? 'text-red-600' : 'text-emerald-600')}>
+                <td className={cn('px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold', !isFiltered && audit.totalVlSpedNotInXml > 0 ? 'text-red-600' : 'text-muted-foreground')}>
                   {audit.totalVlSpedNotInXml > 0 ? BRL(audit.totalVlSpedNotInXml) : '—'}
                 </td>
               </tr>
             </tbody>
             <tfoot>
               <tr className="bg-primary/5 border-t-2 border-primary/20 font-semibold">
-                <td className="px-4 py-2.5 text-xs font-bold text-primary">TOTAL GERAL</td>
+                <td className="px-4 py-2.5 text-xs font-bold text-primary">{isFiltered ? 'TOTAL GERAL' : 'TOTAL GERAL'}</td>
                 <td className="px-4 py-2.5 text-right text-xs tabular-nums">{Math.max(audit.totalSpedCount, audit.totalXmlCount)}</td>
                 <td className="px-4 py-2.5 text-right text-xs tabular-nums whitespace-nowrap">{BRL(audit.totalSpedValue)}</td>
                 <td className="px-4 py-2.5 text-right text-xs tabular-nums whitespace-nowrap">{BRL(audit.totalXmlValue)}</td>
