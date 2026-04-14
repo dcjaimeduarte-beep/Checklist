@@ -698,19 +698,23 @@ const VERDICT_CFG = {
 }
 
 function AuditoriaTab({ result }: { result: NonNullable<ReturnType<typeof useConfront>['result']> }) {
-  const audit = result.audit ?? {
+  // Defaults garantem compatibilidade com sessões antigas que não têm os novos campos
+  const auditDefaults = {
     totalSpedCount: result.totalSpedEntries,
     totalXmlCount: result.totalXmls,
     matchedCount: result.totalMatches,
     totalSpedValue: result.dashboard?.totalVlSpedGeral ?? 0,
     totalXmlValue: result.dashboard?.totalVlXmlGeral ?? 0,
     totalValueDiff: 0,
-    totalVlSpedMatched: 0, totalVlXmlMatched: 0,
-    totalVlXmlNotInSped: 0, totalVlSpedNotInXml: 0,
+    totalVlSpedMatched: 0,
+    totalVlXmlMatched: 0,
+    totalVlXmlNotInSped: 0,
+    totalVlSpedNotInXml: 0,
     matchedWithValueDiff: [] as AuditItem[],
-    verdict: 'ok' as const,
-    verdictMessages: [],
+    verdict: 'ok' as 'ok' | 'atencao' | 'divergencia',
+    verdictMessages: [] as string[],
   }
+  const audit = { ...auditDefaults, ...(result.audit ?? {}) }
 
   const cfg = VERDICT_CFG[audit.verdict as keyof typeof VERDICT_CFG] ?? VERDICT_CFG.ok
   const diffRows = [...(audit.matchedWithValueDiff ?? [])].sort((a, b) => b.diferenca - a.diferenca)
