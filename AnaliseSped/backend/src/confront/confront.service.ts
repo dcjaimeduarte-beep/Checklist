@@ -91,7 +91,7 @@ export class ConfrontService {
       }));
 
     const totalMatches =
-      spedResult.entries.length - spedNotInXml.length;
+      spedEntries.length - spedNotInXml.length;
 
     // 6. Calcular dashboard (totais + CFOP)
     const dashboard = this.buildDashboard(spedEntries, xmlEntries, spedResult.cfopSummary);
