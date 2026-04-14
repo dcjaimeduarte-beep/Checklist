@@ -16,6 +16,8 @@ export interface XmlItem {
   cnpjEmit?: string
   xNomeEmit?: string
   vNF?: string
+  /** tpNF: '0' = Entrada, '1' = Saída (perspectiva do emitente) */
+  tpNF?: string
   /** Código de status SEFAZ (100=Autorizado, 101=Cancelado etc.) */
   cStat?: string
   /** Descrição do status SEFAZ */

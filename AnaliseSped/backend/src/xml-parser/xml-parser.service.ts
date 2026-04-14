@@ -138,7 +138,7 @@ export class XmlParserService {
       cnpjEmit: String(emit?.['CNPJ'] ?? ''),
       xNomeEmit: String(emit?.['xNome'] ?? ''),
       vNF: String(icmsTot?.['vNF'] ?? ''),
-      // sem protocolo = não autorizada (default; sobrescrito por extractFromNfeProc)
+      tpNF: ide?.['tpNF'] !== undefined ? String(ide['tpNF']) : undefined,
       autorizada: false,
     };
   }
@@ -195,6 +195,9 @@ export class XmlParserService {
       cnpjEmit: String(emit?.['CNPJ'] ?? ''),
       xNomeEmit: String(emit?.['xNome'] ?? ''),
       vNF: String(vPrest?.['vTPrest'] ?? ''),
+      // CT-e usa tpCTe: 0=Normal, 1=Complementar, 3=Substituição; não tem tpNF
+      // usamos tpNF='1' fixo (CT-e é sempre saída do emitente)
+      tpNF: '1',
       autorizada: false,
     };
   }

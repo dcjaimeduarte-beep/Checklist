@@ -116,7 +116,7 @@ export function ResultsPage() {
   const authSlice  = authItems.slice(authPage * PAGE_SIZE, (authPage + 1) * PAGE_SIZE)
 
   async function handleDownload(type: 'excel' | 'pdf') {
-    if (!sessionId) return
+    if (!sessionId || !result) return
     type === 'excel' ? setDlExcel(true) : setDlPdf(true)
     try {
       const blob = type === 'excel' ? await downloadExcel(sessionId) : await downloadPdf(sessionId)
@@ -361,6 +361,7 @@ export function ResultsPage() {
                         <Th>Chave de Acesso (44)</Th>
                         <Th>Arquivo XML</Th>
                         <Th>Tipo</Th>
+                        <Th>Oper.</Th>
                         <Th>Nº NF</Th>
                         <Th>Série</Th>
                         <Th>Emissão</Th>
@@ -379,6 +380,7 @@ export function ResultsPage() {
                             <span className="block max-w-[200px] truncate text-muted-foreground" title={item.filename}>{item.filename}</span>
                           </td>
                           <td className="px-3 py-2.5 align-top"><TipoBadge tipo={item.tipo} /></td>
+                          <td className="px-3 py-2.5 align-top"><TpNFBadge tpNF={item.tpNF} /></td>
                           <td className="px-3 py-2.5 align-top whitespace-nowrap">{item.nNF ?? '—'}</td>
                           <td className="px-3 py-2.5 align-top">{item.serie ?? '—'}</td>
                           <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(item.dhEmi)}</td>
@@ -611,6 +613,12 @@ function TableScrollWrapper({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/60 to-transparent sm:hidden" />
     </div>
   )
+}
+
+function TpNFBadge({ tpNF }: { tpNF?: string }) {
+  if (tpNF === '1') return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap bg-orange-50 text-orange-700 ring-1 ring-orange-200">Saída</span>
+  if (tpNF === '0') return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap bg-blue-50 text-blue-700 ring-1 ring-blue-200">Entrada</span>
+  return <span className="text-muted-foreground">—</span>
 }
 
 function AuthBadge({ cStat }: { cStat?: string }) {

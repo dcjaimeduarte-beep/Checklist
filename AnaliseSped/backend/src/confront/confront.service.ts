@@ -47,10 +47,20 @@ export class ConfrontService {
 
     if (filtroEmissao === 'proprias') {
       spedEntries = spedEntries.filter((e) => e.indEmit === '0');
-      xmlEntries  = xmlEntries.filter((e) => !e.cnpjEmit || e.cnpjEmit === spedResult.info.cnpj);
+      // XML própria: CNPJ emitente = CNPJ do SPED (emissão própria)
+      //              OU tpNF = '1' (saída — nota emitida pela empresa)
+      xmlEntries  = xmlEntries.filter((e) =>
+        (e.cnpjEmit && e.cnpjEmit === spedResult.info.cnpj) ||
+        e.tpNF === '1',
+      );
     } else if (filtroEmissao === 'terceiros') {
       spedEntries = spedEntries.filter((e) => e.indEmit === '1');
-      xmlEntries  = xmlEntries.filter((e) => e.cnpjEmit && e.cnpjEmit !== spedResult.info.cnpj);
+      // XML de terceiro: CNPJ emitente ≠ CNPJ do SPED
+      //                  OU tpNF = '0' (entrada — nota recebida de terceiro)
+      xmlEntries  = xmlEntries.filter((e) =>
+        (e.cnpjEmit && e.cnpjEmit !== spedResult.info.cnpj) ||
+        e.tpNF === '0',
+      );
     }
 
     // 4. Confrontar
@@ -72,6 +82,7 @@ export class ConfrontService {
         cnpjEmit: e.cnpjEmit,
         xNomeEmit: e.xNomeEmit,
         vNF: e.vNF,
+        tpNF: e.tpNF,
         cStat: e.cStat,
         xMotivo: e.xMotivo,
         dhRecbto: e.dhRecbto,
@@ -166,6 +177,7 @@ export class ConfrontService {
           cnpjEmit: xml.cnpjEmit,
           xNomeEmit: xml.xNomeEmit,
           vNF: xml.vNF,
+          tpNF: xml.tpNF,
           cStat: xml.cStat,
           xMotivo: xml.xMotivo,
           dhRecbto: xml.dhRecbto,

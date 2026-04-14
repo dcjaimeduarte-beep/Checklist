@@ -13,6 +13,8 @@ export interface XmlEntry {
   cnpjEmit?: string;
   xNomeEmit?: string;
   vNF?: string;
+  /** tpNF do XML: '0' = Entrada, '1' = Saída (perspectiva do emitente) */
+  tpNF?: string;
   /** Código de status SEFAZ (ex: "100" = Autorizado, "101" = Cancelado, undefined = sem protocolo) */
   cStat?: string;
   /** Descrição do status SEFAZ */
