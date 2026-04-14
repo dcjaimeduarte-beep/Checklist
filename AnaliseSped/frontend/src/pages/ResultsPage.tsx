@@ -22,14 +22,14 @@ import type { SpedItem, XmlItem } from '@/types/confront'
 type TabId = 'resumo' | 'xml-sem-sped' | 'sped-sem-xml'
 
 const SITUACAO_MAP: Record<string, { label: string; cls: string }> = {
-  '00': { label: 'Regular', cls: 'bg-green-100 text-green-700' },
-  '01': { label: 'Regular (ext.)', cls: 'bg-green-100 text-green-700' },
-  '02': { label: 'Cancelada', cls: 'bg-yellow-100 text-yellow-700' },
-  '03': { label: 'Canc. (ext.)', cls: 'bg-yellow-100 text-yellow-700' },
-  '04': { label: 'Denegada', cls: 'bg-red-100 text-red-700' },
-  '06': { label: 'Complementar', cls: 'bg-blue-100 text-blue-700' },
-  '07': { label: 'Canc. ext.', cls: 'bg-yellow-100 text-yellow-700' },
-  '08': { label: 'Devolução', cls: 'bg-purple-100 text-purple-700' },
+  '00': { label: 'Regular',        cls: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' },
+  '01': { label: 'Regular (ext.)', cls: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' },
+  '02': { label: 'Cancelada',      cls: 'bg-amber-100  text-amber-700  ring-1 ring-amber-200'  },
+  '03': { label: 'Canc. (ext.)',   cls: 'bg-amber-100  text-amber-700  ring-1 ring-amber-200'  },
+  '04': { label: 'Denegada',       cls: 'bg-red-100    text-red-700    ring-1 ring-red-200'    },
+  '06': { label: 'Complementar',   cls: 'bg-blue-100   text-blue-700   ring-1 ring-blue-200'   },
+  '07': { label: 'Canc. ext.',     cls: 'bg-amber-100  text-amber-700  ring-1 ring-amber-200'  },
+  '08': { label: 'Devolução',      cls: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200' },
 }
 
 const MODELO_MAP: Record<string, string> = {
@@ -39,48 +39,46 @@ const MODELO_MAP: Record<string, string> = {
   '67': 'CT-e OS',
 }
 
+const TIPO_CLS: Record<string, string> = {
+  'NFe':   'bg-primary/10  text-primary  ring-1 ring-primary/20',
+  'NFC-e': 'bg-secondary/10 text-secondary ring-1 ring-secondary/20',
+  'CTe':   'bg-indigo-100  text-indigo-700 ring-1 ring-indigo-200',
+}
+
 function formatDate(dt?: string): string {
   if (!dt) return '—'
-  if (dt.includes('T') || dt.includes('-')) {
-    return new Date(dt).toLocaleDateString('pt-BR')
-  }
+  if (dt.includes('T') || dt.includes('-')) return new Date(dt).toLocaleDateString('pt-BR')
   if (dt.length === 8) return `${dt.slice(0, 2)}/${dt.slice(2, 4)}/${dt.slice(4, 8)}`
   return dt
 }
 
-function truncateChave(chave: string) {
-  return (
-    <span title={chave} className="font-mono text-[11px]">
-      {chave.slice(0, 20)}…{chave.slice(-8)}
-    </span>
-  )
-}
-
 function SituacaoBadge({ codSit }: { codSit?: string }) {
   const info = SITUACAO_MAP[codSit ?? ''] ?? { label: codSit ?? '—', cls: 'bg-gray-100 text-gray-600' }
-  return (
-    <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', info.cls)}>
-      {info.label}
-    </span>
-  )
+  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap', info.cls)}>{info.label}</span>
 }
+
+function TipoBadge({ tipo }: { tipo: string }) {
+  const cls = TIPO_CLS[tipo] ?? 'bg-gray-100 text-gray-600'
+  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap', cls)}>{tipo}</span>
+}
+
+const PAGE_SIZE = 50
 
 export function ResultsPage() {
   const { result, sessionId, reset } = useConfront()
   const { setPage } = usePage()
-  const [activeTab, setActiveTab] = useState<TabId>('resumo')
-  const [emailOpen, setEmailOpen] = useState(false)
-  const [emailTo, setEmailTo] = useState('')
-  const [emailMsg, setEmailMsg] = useState('')
+
+  const [activeTab, setActiveTab]       = useState<TabId>('resumo')
+  const [emailOpen, setEmailOpen]       = useState(false)
+  const [emailTo, setEmailTo]           = useState('')
+  const [emailMsg, setEmailMsg]         = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
   const [emailSuccess, setEmailSuccess] = useState(false)
-  const [emailError, setEmailError] = useState<string | null>(null)
-  const [downloadingExcel, setDownloadingExcel] = useState(false)
-  const [downloadingPdf, setDownloadingPdf] = useState(false)
-  const [xmlPage, setXmlPage] = useState(0)
-  const [spedPage, setSpedPage] = useState(0)
-
-  const PAGE_SIZE = 50
+  const [emailError, setEmailError]     = useState<string | null>(null)
+  const [dlExcel, setDlExcel]           = useState(false)
+  const [dlPdf, setDlPdf]               = useState(false)
+  const [xmlPage, setXmlPage]           = useState(0)
+  const [spedPage, setSpedPage]         = useState(0)
 
   if (!result) {
     return (
@@ -88,56 +86,42 @@ export function ResultsPage() {
         <div className="text-center">
           <ClipboardCheck className="mx-auto mb-4 h-12 w-12 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">Nenhum confronto realizado ainda.</p>
-          <Button className="mt-4 cursor-pointer" onClick={() => setPage('upload')}>
-            Ir para Upload
-          </Button>
+          <Button className="mt-4 cursor-pointer" onClick={() => setPage('upload')}>Ir para Upload</Button>
         </div>
       </div>
     )
   }
 
   const divergencias = result.xmlsNotInSped.length + result.spedNotInXml.length
+  const xmlItems: XmlItem[]   = result.xmlsNotInSped
+  const spedItems: SpedItem[] = result.spedNotInXml
+  const xmlSlice  = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
+  const spedSlice = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
 
-  async function handleDownloadExcel() {
+  async function handleDownload(type: 'excel' | 'pdf') {
     if (!sessionId) return
-    setDownloadingExcel(true)
+    type === 'excel' ? setDlExcel(true) : setDlPdf(true)
     try {
-      const blob = await downloadExcel(sessionId)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `confronto_${result.spedInfo.cnpj}_${result.spedInfo.dtIni}.xlsx`
+      const blob = type === 'excel' ? await downloadExcel(sessionId) : await downloadPdf(sessionId)
+      const ext  = type === 'excel' ? 'xlsx' : 'pdf'
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `confronto_${result.spedInfo.cnpj}_${result.spedInfo.dtIni}.${ext}`
       a.click()
       URL.revokeObjectURL(url)
     } finally {
-      setDownloadingExcel(false)
-    }
-  }
-
-  async function handleDownloadPdf() {
-    if (!sessionId) return
-    setDownloadingPdf(true)
-    try {
-      const blob = await downloadPdf(sessionId)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `confronto_${result.spedInfo.cnpj}_${result.spedInfo.dtIni}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } finally {
-      setDownloadingPdf(false)
+      type === 'excel' ? setDlExcel(false) : setDlPdf(false)
     }
   }
 
   async function handleSendEmail() {
     if (!sessionId || !emailTo) return
-    setEmailLoading(true)
-    setEmailError(null)
+    setEmailLoading(true); setEmailError(null)
     try {
       await sendEmailReport(sessionId, emailTo, emailMsg || undefined)
       setEmailSuccess(true)
-      setTimeout(() => { setEmailOpen(false); setEmailSuccess(false) }, 2000)
+      setTimeout(() => { setEmailOpen(false); setEmailSuccess(false) }, 2200)
     } catch (err) {
       setEmailError((err as Error).message)
     } finally {
@@ -145,105 +129,106 @@ export function ResultsPage() {
     }
   }
 
-  const xmlItems: XmlItem[] = result.xmlsNotInSped
-  const spedItems: SpedItem[] = result.spedNotInXml
-
-  const xmlSlice = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
-  const spedSlice = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
+  // ── Summary cards ──────────────────────────────────────────────────────────
+  const summaryCards = [
+    { label: 'Entradas SPED',    value: result.totalSpedEntries,      icon: FileText,      color: 'text-primary',    bg: 'bg-primary/8' },
+    { label: 'XMLs enviados',    value: result.totalXmls,             icon: FolderOpen,    color: 'text-secondary',  bg: 'bg-secondary/8' },
+    { label: 'Conferidos (OK)',  value: result.totalMatches,          icon: CheckCircle2,  color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Divergências',     value: divergencias,                 icon: AlertTriangle, color: divergencias > 0 ? 'text-red-500' : 'text-emerald-600', bg: divergencias > 0 ? 'bg-red-50' : 'bg-emerald-50' },
+  ]
 
   return (
-    <div className="flex min-h-screen flex-col bg-backgroundMuted">
-      {/* Header */}
-      <header className="border-b border-border bg-white px-6 py-4 shadow-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
+    <div className="flex min-h-screen flex-col bg-[#F2F5F7]">
+
+      {/* ── Cabeçalho navy com orbs (padrão Seven) ───────────────────────── */}
+      <header className="relative overflow-hidden bg-[#0d1f30]">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="login-orb login-orb-1" style={{ opacity: 0.2 }} />
+          <div className="login-orb login-orb-2" style={{ opacity: 0.15 }} />
+        </div>
+
+        <div className="relative z-10 mx-auto flex max-w-screen-xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          {/* Esquerda */}
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setPage('upload')}
-              className="cursor-pointer flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              className="cursor-pointer flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-white/50 hover:bg-white/10 hover:text-white transition-colors"
             >
               <ChevronLeft className="h-4 w-4" />
               Novo confronto
             </button>
-            <span className="text-border">|</span>
-            <div>
-              <h1 className="text-sm font-semibold text-primary">AnaliseSped</h1>
-              <p className="text-xs text-muted-foreground">Resultado do confronto</p>
+            <span className="text-white/20 hidden sm:inline">|</span>
+            <div className="hidden sm:block">
+              <p className="text-xs font-semibold tracking-widest uppercase text-white/40">AnaliseSped</p>
+              <h1 className="text-base font-semibold text-white leading-tight">Resultado do Confronto</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="cursor-pointer gap-1.5 text-xs"
-              onClick={handleDownloadExcel}
-              disabled={downloadingExcel}
+
+          {/* Ações */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleDownload('excel')}
+              disabled={dlExcel}
+              className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 disabled:opacity-50 transition-colors"
             >
-              {downloadingExcel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+              {dlExcel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
               Excel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="cursor-pointer gap-1.5 text-xs"
-              onClick={handleDownloadPdf}
-              disabled={downloadingPdf}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownload('pdf')}
+              disabled={dlPdf}
+              className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 disabled:opacity-50 transition-colors"
             >
-              {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+              {dlPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
               PDF
-            </Button>
-            <Button
-              size="sm"
-              className="cursor-pointer gap-1.5 text-xs"
+            </button>
+            <button
+              type="button"
               onClick={() => setEmailOpen(true)}
+              className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-white hover:bg-secondary/90 transition-colors"
             >
               <Mail className="h-3.5 w-3.5" />
               Enviar por e-mail
-            </Button>
+            </button>
+          </div>
+        </div>
+
+        {/* Info da empresa */}
+        <div className="relative z-10 border-t border-white/10 mx-auto max-w-screen-xl px-4 py-2.5 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-white/50">
+            <span><span className="text-white/70 font-medium">Empresa:</span> {result.spedInfo.nome}</span>
+            <span><span className="text-white/70 font-medium">CNPJ:</span> {result.spedInfo.cnpj}</span>
+            <span><span className="text-white/70 font-medium">UF:</span> {result.spedInfo.uf}</span>
+            <span><span className="text-white/70 font-medium">Período:</span> {formatDate(result.spedInfo.dtIni)} → {formatDate(result.spedInfo.dtFin)}</span>
+            <span className="hidden md:inline"><span className="text-white/70 font-medium">Arquivo:</span> {result.spedFilename}</span>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
-        {/* Cards resumo */}
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[
-            { label: 'Entradas SPED', value: result.totalSpedEntries, icon: FileText, color: 'text-primary' },
-            { label: 'XMLs enviados', value: result.totalXmls, icon: FolderOpen, color: 'text-secondary' },
-            {
-              label: 'Conferidos (OK)', value: result.totalMatches,
-              icon: CheckCircle2, color: 'text-green-600',
-            },
-            {
-              label: 'Divergências', value: divergencias,
-              icon: AlertTriangle, color: divergencias > 0 ? 'text-red-500' : 'text-green-600',
-            },
-          ].map(({ label, value, icon: Icon, color }) => (
+      <main className="mx-auto w-full max-w-screen-xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+
+        {/* ── Cards resumo ──────────────────────────────────────────────── */}
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {summaryCards.map(({ label, value, icon: Icon, color, bg }) => (
             <div key={label} className="rounded-xl border border-border bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <Icon className={cn('h-4 w-4', color)} />
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs text-muted-foreground leading-tight">{label}</p>
+                <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', bg)}>
+                  <Icon className={cn('h-3.5 w-3.5', color)} />
+                </span>
               </div>
-              <p className={cn('mt-2 text-2xl font-bold', color)}>{value.toLocaleString('pt-BR')}</p>
+              <p className={cn('mt-3 text-2xl font-bold tabular-nums', color)}>{value.toLocaleString('pt-BR')}</p>
             </div>
           ))}
         </div>
 
-        {/* Info SPED */}
-        <div className="mb-4 rounded-xl border border-border bg-white px-5 py-3 shadow-sm">
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-            <span><strong className="text-foreground">Empresa:</strong> {result.spedInfo.nome}</span>
-            <span><strong className="text-foreground">CNPJ:</strong> {result.spedInfo.cnpj}</span>
-            <span><strong className="text-foreground">UF:</strong> {result.spedInfo.uf}</span>
-            <span><strong className="text-foreground">Período:</strong> {formatDate(result.spedInfo.dtIni)} a {formatDate(result.spedInfo.dtFin)}</span>
-            <span><strong className="text-foreground">Arquivo:</strong> {result.spedFilename}</span>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="mb-4 flex gap-1 rounded-xl border border-border bg-white p-1 shadow-sm w-fit">
+        {/* ── Tabs ──────────────────────────────────────────────────────── */}
+        <div className="mb-4 flex overflow-x-auto gap-1 rounded-xl border border-border bg-white p-1 shadow-sm w-fit max-w-full">
           {([
-            { id: 'resumo' as TabId, label: 'Resumo' },
+            { id: 'resumo'       as TabId, label: 'Resumo' },
             { id: 'xml-sem-sped' as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
             { id: 'sped-sem-xml' as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
           ]).map(({ id, label }) => (
@@ -252,10 +237,10 @@ export function ResultsPage() {
               type="button"
               onClick={() => setActiveTab(id)}
               className={cn(
-                'cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                'cursor-pointer whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                 activeTab === id
                   ? 'bg-primary text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
+                  : 'text-muted-foreground hover:text-foreground hover:bg-backgroundMuted',
               )}
             >
               {label}
@@ -263,15 +248,14 @@ export function ResultsPage() {
           ))}
         </div>
 
-        {/* Conteúdo das abas */}
+        {/* ── Aba Resumo ────────────────────────────────────────────────── */}
         {activeTab === 'resumo' && (
           <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
             <h3 className="mb-4 text-sm font-semibold text-foreground">Resultado do confronto</h3>
-
             {divergencias === 0 ? (
-              <div className="flex flex-col items-center py-10 text-center">
-                <CheckCircle2 className="mb-3 h-12 w-12 text-green-500" />
-                <p className="text-base font-semibold text-green-700">Nenhuma divergência encontrada</p>
+              <div className="flex flex-col items-center py-12 text-center">
+                <CheckCircle2 className="mb-3 h-12 w-12 text-emerald-500" />
+                <p className="text-base font-semibold text-emerald-700">Nenhuma divergência encontrada</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Todos os {result.totalMatches.toLocaleString('pt-BR')} documentos foram conferidos com sucesso.
                 </p>
@@ -279,49 +263,39 @@ export function ResultsPage() {
             ) : (
               <div className="space-y-3">
                 {result.xmlsNotInSped.length > 0 && (
-                  <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+                    <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
+                    <div className="flex-1">
                       <p className="text-sm font-semibold text-red-700">
                         {result.xmlsNotInSped.length} XML{result.xmlsNotInSped.length !== 1 ? 's' : ''} não escriturado{result.xmlsNotInSped.length !== 1 ? 's' : ''} no SPED
                       </p>
-                      <p className="mt-0.5 text-xs text-red-600">
-                        Estes documentos existem na pasta de XMLs mas não constam no arquivo SPED Fiscal.
-                      </p>
+                      <p className="mt-0.5 text-xs text-red-600">Documentos presentes na pasta de XMLs que não constam no arquivo SPED.</p>
                     </div>
-                    <button
-                      type="button"
-                      className="ml-auto cursor-pointer text-xs text-red-500 hover:underline shrink-0"
-                      onClick={() => setActiveTab('xml-sem-sped')}
-                    >
+                    <button type="button" onClick={() => setActiveTab('xml-sem-sped')}
+                      className="cursor-pointer shrink-0 text-xs font-medium text-red-600 hover:underline">
                       Ver lista →
                     </button>
                   </div>
                 )}
                 {result.spedNotInXml.length > 0 && (
-                  <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+                    <div className="flex-1">
                       <p className="text-sm font-semibold text-amber-700">
                         {result.spedNotInXml.length} entrada{result.spedNotInXml.length !== 1 ? 's' : ''} no SPED sem XML correspondente
                       </p>
-                      <p className="mt-0.5 text-xs text-amber-600">
-                        Estes registros constam no SPED mas o arquivo XML não foi localizado na pasta selecionada.
-                      </p>
+                      <p className="mt-0.5 text-xs text-amber-600">Chaves escrituradas no SPED sem arquivo XML na pasta selecionada.</p>
                     </div>
-                    <button
-                      type="button"
-                      className="ml-auto cursor-pointer text-xs text-amber-600 hover:underline shrink-0"
-                      onClick={() => setActiveTab('sped-sem-xml')}
-                    >
+                    <button type="button" onClick={() => setActiveTab('sped-sem-xml')}
+                      className="cursor-pointer shrink-0 text-xs font-medium text-amber-600 hover:underline">
                       Ver lista →
                     </button>
                   </div>
                 )}
                 {result.xmlErrors.length > 0 && (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-xs font-medium text-gray-600">
-                      {result.xmlErrors.length} arquivo{result.xmlErrors.length !== 1 ? 's' : ''} XML com erro de leitura (ignorado{result.xmlErrors.length !== 1 ? 's' : ''})
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p className="text-xs text-gray-500">
+                      {result.xmlErrors.length} arquivo{result.xmlErrors.length !== 1 ? 's' : ''} XML ignorado{result.xmlErrors.length !== 1 ? 's' : ''} por erro de leitura.
                     </p>
                   </div>
                 )}
@@ -330,155 +304,175 @@ export function ResultsPage() {
           </div>
         )}
 
+        {/* ── Aba XMLs não no SPED ──────────────────────────────────────── */}
         {activeTab === 'xml-sem-sped' && (
-          <div className="rounded-xl border border-border bg-white shadow-sm">
+          <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
             {xmlItems.length === 0 ? (
-              <div className="flex flex-col items-center py-12 text-center">
-                <CheckCircle2 className="mb-3 h-10 w-10 text-green-500" />
-                <p className="text-sm font-medium text-green-700">Todos os XMLs estão escriturados no SPED.</p>
-              </div>
+              <EmptyState label="Todos os XMLs estão escriturados no SPED." />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-primary text-white">
-                      {['Chave de Acesso', 'Arquivo XML', 'Tipo', 'Nº NF', 'Série', 'Emissão', 'CNPJ Emit.', 'Emitente', 'Valor (R$)'].map((h) => (
-                        <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left font-medium">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {xmlSlice.map((item, i) => (
-                      <tr key={item.chave} className={i % 2 === 0 ? 'bg-white' : 'bg-backgroundMuted/50'}>
-                        <td className="px-3 py-2">{truncateChave(item.chave)}</td>
-                        <td className="px-3 py-2 text-muted-foreground" title={item.filename}>{item.filename.slice(-30)}</td>
-                        <td className="px-3 py-2"><span className="rounded bg-secondary/10 px-1.5 py-0.5 text-[10px] font-medium text-secondary">{item.tipo}</span></td>
-                        <td className="px-3 py-2">{item.nNF ?? '—'}</td>
-                        <td className="px-3 py-2">{item.serie ?? '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{formatDate(item.dhEmi)}</td>
-                        <td className="px-3 py-2 font-mono">{item.cnpjEmit ?? '—'}</td>
-                        <td className="px-3 py-2" title={item.xNomeEmit}>{item.xNomeEmit?.slice(0, 25) ?? '—'}</td>
-                        <td className="px-3 py-2 text-right">{item.vNF ? Number(item.vNF).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}</td>
+              <>
+                <TableScrollWrapper>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-primary text-white">
+                        <Th>Chave de Acesso (44)</Th>
+                        <Th>Arquivo XML</Th>
+                        <Th>Tipo</Th>
+                        <Th>Nº NF</Th>
+                        <Th>Série</Th>
+                        <Th>Emissão</Th>
+                        <Th>CNPJ Emitente</Th>
+                        <Th>Emitente</Th>
+                        <Th right>Valor (R$)</Th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <Pagination
-                  total={xmlItems.length}
-                  page={xmlPage}
-                  pageSize={PAGE_SIZE}
-                  onChange={setXmlPage}
-                />
-              </div>
+                    </thead>
+                    <tbody>
+                      {xmlSlice.map((item, i) => (
+                        <tr key={item.chave} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="font-mono text-[10px] leading-relaxed text-foreground break-all">{item.chave}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="block max-w-[200px] truncate text-muted-foreground" title={item.filename}>{item.filename}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top"><TipoBadge tipo={item.tipo} /></td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{item.nNF ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top">{item.serie ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(item.dhEmi)}</td>
+                          <td className="px-3 py-2.5 align-top font-mono whitespace-nowrap">{item.cnpjEmit ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="block max-w-[160px] truncate" title={item.xNomeEmit}>{item.xNomeEmit ?? '—'}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
+                            {item.vNF ? Number(item.vNF).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
+                <Pagination total={xmlItems.length} page={xmlPage} pageSize={PAGE_SIZE} onChange={setXmlPage} />
+              </>
             )}
           </div>
         )}
 
+        {/* ── Aba SPED sem XML ──────────────────────────────────────────── */}
         {activeTab === 'sped-sem-xml' && (
-          <div className="rounded-xl border border-border bg-white shadow-sm">
+          <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
             {spedItems.length === 0 ? (
-              <div className="flex flex-col items-center py-12 text-center">
-                <CheckCircle2 className="mb-3 h-10 w-10 text-green-500" />
-                <p className="text-sm font-medium text-green-700">Todos os registros SPED têm XML correspondente.</p>
-              </div>
+              <EmptyState label="Todos os registros SPED têm XML correspondente." />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-primary text-white">
-                      {['Chave de Acesso', 'Registro', 'Modelo', 'Série', 'Nº Doc', 'Data Doc', 'Situação', 'Operação'].map((h) => (
-                        <th key={h} className="whitespace-nowrap px-3 py-2.5 text-left font-medium">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {spedSlice.map((item, i) => (
-                      <tr key={item.chave} className={i % 2 === 0 ? 'bg-white' : 'bg-backgroundMuted/50'}>
-                        <td className="px-3 py-2">{truncateChave(item.chave)}</td>
-                        <td className="px-3 py-2 font-mono">{item.registro}</td>
-                        <td className="px-3 py-2">{MODELO_MAP[item.codMod ?? ''] ?? item.codMod ?? '—'}</td>
-                        <td className="px-3 py-2">{item.ser ?? '—'}</td>
-                        <td className="px-3 py-2">{item.numDoc ?? '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{formatDate(item.dtDoc)}</td>
-                        <td className="px-3 py-2"><SituacaoBadge codSit={item.codSit} /></td>
-                        <td className="px-3 py-2">{item.indOper === '0' ? 'Entrada' : 'Saída'}</td>
+              <>
+                <TableScrollWrapper>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-primary text-white">
+                        <Th>Chave de Acesso (44)</Th>
+                        <Th>Registro</Th>
+                        <Th>Modelo</Th>
+                        <Th>Série</Th>
+                        <Th>Nº Doc</Th>
+                        <Th>Data Doc</Th>
+                        <Th>Situação</Th>
+                        <Th>Operação</Th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <Pagination
-                  total={spedItems.length}
-                  page={spedPage}
-                  pageSize={PAGE_SIZE}
-                  onChange={setSpedPage}
-                />
-              </div>
+                    </thead>
+                    <tbody>
+                      {spedSlice.map((item, i) => (
+                        <tr key={item.chave} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="font-mono text-[10px] leading-relaxed text-foreground break-all">{item.chave}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top font-mono whitespace-nowrap">{item.registro}</td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{MODELO_MAP[item.codMod ?? ''] ?? item.codMod ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top">{item.ser ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">{item.numDoc ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(item.dtDoc)}</td>
+                          <td className="px-3 py-2.5 align-top"><SituacaoBadge codSit={item.codSit} /></td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                            <span className={cn(
+                              'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                              item.indOper === '0'
+                                ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                                : 'bg-orange-50 text-orange-700 ring-1 ring-orange-200',
+                            )}>
+                              {item.indOper === '0' ? 'Entrada' : 'Saída'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
+                <Pagination total={spedItems.length} page={spedPage} pageSize={PAGE_SIZE} onChange={setSpedPage} />
+              </>
             )}
           </div>
         )}
 
-        <div className="mt-4 flex justify-end">
-          <button
-            type="button"
-            onClick={() => { reset(); setPage('upload') }}
-            className="cursor-pointer text-xs text-muted-foreground hover:text-foreground hover:underline"
-          >
+        <div className="mt-5 flex justify-end">
+          <button type="button" onClick={() => { reset(); setPage('upload') }}
+            className="cursor-pointer text-xs text-muted-foreground hover:text-foreground hover:underline">
             Limpar e fazer novo confronto
           </button>
         </div>
       </main>
 
-      {/* Modal e-mail */}
+      {/* ── Modal E-mail ──────────────────────────────────────────────────── */}
       {emailOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-foreground">Enviar relatório por e-mail</h2>
-              <button type="button" onClick={() => setEmailOpen(false)} className="cursor-pointer text-muted-foreground hover:text-foreground">
-                <X className="h-5 w-5" />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Enviar por e-mail</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">O relatório Excel e PDF serão enviados em anexo.</p>
+              </div>
+              <button type="button" onClick={() => setEmailOpen(false)}
+                className="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-backgroundMuted hover:text-foreground">
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Destinatário</label>
+                <label className="mb-1.5 block text-xs font-semibold text-foreground">Destinatário *</label>
                 <input
                   type="email"
-                  className="h-10 w-full rounded-lg border border-border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="h-10 w-full rounded-lg border border-border px-3 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-colors"
                   placeholder="email@empresa.com.br"
                   value={emailTo}
                   onChange={(e) => setEmailTo(e.target.value)}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Mensagem (opcional)</label>
+                <label className="mb-1.5 block text-xs font-semibold text-foreground">Mensagem <span className="font-normal text-muted-foreground">(opcional)</span></label>
                 <textarea
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-colors resize-none"
                   rows={3}
-                  placeholder="Segue em anexo o relatório de confronto SPED x XML..."
+                  placeholder="Segue em anexo o relatório de confronto SPED × XML..."
                   value={emailMsg}
                   onChange={(e) => setEmailMsg(e.target.value)}
                 />
               </div>
-              {emailError && <p className="text-xs text-red-600">{emailError}</p>}
+              {emailError && (
+                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+                  <p className="text-xs text-red-700">{emailError}</p>
+                </div>
+              )}
               {emailSuccess && (
-                <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <p className="text-xs text-green-700">E-mail enviado com sucesso!</p>
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <p className="text-xs font-medium text-emerald-700">E-mail enviado com sucesso!</p>
                 </div>
               )}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEmailOpen(false)} className="cursor-pointer">
-                Cancelar
-              </Button>
-              <Button
-                size="sm"
-                disabled={!emailTo || emailLoading}
-                onClick={handleSendEmail}
-                className="cursor-pointer gap-1.5"
-              >
+              <Button variant="outline" size="sm" onClick={() => setEmailOpen(false)} className="cursor-pointer">Cancelar</Button>
+              <Button size="sm" disabled={!emailTo || emailLoading} onClick={handleSendEmail}
+                className="cursor-pointer gap-1.5 bg-primary hover:bg-primary/90">
                 {emailLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                 Enviar
               </Button>
@@ -490,40 +484,59 @@ export function ResultsPage() {
   )
 }
 
-function Pagination({
-  total,
-  page,
-  pageSize,
-  onChange,
-}: {
-  total: number
-  page: number
-  pageSize: number
-  onChange: (p: number) => void
+// ── Componentes auxiliares ─────────────────────────────────────────────────
+
+function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
+  return (
+    <th className={cn(
+      'whitespace-nowrap px-3 py-3 text-left text-[11px] font-semibold tracking-wide',
+      right && 'text-right',
+    )}>
+      {children}
+    </th>
+  )
+}
+
+function TableScrollWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      <div className="overflow-x-auto">
+        <div className="min-w-[800px]">
+          {children}
+        </div>
+      </div>
+      {/* Sombra fade à direita como indicador de scroll */}
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/60 to-transparent sm:hidden" />
+    </div>
+  )
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center py-14 text-center">
+      <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-500" />
+      <p className="text-sm font-medium text-emerald-700">{label}</p>
+    </div>
+  )
+}
+
+function Pagination({ total, page, pageSize, onChange }: {
+  total: number; page: number; pageSize: number; onChange: (p: number) => void
 }) {
   const totalPages = Math.ceil(total / pageSize)
   if (totalPages <= 1) return null
-
   return (
-    <div className="flex items-center justify-between border-t border-border px-4 py-3">
+    <div className="flex items-center justify-between border-t border-border px-4 py-3 bg-[#F8FAFC]">
       <p className="text-xs text-muted-foreground">
-        {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} de {total.toLocaleString('pt-BR')}
+        {(page * pageSize + 1).toLocaleString('pt-BR')}–{Math.min((page + 1) * pageSize, total).toLocaleString('pt-BR')} de {total.toLocaleString('pt-BR')} registros
       </p>
       <div className="flex gap-1">
-        <button
-          type="button"
-          disabled={page === 0}
-          onClick={() => onChange(page - 1)}
-          className="cursor-pointer rounded border border-border px-2 py-1 text-xs disabled:opacity-40 hover:bg-backgroundMuted"
-        >
+        <button type="button" disabled={page === 0} onClick={() => onChange(page - 1)}
+          className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-backgroundMuted transition-colors">
           ← Anterior
         </button>
-        <button
-          type="button"
-          disabled={page >= totalPages - 1}
-          onClick={() => onChange(page + 1)}
-          className="cursor-pointer rounded border border-border px-2 py-1 text-xs disabled:opacity-40 hover:bg-backgroundMuted"
-        >
+        <button type="button" disabled={page >= totalPages - 1} onClick={() => onChange(page + 1)}
+          className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-backgroundMuted transition-colors">
           Próximo →
         </button>
       </div>
