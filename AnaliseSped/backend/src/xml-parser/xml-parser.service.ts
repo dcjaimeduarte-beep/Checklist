@@ -133,13 +133,18 @@ export class XmlParserService {
     const total   = infNFe['total'] as Record<string, unknown> | undefined;
     const icmsTot = total?.['ICMSTot'] as Record<string, unknown> | undefined;
 
-    // CFOPs únicos dos itens da nota
+    // CFOPs únicos dos itens da nota + soma de vProd por CFOP
     const det = infNFe['det'];
     const detArr: Record<string, unknown>[] = Array.isArray(det) ? det : det ? [det as Record<string, unknown>] : [];
     const cfopSet = new Set<string>();
+    const cfopVprod: Record<string, number> = {};
     for (const item of detArr) {
-      const cfop = String((item['prod'] as Record<string, unknown>)?.['CFOP'] ?? '').trim();
-      if (cfop) cfopSet.add(cfop);
+      const prod = item['prod'] as Record<string, unknown> | undefined;
+      const cfop = String(prod?.['CFOP'] ?? '').trim();
+      if (!cfop) continue;
+      cfopSet.add(cfop);
+      const vProd = parseFloat(String(prod?.['vProd'] ?? '0').replace(',', '.')) || 0;
+      cfopVprod[cfop] = (cfopVprod[cfop] ?? 0) + vProd;
     }
 
     const str = (v: unknown) => { const s = String(v ?? '').trim(); return s || undefined; };
@@ -155,6 +160,7 @@ export class XmlParserService {
       xNomeEmit: str(emit?.['xNome']),
       vNF:       str(icmsTot?.['vNF']),
       cfops:     cfopSet.size > 0 ? [...cfopSet].sort().join(', ') : undefined,
+      cfopVprod: Object.keys(cfopVprod).length > 0 ? cfopVprod : undefined,
       vBC:       str(icmsTot?.['vBC']),
       vICMS:     str(icmsTot?.['vICMS']),
       vBCST:     str(icmsTot?.['vBCST']),

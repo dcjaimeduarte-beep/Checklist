@@ -19,7 +19,7 @@ import { usePage } from '@/App'
 import { downloadExcel, downloadPdf, sendEmailReport } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { AuditItem, CancelamentoItem, CfopSummary, SpedItem, XmlItem } from '@/types/confront'
+import type { AuditItem, CancelamentoItem, CfopSummary, SpedItem, XmlCfopSummary, XmlItem } from '@/types/confront'
 
 type TabId = 'auditoria' | 'dashboard' | 'cfop-agrupado' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'cancelamentos' | 'erros-leitura'
 
@@ -830,7 +830,17 @@ function AuditoriaTab({
   const totalC190Icms  = filteredCfopSummary.reduce((s, r) => s + r.vlIcms, 0)
   const totalC190IcmsSt = filteredCfopSummary.reduce((s, r) => s + r.vlIcmsSt, 0)
 
-  // XMLs não escriturados filtrados por CFOP
+  // xmlCfopSummary filtrado — todos os XMLs com esses CFOPs (para comparativo)
+  const auditXmlCfopRows = result.dashboard?.xmlCfopSummary ?? []
+  const auditXmlCfopFiltered = isFiltered
+    ? auditXmlCfopRows.filter(r => cfopFilterSet.has(r.cfop))
+    : auditXmlCfopRows
+  const filteredAllXmlVnf   = auditXmlCfopFiltered.reduce((s, r) => s + r.vlNF,  0)
+  const filteredAllXmlIcms  = auditXmlCfopFiltered.reduce((s, r) => s + r.vlICMS, 0)
+  const filteredAllXmlSt    = auditXmlCfopFiltered.reduce((s, r) => s + r.vlST,   0)
+  const filteredAllXmlCount = auditXmlCfopFiltered.reduce((s, r) => s + r.count,  0)
+
+  // XMLs não escriturados filtrados por CFOP — para a linha de decomposição
   const xmlNotInSpedAll = result.xmlsNotInSped ?? []
   const xmlNotInSpedFiltered = isFiltered
     ? xmlNotInSpedAll.filter(xml => {
@@ -1006,8 +1016,8 @@ function AuditoriaTab({
 
       {/* ── Comparativo filtrado por CFOP (apenas quando filtro ativo) ── */}
       {isFiltered && (() => {
-        const diff = filteredXmlNotInSpedVnf - totalC190Opr
-        const pct  = totalC190Opr > 0 ? Math.abs(diff / totalC190Opr * 100) : 0
+        const diff    = filteredAllXmlVnf - totalC190Opr
+        const pct     = totalC190Opr > 0 ? Math.abs(diff / totalC190Opr * 100) : 0
         const hasDiff = Math.abs(diff) > 0.01
         return (
           <div className={cn(
@@ -1030,9 +1040,11 @@ function AuditoriaTab({
                 <p className="text-[10px] text-muted-foreground mt-0.5">VL ICMS: R$ {BRL(totalC190Icms)} · ST: R$ {BRL(totalC190IcmsSt)}</p>
               </div>
               <div className="rounded-lg border border-amber-200 bg-white px-4 py-3">
-                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">XML — VL NF (não escriturados)</p>
-                <p className="text-lg font-bold tabular-nums text-amber-700">R$ {BRL(filteredXmlNotInSpedVnf)}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{xmlNotInSpedFiltered.length} doc{xmlNotInSpedFiltered.length !== 1 ? 's' : ''} sem escrituração</p>
+                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">XML — VL NF (todos os docs)</p>
+                <p className="text-lg font-bold tabular-nums text-amber-700">R$ {BRL(filteredAllXmlVnf)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {filteredAllXmlCount} doc{filteredAllXmlCount !== 1 ? 's' : ''} · ICMS R$ {BRL(filteredAllXmlIcms)} · ST R$ {BRL(filteredAllXmlSt)}
+                </p>
               </div>
               <div className={cn('rounded-lg border px-4 py-3', hasDiff ? 'border-amber-300 bg-amber-100' : 'border-emerald-200 bg-emerald-50')}>
                 <p className={cn('text-[10px] font-semibold uppercase tracking-wide mb-0.5', hasDiff ? 'text-amber-800' : 'text-emerald-700')}>Diferença</p>
@@ -1043,7 +1055,7 @@ function AuditoriaTab({
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              * SPED C190 inclui todos os documentos escriturados com esses CFOPs. XML refere-se apenas aos documentos <strong>não escriturados no SPED</strong> — documentos conferidos não são detalhados por CFOP individualmente.
+              * Soma de vProd (valor do produto) por CFOP, de todos os XMLs enviados. Cada CFOP recebe apenas o valor dos seus próprios itens — sem dupla contagem.
             </p>
           </div>
         )
@@ -1276,10 +1288,16 @@ function DashboardTab({
     totalVlSpedGeral: 0, totalVlSpedEntradas: 0, totalVlSpedSaidas: 0,
     totalVlOprC190: 0, totalVlOprC190Entradas: 0, totalVlOprC190Saidas: 0,
     totalVlXmlGeral: 0,  totalVlXmlEntradas: 0,  totalVlXmlSaidas: 0,
-    cfopSummary: [],
+    cfopSummary: [], xmlCfopSummary: [],
   }
 
   const isDashFiltered = cfopFilterSet.size > 0
+
+  // XML CFOP summary filtrado — usa dados do backend (todos os XMLs, não só os divergentes)
+  const xmlCfopRows: XmlCfopSummary[] = db.xmlCfopSummary ?? []
+  const xmlCfopFiltered = isDashFiltered
+    ? xmlCfopRows.filter(r => cfopFilterSet.has(r.cfop))
+    : xmlCfopRows
 
   const cfopRows: CfopSummary[] = [...db.cfopSummary].sort((a, b) =>
     a.cfop.localeCompare(b.cfop),
@@ -1305,20 +1323,14 @@ function DashboardTab({
   const totalCfopIcms = vlIcmsGeral
   const totalCfopSt   = vlIcmsStGeral
 
-  // Totais XML filtrados por CFOP (apenas xmlsNotInSped — matched não tem detalhe por CFOP)
-  const xmlFiltered = isDashFiltered
-    ? (result.xmlsNotInSped ?? []).filter(xml => {
-        if (!xml.cfops) return false
-        const xmlCfops = xml.cfops.split(/[\s,]+/).map(c => c.trim())
-        return xmlCfops.some(c => cfopFilterSet.has(c))
-      })
-    : result.xmlsNotInSped ?? []
-  const filteredXmlVnf      = xmlFiltered.reduce((s, r) => s + (Number(r.vNF)   || 0), 0)
-  const filteredXmlEntradas  = xmlFiltered.filter(r => r.tpNF === '0').reduce((s, r) => s + (Number(r.vNF) || 0), 0)
-  const filteredXmlSaidas    = xmlFiltered.filter(r => r.tpNF === '1').reduce((s, r) => s + (Number(r.vNF) || 0), 0)
-  const filteredXmlBcIcms    = xmlFiltered.reduce((s, r) => s + (Number(r.vBC)   || 0), 0)
-  const filteredXmlIcms      = xmlFiltered.reduce((s, r) => s + (Number(r.vICMS) || 0), 0)
-  const filteredXmlSt        = xmlFiltered.reduce((s, r) => s + (Number(r.vST)   || 0), 0)
+  // Totais XML por CFOP — usa xmlCfopSummary do backend (todos os XMLs, não só divergentes)
+  const filteredXmlVnf     = xmlCfopFiltered.reduce((s, r) => s + r.vlNF,         0)
+  const filteredXmlEntradas = xmlCfopFiltered.reduce((s, r) => s + r.vlNFEntradas, 0)
+  const filteredXmlSaidas   = xmlCfopFiltered.reduce((s, r) => s + r.vlNFSaidas,   0)
+  const filteredXmlBcIcms   = xmlCfopFiltered.reduce((s, r) => s + r.vlBC,         0)
+  const filteredXmlIcms     = xmlCfopFiltered.reduce((s, r) => s + r.vlICMS,       0)
+  const filteredXmlSt       = xmlCfopFiltered.reduce((s, r) => s + r.vlST,         0)
+  const filteredXmlCount    = xmlCfopFiltered.reduce((s, r) => s + r.count,         0)
 
   return (
     <div className="space-y-5">
@@ -1419,20 +1431,20 @@ function DashboardTab({
           /* Bloco filtrado — mesmo estilo do C190 */
           <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3">
             <div className="mb-2 flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700">VL NF — XMLs não escriturados</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700">VL PROD por CFOP — XMLs enviados</span>
               <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[9px] font-bold text-white">
-                {xmlFiltered.length} doc{xmlFiltered.length !== 1 ? 's' : ''}
+                {filteredXmlCount} doc{filteredXmlCount !== 1 ? 's' : ''}
               </span>
               <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
                 {[...cfopFilterSet].join(', ')}
               </span>
             </div>
             <p className="mb-2 text-[10px] text-amber-700/80">
-              Documentos com esses CFOPs presentes na pasta XML mas não escriturados no SPED
+              Todos os documentos XML com esses CFOPs (escriturados ou não no SPED)
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {[
-                { label: 'VL NF total (vNF)',    value: filteredXmlVnf,     cls: 'text-amber-700' },
+                { label: 'VL Prod por CFOP (vProd)', value: filteredXmlVnf,  cls: 'text-amber-700' },
                 { label: 'Entradas (tpNF=0)',    value: filteredXmlEntradas, cls: 'text-blue-600'  },
                 { label: 'Saídas (tpNF=1)',      value: filteredXmlSaidas,   cls: 'text-orange-600'},
               ].map(({ label, value, cls }) => (
@@ -1455,7 +1467,7 @@ function DashboardTab({
               ))}
             </div>
             <p className="mt-2 text-[10px] text-amber-700/70">
-              * Documentos conferidos (presentes em ambos os lados) não são detalhados por CFOP individualmente.
+              * Soma de vProd (valor do produto) por CFOP, de todos os XMLs enviados. Cada CFOP recebe apenas o valor dos seus próprios itens — sem dupla contagem.
             </p>
           </div>
         ) : (
@@ -1563,18 +1575,16 @@ function CfopAgrupadoTab({
   const filteredSpedSt   = activeSummary.reduce((s, r) => s + r.vlIcmsSt, 0)
   const filteredSpedBc   = activeSummary.reduce((s, r) => s + r.vlBcIcms, 0)
 
-  // Totais XML (xmlsNotInSped) para os CFOPs selecionados
-  const xmlItemsAll = result.xmlsNotInSped ?? []
-  const xmlItemsFiltered = isFiltered
-    ? xmlItemsAll.filter(xml => {
-        if (!xml.cfops) return false
-        const xmlCfops = xml.cfops.split(/[\s,]+/).map(c => c.trim())
-        return xmlCfops.some(c => cfopFilterSet.has(c))
-      })
-    : xmlItemsAll
-  const filteredXmlVnf  = xmlItemsFiltered.reduce((s, r) => s + (Number(r.vNF)  || 0), 0)
-  const filteredXmlIcms = xmlItemsFiltered.reduce((s, r) => s + (Number(r.vICMS) || 0), 0)
-  const filteredXmlSt   = xmlItemsFiltered.reduce((s, r) => s + (Number(r.vST)   || 0), 0)
+  // Totais XML (xmlCfopSummary — todos os docs) para os CFOPs selecionados
+  const cfopXmlRows = result.dashboard?.xmlCfopSummary ?? []
+  const cfopXmlFiltered = isFiltered
+    ? cfopXmlRows.filter(r => cfopFilterSet.has(r.cfop))
+    : cfopXmlRows
+  const filteredXmlVnf   = cfopXmlFiltered.reduce((s, r) => s + r.vlNF,   0)
+  const filteredXmlIcms  = cfopXmlFiltered.reduce((s, r) => s + r.vlICMS,  0)
+  const filteredXmlSt    = cfopXmlFiltered.reduce((s, r) => s + r.vlST,    0)
+  const filteredXmlBcIcms = cfopXmlFiltered.reduce((s, r) => s + r.vlBC,   0)
+  const filteredXmlCount  = cfopXmlFiltered.reduce((s, r) => s + r.count,  0)
 
   type CfopGroup = {
     cfop: string; cstIcms: string
@@ -1706,9 +1716,9 @@ function CfopAgrupadoTab({
             {/* XML */}
             <div className="col-span-2 sm:col-span-3 grid grid-cols-3 gap-2">
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">XML — VL NF</p>
+                <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">XML — VL Prod por CFOP</p>
                 <p className="text-sm font-bold text-amber-800 tabular-nums">R$ {BRL(filteredXmlVnf)}</p>
-                <p className="text-[9px] text-amber-600 mt-0.5">{xmlItemsFiltered.length} doc(s) não escriturado{xmlItemsFiltered.length !== 1 ? 's' : ''}</p>
+                <p className="text-[9px] text-amber-600 mt-0.5">{filteredXmlCount} doc{filteredXmlCount !== 1 ? 's' : ''} · BC R$ {BRL(filteredXmlBcIcms)}</p>
               </div>
               <div className="rounded-md border border-amber-100 bg-amber-50/50 px-3 py-2.5">
                 <p className="text-[10px] text-amber-700 mb-0.5">XML — VL ICMS</p>
@@ -1721,8 +1731,8 @@ function CfopAgrupadoTab({
             </div>
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground">
-            * Valores XML referem-se apenas aos documentos <strong>não escriturados no SPED</strong> com o(s) CFOP(s) selecionado(s).
-            Documentos conferidos (presentes em ambos) não são detalhados por CFOP individualmente.
+            * Soma de vProd por CFOP — cada CFOP recebe apenas o valor dos seus itens (sem dupla contagem).
+            Valores de ICMS e ST são proporcionais ao número de CFOPs do documento.
           </p>
         </div>
       )}

@@ -379,6 +379,37 @@ export class ConfrontService {
     const totalVlOprC190Entradas = cfopSummary.filter(c => ['1', '2'].includes(c.cfop[0])).reduce((s, c) => s + c.vlOpr, 0);
     const totalVlOprC190Saidas   = cfopSummary.filter(c => ['5', '6'].includes(c.cfop[0])).reduce((s, c) => s + c.vlOpr, 0);
 
+    // Resumo XML por CFOP — usa vProd por item (cfopVprod) para alocação precisa.
+    // Documentos com múltiplos CFOPs têm o valor dividido corretamente por item,
+    // evitando dupla contagem quando o filtro inclui mais de um CFOP do mesmo documento.
+    // vlBC, vlICMS, vlST continuam sendo totais do documento (sem detalhe por CFOP no XML).
+    type XmlCfopAgg = { vlNF: number; vlBC: number; vlICMS: number; vlST: number; count: number; vlNFEntradas: number; vlNFSaidas: number };
+    const xmlCfopAgg = new Map<string, XmlCfopAgg>();
+    for (const xml of xmlEntries) {
+      if (!xml.cfops) continue;
+      const cfops  = xml.cfops.split(/[\s,]+/).map(c => c.trim()).filter(Boolean);
+      const vlBC   = parseFloat(xml.vBC   ?? '0') || 0;
+      const vlICMS = parseFloat(xml.vICMS ?? '0') || 0;
+      const vlST   = parseFloat(xml.vST   ?? '0') || 0;
+      for (const cfop of cfops) {
+        // Usa vProd por CFOP se disponível; caso contrário distribui vNF igualmente entre CFOPs
+        const vlNF = xml.cfopVprod?.[cfop]
+          ?? (parseFloat(xml.vNF ?? '0') || 0) / cfops.length;
+        const agg = xmlCfopAgg.get(cfop) ?? { vlNF: 0, vlBC: 0, vlICMS: 0, vlST: 0, count: 0, vlNFEntradas: 0, vlNFSaidas: 0 };
+        agg.vlNF   += vlNF;
+        agg.vlBC   += vlBC / cfops.length;
+        agg.vlICMS += vlICMS / cfops.length;
+        agg.vlST   += vlST / cfops.length;
+        agg.count  += 1;
+        if (xml.tpNF === '0') agg.vlNFEntradas += vlNF;
+        if (xml.tpNF === '1') agg.vlNFSaidas   += vlNF;
+        xmlCfopAgg.set(cfop, agg);
+      }
+    }
+    const xmlCfopSummary = [...xmlCfopAgg.entries()]
+      .map(([cfop, agg]) => ({ cfop, ...agg }))
+      .sort((a, b) => a.cfop.localeCompare(b.cfop));
+
     return {
       totalVlSpedGeral:    sumSped(() => true),
       totalVlSpedEntradas: sumSped((e) => e.indOper === '0'),
@@ -399,6 +430,7 @@ export class ConfrontService {
         vlIcmsSt: c.vlIcmsSt,
         vlOpr: c.vlOpr,
       })),
+      xmlCfopSummary,
     };
   }
 
@@ -519,8 +551,9 @@ export class ConfrontService {
   private emptyDashboard(): DashboardDto {
     return {
       totalVlSpedGeral: 0, totalVlSpedEntradas: 0, totalVlSpedSaidas: 0,
+      totalVlOprC190: 0, totalVlOprC190Entradas: 0, totalVlOprC190Saidas: 0,
       totalVlXmlGeral: 0,  totalVlXmlEntradas: 0,  totalVlXmlSaidas: 0,
-      cfopSummary: [],
+      cfopSummary: [], xmlCfopSummary: [],
     };
   }
 

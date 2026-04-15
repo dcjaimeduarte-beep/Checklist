@@ -9,6 +9,25 @@ export class CfopSummaryDto {
   vlOpr: number;
 }
 
+/**
+ * Resumo dos XMLs por CFOP — agrega vNF/ICMS/ST de todos os documentos XML
+ * cujo campo cfops contenha o CFOP. Para documentos com múltiplos CFOPs,
+ * o valor total é contabilizado em cada CFOP presente (aproximação).
+ */
+export class XmlCfopSummaryDto {
+  cfop: string;
+  vlNF: number;
+  vlBC: number;
+  vlICMS: number;
+  vlST: number;
+  /** Quantidade de documentos XML que contêm este CFOP */
+  count: number;
+  /** Entradas (tpNF=0) */
+  vlNFEntradas: number;
+  /** Saídas (tpNF=1) */
+  vlNFSaidas: number;
+}
+
 export class DashboardDto {
   /** Valor total dos documentos no SPED (soma VL_DOC do C100/D100) */
   totalVlSpedGeral: number;
@@ -25,8 +44,10 @@ export class DashboardDto {
   totalVlXmlGeral: number;
   totalVlXmlEntradas: number;
   totalVlXmlSaidas: number;
-  /** Resumo por CFOP do C190 */
+  /** Resumo por CFOP do C190 (SPED) */
   cfopSummary: CfopSummaryDto[];
+  /** Resumo por CFOP dos XMLs (todos os documentos, não só os divergentes) */
+  xmlCfopSummary: XmlCfopSummaryDto[];
 }
 
 export class SpedInfoDto {

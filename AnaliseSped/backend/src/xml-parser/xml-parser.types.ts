@@ -15,6 +15,9 @@ export interface XmlEntry {
   vNF?: string;
   /** CFOPs dos itens da nota (únicos, separados por vírgula) */
   cfops?: string;
+  /** Soma de vProd por CFOP — { "5405": 123.45, "5656": 67.00 }
+   *  Permite alocação precisa do valor operacional por CFOP (como o C190 faz via C170) */
+  cfopVprod?: Record<string, number>;
   /** Base de cálculo do ICMS (ICMSTot.vBC) */
   vBC?: string;
   /** Valor do ICMS (ICMSTot.vICMS) */

@@ -91,6 +91,18 @@ export interface CfopSummary {
   vlOpr: number
 }
 
+export interface XmlCfopSummary {
+  cfop: string
+  vlNF: number
+  vlBC: number
+  vlICMS: number
+  vlST: number
+  /** Qtd documentos XML que contêm este CFOP */
+  count: number
+  vlNFEntradas: number
+  vlNFSaidas: number
+}
+
 export interface DashboardData {
   totalVlSpedGeral: number
   totalVlSpedEntradas: number
@@ -103,6 +115,8 @@ export interface DashboardData {
   totalVlXmlEntradas: number
   totalVlXmlSaidas: number
   cfopSummary: CfopSummary[]
+  /** Resumo XML por CFOP — todos os documentos, não só divergentes */
+  xmlCfopSummary: XmlCfopSummary[]
 }
 
 export interface AuditItem {
