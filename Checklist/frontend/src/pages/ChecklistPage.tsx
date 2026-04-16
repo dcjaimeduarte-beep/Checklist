@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Search, Printer, RotateCcw, Upload } from 'lucide-react'
+import { Search, Printer, RotateCcw, Upload, Camera, X, Save, ImageIcon, History } from 'lucide-react'
 
 // ─── Seven brand colors ───────────────────────────────────────────────────────
 const NAVY  = '#13293D'
@@ -24,6 +24,12 @@ interface UltimaOS {
   observacao: string
   km: number
   colaborador: string
+}
+
+interface FotoItem {
+  id: string
+  file: File
+  preview: string // object URL
 }
 
 const TIPO_COLOR: Record<string, { bg: string; color: string }> = {
@@ -262,7 +268,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function ChecklistPage() {
+export default function ChecklistPage({ onHistorico }: { onHistorico?: () => void }) {
   const [placa, setPlaca]     = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro]       = useState('')
@@ -292,6 +298,16 @@ export default function ChecklistPage() {
   const [items, setItems]   = useState<Record<string, ItemStatus>>(initItems)
   const [body, setBody]     = useState<Record<string, AvariaStatus>>(initBody)
   const [selAvaria, setSelAvaria] = useState<AvariaStatus>('A')
+
+  // ─── Fotos ───────────────────────────────────────────────────────────────────
+  const [fotos, setFotos] = useState<FotoItem[]>([])
+  const fotoInputRef = useRef<HTMLInputElement>(null)
+
+  // ─── Modal salvar ─────────────────────────────────────────────────────────────
+  const [modalSalvar, setModalSalvar] = useState(false)
+  const [salvando, setSalvando]       = useState(false)
+  const [sessaoSalva, setSessaoSalva] = useState<string | null>(null)
+  const [printComFotos, setPrintComFotos] = useState(true)
 
   const handleBuscar = async () => {
     const p = placa.trim().toUpperCase()
@@ -359,6 +375,67 @@ export default function ChecklistPage() {
     setShowOSPicker(false)
   }
 
+  // ─── Fotos handlers ───────────────────────────────────────────────────────────
+  const handleAddFotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const novas: FotoItem[] = files.map(file => ({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      file,
+      preview: URL.createObjectURL(file),
+    }))
+    setFotos(prev => [...prev, ...novas])
+    e.target.value = '' // permite selecionar a mesma foto novamente
+  }
+
+  const handleRemoveFoto = (id: string) => {
+    setFotos(prev => {
+      const item = prev.find(f => f.id === id)
+      if (item) URL.revokeObjectURL(item.preview)
+      return prev.filter(f => f.id !== id)
+    })
+  }
+
+  // ─── Monta payload do checklist ───────────────────────────────────────────────
+  const buildPayload = () => ({
+    veiculo: { placa: placaV, marca, modelo, ano, km, descricao: veiculo?.descricao || '', ultima },
+    motorista: { nome, fone, cnh, categoria: cat, vencimento: venc },
+    itens: items,
+    avarias: body,
+    obs,
+    outroObs,
+    data,
+    responsavel: resp,
+    clienteId: veiculo?.cliente.id || null,
+    osId: ultimaOS?.id || null,
+  })
+
+  // ─── Salvar no servidor ───────────────────────────────────────────────────────
+  const handleSalvar = async (imprimirApos: boolean, comFotos: boolean) => {
+    setSalvando(true)
+    try {
+      const form = new FormData()
+      form.append('dados', JSON.stringify(buildPayload()))
+      fotos.forEach(f => form.append('fotos', f.file))
+
+      const res  = await fetch('/api/vistoria/salvar', { method: 'POST', body: form })
+      const json = await res.json()
+      if (!json.ok) throw new Error(json.erro || 'Erro ao salvar.')
+
+      setSessaoSalva(json.sessao)
+      setModalSalvar(false)
+
+      if (imprimirApos) {
+        setPrintComFotos(comFotos)
+        // Aguarda um tick para o state propagar antes de imprimir
+        setTimeout(() => window.print(), 120)
+      }
+    } catch (err: unknown) {
+      alert(`Erro ao salvar: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
   const avariaCount = Object.values(body).filter(v => v !== 'ok').length
 
   return (
@@ -373,9 +450,13 @@ export default function ChecklistPage() {
           .print-2col { display: grid !important; grid-template-columns: 1fr 1fr !important; }
           .print-4col { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; }
           .print-3col { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; }
+          .fotos-print-hidden { display: none !important; }
+          .fotos-print-visible { display: block !important; }
         }
         @media screen {
           .print-only { display: none !important; }
+          .fotos-print-visible { display: none !important; }
+          .fotos-print-hidden { display: block !important; }
         }
         input { font-family: inherit; }
         button { font-family: inherit; }
@@ -407,6 +488,14 @@ export default function ChecklistPage() {
             display: 'flex', alignItems: 'center', gap: 6 }}>
           <RotateCcw size={14} /> Limpar
         </button>
+        {onHistorico && (
+          <button onClick={onHistorico}
+            style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
+              borderRadius: 6, padding: '0 14px', height: 36, cursor: 'pointer', fontSize: 13,
+              display: 'flex', alignItems: 'center', gap: 6 }}>
+            <History size={14} /> Histórico
+          </button>
+        )}
         <button onClick={() => logoRef.current?.click()}
           style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
             borderRadius: 6, padding: '0 14px', height: 36, cursor: 'pointer', fontSize: 13,
@@ -414,12 +503,25 @@ export default function ChecklistPage() {
           <Upload size={14} /> Logo
         </button>
         <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
-        <button onClick={() => window.print()}
-          style={{ marginLeft: 'auto', background: '#fff', color: NAVY, border: 'none',
-            borderRadius: 6, padding: '0 18px', height: 36, cursor: 'pointer', fontSize: 13,
-            fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Printer size={14} /> Imprimir
-        </button>
+        {sessaoSalva && (
+          <span style={{ fontSize: 11, color: '#86efac', marginLeft: 4 }}>
+            ✓ Salvo
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={() => window.print()}
+            style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
+              borderRadius: 6, padding: '0 14px', height: 36, cursor: 'pointer', fontSize: 13,
+              display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Printer size={14} /> Imprimir
+          </button>
+          <button onClick={() => setModalSalvar(true)}
+            style={{ background: '#fff', color: NAVY, border: 'none',
+              borderRadius: 6, padding: '0 18px', height: 36, cursor: 'pointer', fontSize: 13,
+              fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Save size={14} /> Salvar
+          </button>
+        </div>
       </div>
       {erro && (
         <div className="no-print" style={{ background: '#fee2e2', color: '#991b1b', padding: '8px 20px', fontSize: 13 }}>
@@ -728,6 +830,73 @@ export default function ChecklistPage() {
           </div>
         </div>
 
+        {/* ── Fotos da Vistoria (tela) ── */}
+        <div className="no-print" style={{ marginBottom: 14 }}>
+          <SectionHeader title={`Fotos da Vistoria${fotos.length > 0 ? ` (${fotos.length})` : ''}`} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' }}>
+            {/* Thumbnails */}
+            {fotos.map(f => (
+              <div key={f.id} style={{ position: 'relative', width: 110, flexShrink: 0 }}>
+                <img src={f.preview} alt={f.file.name}
+                  style={{ width: 110, height: 82, objectFit: 'cover', borderRadius: 6,
+                    border: `1.5px solid #d1d5db`, display: 'block' }} />
+                <button onClick={() => handleRemoveFoto(f.id)}
+                  style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,0.55)',
+                    color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0 }}>
+                  <X size={11} />
+                </button>
+                <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {f.file.name}
+                </div>
+              </div>
+            ))}
+
+            {/* Botão adicionar foto */}
+            <button onClick={() => fotoInputRef.current?.click()}
+              style={{ width: 110, height: 82, borderRadius: 6, cursor: 'pointer',
+                border: `2px dashed ${TEAL}`, background: '#f0f9ff', color: TEAL,
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', gap: 4, fontSize: 11, fontWeight: 600,
+                flexShrink: 0 }}>
+              <Camera size={22} />
+              Tirar / Adicionar Foto
+            </button>
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={handleAddFotos}
+              style={{ display: 'none' }}
+            />
+          </div>
+          {fotos.length === 0 && (
+            <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8, margin: '8px 0 0' }}>
+              Nenhuma foto adicionada. No celular, o botão abre a câmera diretamente.
+            </p>
+          )}
+        </div>
+
+        {/* ── Fotos para impressão (só visível no PDF quando printComFotos=true) ── */}
+        <div className={printComFotos && fotos.length > 0 ? 'fotos-print-visible' : 'fotos-print-hidden'}
+          style={{ marginBottom: 14, pageBreakBefore: 'always' }}>
+          <SectionHeader title={`Fotos da Vistoria (${fotos.length})`} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            {fotos.map((f, i) => (
+              <div key={f.id} style={{ width: 200 }}>
+                <img src={f.preview} alt={`Foto ${i + 1}`}
+                  style={{ width: 200, height: 150, objectFit: 'cover', borderRadius: 4,
+                    border: '1px solid #d1d5db', display: 'block' }} />
+                <div style={{ fontSize: 9, color: '#6b7280', marginTop: 2 }}>Foto {i + 1}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* ── Assinaturas ── */}
         <div style={{ marginBottom: 12 }}>
           <SectionHeader title="Assinaturas" />
@@ -767,16 +936,136 @@ export default function ChecklistPage() {
           <span style={{ color: TEAL, fontWeight: 700 }}>Seven Soluções</span>
         </div>
 
-        {/* ── Botão imprimir (tela) ── */}
+        {/* ── Botões rodapé (tela) ── */}
         <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 8, paddingBottom: 32 }}>
           <button onClick={() => window.print()}
+            style={{ background: 'transparent', color: NAVY, border: `2px solid ${NAVY}`, borderRadius: 8,
+              padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Printer size={16} /> Imprimir
+          </button>
+          <button onClick={() => setModalSalvar(true)}
             style={{ background: NAVY, color: '#fff', border: 'none', borderRadius: 8,
               padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Printer size={16} /> Imprimir Checklist
+            <Save size={16} /> Salvar Vistoria
           </button>
         </div>
       </div>
+
+      {/* ── Modal Salvar Vistoria ── */}
+      {modalSalvar && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+          zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 12, width: '100%', maxWidth: 480,
+            boxShadow: '0 24px 80px rgba(0,0,0,0.35)', overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{ background: NAVY, color: '#fff', padding: '16px 20px' }}>
+              <div style={{ fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Save size={18} /> Salvar Vistoria
+              </div>
+              {placaV && (
+                <div style={{ fontSize: 12, color: '#93c5fd', marginTop: 3 }}>
+                  {placaV} {marca && `— ${marca} ${modelo}`}
+                </div>
+              )}
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 24px' }}>
+              {/* Resumo fotos */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+                background: '#f8fafc', borderRadius: 8, padding: '10px 14px',
+                border: '1px solid #e5e7eb' }}>
+                <ImageIcon size={20} color={TEAL} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: NAVY }}>
+                    {fotos.length > 0 ? `${fotos.length} foto${fotos.length > 1 ? 's' : ''} capturada${fotos.length > 1 ? 's' : ''}` : 'Nenhuma foto adicionada'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#6b7280' }}>
+                    As fotos serão salvas no servidor junto com os dados da vistoria.
+                  </div>
+                </div>
+              </div>
+
+              {/* Opção: incluir fotos no PDF */}
+              {fotos.length > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                  marginBottom: 16, padding: '10px 14px', borderRadius: 8,
+                  border: `2px solid ${printComFotos ? TEAL : '#e5e7eb'}`,
+                  background: printComFotos ? '#f0f9ff' : '#fff', transition: 'all 0.15s' }}>
+                  <input
+                    type="checkbox"
+                    checked={printComFotos}
+                    onChange={e => setPrintComFotos(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: TEAL }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: NAVY }}>Incluir fotos no PDF</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>As fotos serão impressas em página extra</div>
+                  </div>
+                </label>
+              )}
+
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>
+                Os dados e fotos ficam salvos no servidor. Você poderá gerar o PDF novamente futuramente pelo histórico.
+              </div>
+            </div>
+
+            {/* Ações */}
+            <div style={{ padding: '0 24px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={() => handleSalvar(true, printComFotos)}
+                disabled={salvando}
+                style={{ background: NAVY, color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '12px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  opacity: salvando ? 0.7 : 1 }}>
+                <Printer size={16} />
+                {salvando ? 'Salvando…' : 'Salvar e Imprimir'}
+              </button>
+              <button
+                onClick={() => handleSalvar(false, false)}
+                disabled={salvando}
+                style={{ background: TEAL, color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '12px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  opacity: salvando ? 0.7 : 1 }}>
+                <Save size={16} />
+                {salvando ? 'Salvando…' : 'Só Salvar (sem imprimir)'}
+              </button>
+              <button
+                onClick={() => setModalSalvar(false)}
+                disabled={salvando}
+                style={{ background: 'transparent', color: '#6b7280', border: '1px solid #d1d5db',
+                  borderRadius: 8, padding: '10px 20px', fontSize: 13, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmação de salvo ── */}
+      {sessaoSalva && !modalSalvar && (
+        <div className="no-print" style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 200,
+          background: '#166534', color: '#fff', borderRadius: 10,
+          padding: '12px 20px', fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 10
+        }}>
+          <span>✓ Vistoria salva com sucesso</span>
+          <button onClick={() => setSessaoSalva(null)}
+            style={{ background: 'transparent', border: 'none', color: '#bbf7d0',
+              cursor: 'pointer', padding: 0, display: 'flex' }}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -3,8 +3,9 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-const bancoRoutes = require('./routes/bancoRoutes');
+const bancoRoutes     = require('./routes/bancoRoutes');
 const checklistRoutes = require('./routes/checklistRoutes');
+const vistoriaRoutes  = require('./routes/vistoriaRoutes');
 
 const app = express();
 
@@ -15,9 +16,16 @@ app.use(express.json());
 const publicPath = path.join(__dirname, '..', 'public');
 app.use(express.static(publicPath));
 
+// Servir uploads de fotos (vistorias)
+const uploadsPath = process.env.UPLOADS_PATH
+  ? require('path').resolve(process.env.UPLOADS_PATH)
+  : path.join(__dirname, '..', 'uploads');
+app.use('/uploads', express.static(uploadsPath));
+
 // Rotas da API
-app.use('/api/banco', bancoRoutes);
+app.use('/api/banco',     bancoRoutes);
 app.use('/api/checklist', checklistRoutes);
+app.use('/api/vistoria',  vistoriaRoutes);
 
 // SPA fallback — qualquer rota que não seja /api retorna o index.html
 app.get('/{*path}', (_req, res) => {
