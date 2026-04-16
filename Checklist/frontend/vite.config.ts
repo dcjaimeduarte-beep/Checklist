@@ -17,12 +17,14 @@ export default defineConfig({
   server: {
     port: 8080,
     proxy: {
-      // Mesma origem no browser → cookie HttpOnly da API funciona em dev
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        timeout: 120000, // 2min para batch uploads grandes
       },
     },
+  },
+  build: {
+    outDir: path.resolve(__dirname, '../backend/public'),
+    emptyOutDir: true,
   },
 })

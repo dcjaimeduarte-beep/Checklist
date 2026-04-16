@@ -20,18 +20,23 @@ Sistema de checklist de entrada/saída de veículos conectado ao banco Firebird 
 Checklist/
 ├── backend/
 │   ├── src/
-│   │   ├── app.js                    ← entry point Express
+│   │   ├── app.js                    ← entry point Express (serve API + frontend estático)
 │   │   ├── config/firebird.js        ← connectFirebird()
 │   │   └── routes/
 │   │       ├── bancoRoutes.js        ← /api/banco/*
 │   │       └── checklistRoutes.js    ← /api/checklist/*
-│   ├── scripts/explore-db.js         ← exploração do banco Firebird
+│   ├── public/                       ← frontend buildado (gerado por npm run build)
+│   ├── ecosystem.config.js           ← configuração PM2 (fork mode, porta 3000)
 │   └── .env                          ← variáveis de ambiente (não versionado)
 ├── frontend/
 │   ├── public/logo-seven.png         ← logo padrão Seven
 │   └── src/
 │       ├── App.tsx                   ← renderiza ChecklistPage
 │       └── pages/ChecklistPage.tsx   ← página principal completa
+├── deploy.bat                        ← instala deps + sobe PM2 (usar como Administrador)
+├── start.bat                         ← inicia manualmente sem PM2
+├── pm2-startup.bat                   ← configura auto-start com Windows
+├── INSTALACAO.md                     ← guia passo a passo para clientes
 └── README.md
 ```
 
@@ -51,7 +56,7 @@ FB_USER=SYSDBA
 FB_PASSWORD=masterkey
 ```
 
-### Iniciar
+### Iniciar (desenvolvimento)
 
 ```bash
 # Backend (porta 3000)
@@ -62,6 +67,25 @@ cd frontend && npm run dev
 ```
 
 O Vite faz proxy de `/api` → `http://localhost:3000` automaticamente.
+
+### Build de produção
+
+```bash
+# Gera frontend em backend/public/
+cd frontend && npm run build
+```
+
+### Deploy no cliente
+
+1. Copiar pasta `Checklist/` para `C:\Seven\Checklist\` no servidor
+2. Criar `backend\.env` com o caminho correto do `.fdb`
+3. Executar `deploy.bat` como Administrador
+4. Executar `pm2-startup.bat` como Administrador (auto-start com Windows)
+5. Liberar porta 3000 no Firewall:
+   ```
+   netsh advfirewall firewall add rule name="Checklist Seven" dir=in action=allow protocol=TCP localport=3000
+   ```
+6. Acessar: `http://IP_DO_SERVIDOR:3000` em qualquer dispositivo da rede
 
 ---
 
@@ -172,3 +196,8 @@ osList.length >= 2  → abre MODAL com lista para escolher
 - Quantidades de produtos são BIGINT escala /1000
 - `git init` foi feito na pasta pai `Documents/GitHub`, apontando para o remote `Checklist.git`
 - `.gitignore` na raiz exclui `Sermao/`, `seven-reforma-tributaria-monorepo/`, `node_modules`, `.env`, `*.fdb`
+- Express 5 — SPA fallback usa `/{*path}` (não `*` — incompatível com Express 5 + path-to-regexp v8)
+- PM2 configurado com `exec_mode: 'fork'` — cluster mode causa SIGINT loop em app CommonJS simples
+- `app.listen` vinculado em `0.0.0.0` para aceitar conexões de qualquer dispositivo da rede local
+- Frontend buildado em `backend/public/` e servido como estático pelo Express — sem servidor separado em produção
+- Pacote de deploy: `checklist-seven-deploy.zip` (~170KB) — contém backend+public, sem node_modules nem fonte do frontend

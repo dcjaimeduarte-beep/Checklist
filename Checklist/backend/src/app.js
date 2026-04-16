@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const bancoRoutes = require('./routes/bancoRoutes');
@@ -10,18 +11,28 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.json({
-    ok: true,
-    mensagem: 'API do checklist automotivo está rodando.'
-  });
-});
+// Servir frontend buildado (produção)
+const publicPath = path.join(__dirname, '..', 'public');
+app.use(express.static(publicPath));
 
+// Rotas da API
 app.use('/api/banco', bancoRoutes);
 app.use('/api/checklist', checklistRoutes);
 
-const PORT = process.env.PORT || 3000;
+// SPA fallback — qualquer rota que não seja /api retorna o index.html
+app.get('/{*path}', (_req, res) => {
+  const index = path.join(publicPath, 'index.html');
+  res.sendFile(index, (err) => {
+    if (err) {
+      res.status(200).json({ ok: true, mensagem: 'API do checklist automotivo está rodando.' });
+    }
+  });
+});
 
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 3000;
+const HOST = '0.0.0.0'; // aceita conexões de qualquer máquina da rede
+
+app.listen(PORT, HOST, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Acessível na rede em http://SEU_IP:${PORT}`);
 });
