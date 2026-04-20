@@ -3,6 +3,11 @@ const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const sharp   = require('sharp');
+
+// Qualidade e dimensão máxima das fotos salvas no servidor
+const FOTO_MAX_WIDTH  = 1600;
+const FOTO_QUALITY    = 75;
 
 const router = express.Router();
 
@@ -53,7 +58,7 @@ const upload = multer({
 // Body: multipart/form-data
 //   dados  (campo text)  → JSON com todo o estado do checklist
 //   fotos  (campos file) → imagens opcionais
-router.post('/salvar', upload.array('fotos', 30), (req, res) => {
+router.post('/salvar', upload.array('fotos', 30), async (req, res) => {
   try {
     const { dados } = req.body;
     if (!dados) return res.status(400).json({ ok: false, erro: 'Campo "dados" é obrigatório.' });
@@ -74,15 +79,21 @@ router.post('/salvar', upload.array('fotos', 30), (req, res) => {
     const dir = sessaoDir(placa, sessao);
     ensureDir(dir);
 
-    // Salvar fotos e montar lista de nomes
+    // Salvar fotos com compressão e montar lista de nomes
     const fotosNomes = [];
     if (req.files && req.files.length > 0) {
-      req.files.forEach((file, i) => {
-        const ext  = path.extname(file.originalname) || '.jpg';
-        const nome = `foto_${String(i + 1).padStart(2, '0')}${ext}`;
-        fs.writeFileSync(path.join(dir, nome), file.buffer);
+      for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
+        const nome = `foto_${String(i + 1).padStart(2, '0')}.jpg`;
+        const destPath = path.join(dir, nome);
+        // Redimensiona para no máximo FOTO_MAX_WIDTH e comprime em JPEG
+        await sharp(file.buffer)
+          .rotate()                             // corrige orientação EXIF
+          .resize({ width: FOTO_MAX_WIDTH, withoutEnlargement: true })
+          .jpeg({ quality: FOTO_QUALITY, mozjpeg: true })
+          .toFile(destPath);
         fotosNomes.push(nome);
-      });
+      }
     }
 
     // Enriquecer o JSON com metadados e lista de fotos

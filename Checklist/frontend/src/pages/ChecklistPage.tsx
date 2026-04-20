@@ -136,7 +136,7 @@ function Diagrama({ body, selected, onSelect }: {
   )
 
   return (
-    <svg viewBox="0 0 240 500" style={{ width: '100%', maxWidth: 185 }} className="mx-auto">
+    <svg viewBox="-4 -4 248 415" style={{ width: '100%', maxWidth: 185, display: 'block' }} className="mx-auto">
       <P id="pch_diant" x={35}  y={8}   w={170} h={20}  label="P.Ch. Diant." rx={6} />
       <P id="par_de"    x={10}  y={32}  w={37}  h={66}  label="Par.D.E" />
       <P id="par_dd"    x={193} y={32}  w={37}  h={66}  label="Par.D.D" />
@@ -185,12 +185,15 @@ function Diagrama({ body, selected, onSelect }: {
           )}
         </g>
       ))}
-      {/* Marcador ativo */}
-      <rect x={55} y={388} width={130} height={18} rx={4} fill={AVARIA_CFG[selected].fill} stroke={AVARIA_CFG[selected].stroke} strokeWidth={1} />
-      <text x={120} y={397} textAnchor="middle" dominantBaseline="middle" fontSize={7.5} fill="#1f2937" fontFamily="sans-serif">
-        ✏ {selected === 'ok' ? 'Sem avaria' : `(${selected}) ${AVARIA_CFG[selected].label}`}
-      </text>
-      <text x={120} y={490} textAnchor="middle" fontSize={8} fill="#6b7280" fontFamily="sans-serif">▲ FRENTE</text>
+      {/* Label de orientação — sempre visível */}
+      <text x={120} y={382} textAnchor="middle" fontSize={8} fill="#6b7280" fontFamily="sans-serif">▲ FRENTE</text>
+      {/* Marcador ativo — visível só na tela, oculto na impressão */}
+      <g className="no-print">
+        <rect x={55} y={390} width={130} height={18} rx={4} fill={AVARIA_CFG[selected].fill} stroke={AVARIA_CFG[selected].stroke} strokeWidth={1} />
+        <text x={120} y={399} textAnchor="middle" dominantBaseline="middle" fontSize={7.5} fill="#1f2937" fontFamily="sans-serif">
+          ✏ {selected === 'ok' ? 'Sem avaria' : `(${selected}) ${AVARIA_CFG[selected].label}`}
+        </text>
+      </g>
     </svg>
   )
 }
@@ -791,7 +794,7 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 16, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
             {/* Diagram */}
             <Diagrama body={body} selected={selAvaria} onSelect={handleDiagramClick} />
 
@@ -881,51 +884,82 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
           )}
         </div>
 
-        {/* ── Fotos para impressão (só visível no PDF quando printComFotos=true) ── */}
+        {/* ── Fotos para impressão (flui naturalmente após o diagrama) ── */}
         <div className={printComFotos && fotos.length > 0 ? 'fotos-print-visible' : 'fotos-print-hidden'}
-          style={{ marginBottom: 14, pageBreakBefore: 'always' }}>
+          style={{ marginBottom: 14 }}>
           <SectionHeader title={`Fotos da Vistoria (${fotos.length})`} />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {fotos.map((f, i) => (
-              <div key={f.id} style={{ width: 200 }}>
+              <div key={f.id} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                 <img src={f.preview} alt={`Foto ${i + 1}`}
-                  style={{ width: 200, height: 150, objectFit: 'cover', borderRadius: 4,
+                  style={{ width: 185, height: 139, objectFit: 'cover', borderRadius: 4,
                     border: '1px solid #d1d5db', display: 'block' }} />
-                <div style={{ fontSize: 9, color: '#6b7280', marginTop: 2 }}>Foto {i + 1}</div>
+                <div style={{ fontSize: 9, color: '#6b7280', marginTop: 2, textAlign: 'center' }}>Foto {i + 1}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── Assinaturas ── */}
-        <div style={{ marginBottom: 12 }}>
+        {/* ── Assinaturas — sempre após as fotos, sem quebrar no meio ── */}
+        <div style={{ marginBottom: 12, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <SectionHeader title="Assinaturas" />
-          <div className="print-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
-            {[
-              { label: 'Responsável pela Verificação', val: resp, set: setResp },
-              { label: 'Motorista / Cliente', val: '', set: () => {} },
-              { label: 'Data', val: fmtDate(data), set: () => {} },
-            ].map(({ label, val, set }) => (
-              <div key={label}>
-                <div style={{ borderBottom: `1.5px solid ${NAVY}`, minHeight: 32, paddingBottom: 2 }}>
-                  {label === 'Responsável pela Verificação' ? (
-                    <input value={val} onChange={e => set(e.target.value)} placeholder="Nome do responsável"
-                      className="no-print"
-                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: 12,
-                        color: NAVY, background: 'transparent', fontFamily: 'inherit' }} />
-                  ) : (
-                    <div style={{ fontSize: 12, color: NAVY }}>{val}</div>
-                  )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0 28px' }}>
+
+            {/* Responsável */}
+            <div>
+              <div style={{ minHeight: 36, display: 'flex', alignItems: 'flex-end', paddingBottom: 4,
+                borderBottom: `1.5px solid ${NAVY}` }}>
+                <input value={resp} onChange={e => setResp(e.target.value)}
+                  placeholder="Nome do responsável"
+                  className="no-print"
+                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: 12,
+                    color: NAVY, background: 'transparent', fontFamily: 'inherit' }} />
+                <div className="print-only" style={{ display: 'none', fontSize: 12, color: NAVY }}>
+                  {resp}
                 </div>
-                <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'center', marginTop: 4 }}>{label}</div>
               </div>
-            ))}
+              <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'center', marginTop: 5 }}>
+                Responsável pela Verificação
+              </div>
+            </div>
+
+            {/* Motorista */}
+            <div>
+              <div style={{ minHeight: 36, borderBottom: `1.5px solid ${NAVY}` }} />
+              <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'center', marginTop: 5 }}>
+                Motorista / Cliente
+              </div>
+            </div>
+
+            {/* Data */}
+            <div>
+              <div style={{ minHeight: 36, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                paddingBottom: 4, borderBottom: `1.5px solid ${NAVY}` }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: NAVY, letterSpacing: 1 }}>
+                  {fmtDate(data)}
+                </span>
+              </div>
+              <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'center', marginTop: 5 }}>
+                Data
+              </div>
+            </div>
           </div>
-          <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid #e5e7eb',
-            fontSize: 11, color: '#4b5563' }}>
-            Aprovado por: <span style={{ borderBottom: '1px solid #9ca3af', paddingBottom: 1 }}>
-              ________________________________________________
-            </span> &nbsp;—&nbsp; Gestor da Frota &nbsp;—&nbsp; Visto: ______________________
+
+          {/* Aprovado por */}
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb',
+            display: 'grid', gridTemplateColumns: '1fr auto 120px', gap: '0 16px', alignItems: 'flex-end' }}>
+            <div>
+              <div style={{ minHeight: 28, borderBottom: `1px solid #9ca3af` }} />
+              <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>Aprovado por</div>
+            </div>
+            <div style={{ fontSize: 11, color: '#4b5563', paddingBottom: 6, whiteSpace: 'nowrap' }}>
+              — Gestor da Frota —
+            </div>
+            <div>
+              <div style={{ minHeight: 28, borderBottom: `1px solid #9ca3af` }} />
+              <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>Visto</div>
+            </div>
           </div>
         </div>
 
