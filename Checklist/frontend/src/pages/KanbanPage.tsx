@@ -789,6 +789,15 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                   <input
                     value={colaboradorInput}
                     onChange={e => setColaboradorInput(e.target.value)}
+                    onKeyDown={async e => {
+                      if (e.key === 'Enter' && selected) {
+                        await fetch(`/api/kanban/card/${selected.id}/colaborador`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ colaborador: colaboradorInput }),
+                        })
+                      }
+                    }}
                     placeholder="Colaborador responsável"
                     style={{
                       flex: 1, background: 'rgba(255,255,255,0.1)',
@@ -797,6 +806,23 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                       color: '#fff', fontSize: 12, outline: 'none',
                     }}
                   />
+                  <button
+                    onClick={async () => {
+                      if (!selected) return
+                      await fetch(`/api/kanban/card/${selected.id}/colaborador`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ colaborador: colaboradorInput }),
+                      })
+                    }}
+                    style={{
+                      background: TEAL, color: '#fff', border: 'none',
+                      borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Salvar
+                  </button>
                 </div>
               </div>
               <button onClick={() => { setSelected(null); setColaboradorInput('') }} style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 4 }}>
