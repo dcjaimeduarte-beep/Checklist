@@ -45,9 +45,11 @@ Node.js · Express · node-firebird · multer · sharp · uuid · dotenv · node
 |----------|-----------|
 | `GET /api/kanban/eventos` | SSE — broadcast de `init`, `card_added`, `card_updated`, `card_removed` |
 | `GET /api/kanban/cards` | Lista todos os cards |
-| `POST /api/kanban/card` | Cria card (`placa`, `veiculo`, `cor`, `motorista`, `sessao`) |
-| `PATCH /api/kanban/card/:id/status` | Atualiza status (`status`, `label` opcional) — atualiza histórico |
-| `DELETE /api/kanban/card/:id` | Remove card |
+| `POST /api/kanban/card` | Cria card (`placa`, `veiculo`, `cor`, `motorista`, `sessao`, `colaborador`) |
+| `PATCH /api/kanban/card/:id/status` | Atualiza status + `label` + `colaborador` opcionais — atualiza histórico |
+| `PATCH /api/kanban/card/:id/colaborador` | Atualiza colaborador sem mudar status |
+| `PATCH /api/kanban/card/:id/concluido` | Marca/desmarca como entregue (`concluido: true/false`) |
+| `DELETE /api/kanban/card/:id` | Remove card permanentemente |
 
 Persistência: `data/kanban.json` (criado automaticamente). **Não commitar este arquivo.**
 
