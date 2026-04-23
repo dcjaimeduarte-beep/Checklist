@@ -335,8 +335,9 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
       body: JSON.stringify({ colaborador: colaboradorInput }),
     })
     if (res.ok) {
-      setColaboradorSalvo(true)
-      setTimeout(() => setColaboradorSalvo(false), 2000)
+      setSelected(null)
+      setColaboradorInput('')
+      setColaboradorSalvo(false)
     }
   }
 
