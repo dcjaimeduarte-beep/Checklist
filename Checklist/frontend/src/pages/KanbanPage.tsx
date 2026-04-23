@@ -53,6 +53,16 @@ function saveStatuses(s: StatusConfig[]) {
   localStorage.setItem('kanban_statuses', JSON.stringify(s))
 }
 
+function useWindowWidth() {
+  const [w, setW] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const onResize = () => setW(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return w
+}
+
 // ─── Configurações de temporização ───────────────────────────────────────────
 
 interface KanbanSettings {
@@ -239,16 +249,6 @@ function Card({ card, tvMode, onClick, onRemove, settings, statuses }: {
           🔧 {card.colaborador}
         </div>
       )}
-      {card.nfEmitida && (
-        <div style={{ fontSize: tvMode ? 11 : 9, color: '#16a34a', marginTop: 2, fontWeight: 700 }}>
-          ✅ NF {card.nfNumero ? `#${card.nfNumero}` : 'emitida'}
-        </div>
-      )}
-      {card.cdSaida && !card.nfEmitida && (
-        <div style={{ fontSize: tvMode ? 11 : 9, color: '#6b7280', marginTop: 2 }}>
-          🔗 OS {card.cdSaida}
-        </div>
-      )}
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <span style={{
           fontSize: tvMode ? 12 : 10, fontWeight: 700,
@@ -264,6 +264,24 @@ function Card({ card, tvMode, onClick, onRemove, settings, statuses }: {
         }}>
           Total: {formatDuration(card.criadoEm)}
         </span>
+        {card.nfEmitida && (
+          <span style={{
+            fontSize: tvMode ? 12 : 10, fontWeight: 700,
+            padding: '2px 8px', borderRadius: 20,
+            background: '#dcfce7', color: '#16a34a',
+          }}>
+            ✅ NF {card.nfNumero ? `#${card.nfNumero}` : 'emitida'}
+          </span>
+        )}
+        {card.cdSaida && !card.nfEmitida && (
+          <span style={{
+            fontSize: tvMode ? 12 : 10, fontWeight: 700,
+            padding: '2px 8px', borderRadius: 20,
+            background: '#fffbeb', color: '#d97706',
+          }}>
+            ⏳ Aguard. NF
+          </span>
+        )}
       </div>
     </div>
   )
@@ -289,6 +307,9 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
   const [osLoading, setOsLoading]   = useState(false)
   const [osPanelOpen, setOsPanelOpen] = useState(false)
   const sseRef = useRef<EventSource | null>(null)
+
+  const winWidth = useWindowWidth()
+  const isMobile = winWidth < 640
 
   // Sincroniza o input com o colaborador do card sempre que o modal abrir ou o card atualizar via SSE
   useEffect(() => {
@@ -464,8 +485,8 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
       {/* ── Toolbar ── */}
       <div style={{
         background: NAVY, color: '#fff',
-        padding: tvMode ? '10px 24px' : '10px 20px',
-        display: 'flex', alignItems: 'center', gap: 12,
+        padding: tvMode ? '10px 24px' : isMobile ? '8px 10px' : '10px 20px',
+        display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12,
         position: 'sticky', top: 0, zIndex: 10,
         boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
       }}>
@@ -473,33 +494,33 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
           <button onClick={onVoltar} style={{
             background: 'transparent', color: '#9ca3af',
             border: '1px solid #3E7080', borderRadius: 6,
-            padding: '0 14px', height: 36, cursor: 'pointer',
-            fontSize: 13, display: 'flex', alignItems: 'center', gap: 6,
+            padding: isMobile ? '0 10px' : '0 14px', height: 34, cursor: 'pointer',
+            fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
           }}>
-            <ArrowLeft size={14} /> Voltar
+            <ArrowLeft size={14} />{!isMobile && ' Voltar'}
           </button>
         )}
 
-        <img src="/logo-seven.png" alt="Logo" style={{ height: tvMode ? 36 : 28, objectFit: 'contain' }} />
+        <img src="/logo-seven.png" alt="Logo" style={{ height: tvMode ? 36 : isMobile ? 22 : 28, objectFit: 'contain', flexShrink: 0 }} />
 
-        <span style={{ fontWeight: 800, fontSize: tvMode ? 18 : 15, letterSpacing: 1 }}>
-          Painel da Oficina
+        <span style={{ fontWeight: 800, fontSize: tvMode ? 18 : isMobile ? 13 : 15, letterSpacing: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {isMobile ? 'Oficina' : 'Painel da Oficina'}
         </span>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <div style={{
-            width: 8, height: 8, borderRadius: '50%',
+            width: 7, height: 7, borderRadius: '50%',
             background: connected ? '#22c55e' : '#ef4444',
             boxShadow: connected ? '0 0 6px #22c55e' : 'none',
           }} />
-          {!tvMode && (
+          {!tvMode && !isMobile && (
             <span style={{ fontSize: 11, color: '#9ca3af' }}>
               {connected ? 'Ao vivo' : 'Reconectando…'}
             </span>
           )}
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10 }}>
           {!tvMode && (() => {
             const nEntregues = cards.filter(c => c.concluido).length
             return nEntregues > 0 ? (
@@ -507,20 +528,20 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                 background: mostrarEntregues ? '#16a34a' : 'transparent',
                 color: mostrarEntregues ? '#fff' : '#22c55e',
                 border: '1px solid #16a34a',
-                borderRadius: 6, padding: '0 12px', height: 36, cursor: 'pointer',
-                fontSize: 13, display: 'flex', alignItems: 'center', gap: 6,
+                borderRadius: 6, padding: isMobile ? '0 8px' : '0 12px', height: 34, cursor: 'pointer',
+                fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
               }}>
-                📦 Entregues ({nEntregues})
+                {isMobile ? `📦 ${nEntregues}` : `📦 Entregues (${nEntregues})`}
               </button>
             ) : null
           })()}
           {!tvMode && (
             <button onClick={abrirSettings} style={{
               background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
-              borderRadius: 6, padding: '0 12px', height: 36, cursor: 'pointer',
-              fontSize: 13, display: 'flex', alignItems: 'center', gap: 6,
+              borderRadius: 6, padding: isMobile ? '0 9px' : '0 12px', height: 34, cursor: 'pointer',
+              fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
             }}>
-              <Settings size={14} /> Configurar
+              <Settings size={14} />{!isMobile && ' Configurar'}
             </button>
           )}
           {tvMode && (
@@ -535,11 +556,14 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
             background: tvMode ? 'transparent' : TEAL,
             color: tvMode ? '#6b7280' : '#fff',
             border: tvMode ? '1px solid #374151' : 'none',
-            borderRadius: 6, padding: '0 16px', height: 36,
-            cursor: 'pointer', fontSize: 13, fontWeight: 600,
-            display: 'flex', alignItems: 'center', gap: 6,
+            borderRadius: 6, padding: isMobile ? '0 9px' : '0 16px', height: 34,
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
           }}>
-            {tvMode ? <><MonitorOff size={14} /> Sair do Modo TV</> : <><Monitor size={14} /> Modo TV</>}
+            {tvMode
+              ? <><MonitorOff size={14} />{!isMobile && ' Sair do Modo TV'}</>
+              : <><Monitor size={14} />{!isMobile && ' Modo TV'}</>
+            }
           </button>
         </div>
       </div>
@@ -548,17 +572,20 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
       <div style={{
         flex: 1,
         overflowX: 'auto',
-        padding: tvMode ? '20px 20px' : '16px',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        padding: tvMode ? '20px' : isMobile ? '8px' : '16px',
         display: 'flex',
-        gap: tvMode ? 14 : 10,
+        gap: tvMode ? 14 : isMobile ? 6 : 10,
         alignItems: 'flex-start',
       }}>
         {statuses.map(st => {
           const colCards = cards.filter(c => c.status === st.id && !c.concluido)
+          const colW = tvMode ? 230 : isMobile ? 150 : 195
           return (
             <div key={st.id} style={{
-              minWidth: tvMode ? 230 : 195,
-              width: tvMode ? 230 : 195,
+              minWidth: colW,
+              width: colW,
               flexShrink: 0,
             }}>
               <div style={{
@@ -566,12 +593,12 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                 border: `1px solid ${st.color}44`,
                 borderTop: `3px solid ${st.color}`,
                 borderRadius: '8px 8px 0 0',
-                padding: tvMode ? '10px 14px' : '8px 10px',
+                padding: tvMode ? '10px 14px' : isMobile ? '6px 8px' : '8px 10px',
                 marginBottom: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <span style={{
-                  fontSize: tvMode ? 13 : 11, fontWeight: 800,
+                  fontSize: tvMode ? 13 : isMobile ? 10 : 11, fontWeight: 800,
                   color: st.color, lineHeight: 1.3,
                 }}>
                   {st.emoji} {st.label}
@@ -579,9 +606,9 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                 <span style={{
                   background: colCards.length > 0 ? st.color : '#d1d5db',
                   color: '#fff', borderRadius: '50%',
-                  width: 22, height: 22,
+                  width: isMobile ? 18 : 22, height: isMobile ? 18 : 22,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 800, flexShrink: 0,
+                  fontSize: isMobile ? 10 : 11, fontWeight: 800, flexShrink: 0,
                 }}>
                   {colCards.length}
                 </span>
@@ -861,11 +888,12 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
               width: '100%', maxWidth: 520,
               boxShadow: '0 -8px 40px rgba(0,0,0,0.4)',
               overflow: 'hidden', marginBottom: 4,
+              maxHeight: '92vh', display: 'flex', flexDirection: 'column',
             }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header modal */}
-            <div style={{ background: NAVY, padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ background: NAVY, padding: isMobile ? '12px 14px' : '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
               <div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: 2 }}>
                   {selected.placa}
@@ -915,11 +943,11 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
             </div>
 
             {/* Botões de status */}
-            <div style={{ padding: '16px 20px' }}>
+            <div style={{ padding: isMobile ? '12px 14px' : '16px 20px', overflowY: 'auto' }}>
               <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>
                 MOVER PARA:
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 6 : 8 }}>
                 {statuses.map(st => {
                   const isCurrent = selected.status === st.id
                   return (
@@ -948,7 +976,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
             </div>
 
             {/* Histórico */}
-            <div style={{ padding: '0 20px 12px' }}>
+            <div style={{ padding: isMobile ? '0 14px 10px' : '0 20px 12px' }}>
               <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
                 HISTÓRICO
               </div>
@@ -975,7 +1003,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
             </div>
 
             {/* Vínculo com OS Solutio */}
-            <div style={{ padding: '0 20px 12px' }}>
+            <div style={{ padding: isMobile ? '0 14px 10px' : '0 20px 12px' }}>
               {selected.nfEmitida ? (
                 <div style={{
                   background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8,
@@ -1074,7 +1102,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
 
             {/* Processo Solutio */}
             {selected.cdSaida && (
-              <div style={{ padding: '0 20px 12px' }}>
+              <div style={{ padding: isMobile ? '0 14px 10px' : '0 20px 12px' }}>
                 <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
                   PROCESSO SOLUTIO
                 </div>
@@ -1135,7 +1163,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
             )}
 
             {/* Ações finais */}
-            <div style={{ padding: '0 20px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ padding: isMobile ? '0 14px 16px' : '0 20px 18px', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
               <button onClick={() => marcarConcluido(selected.id, true)} style={{
                 width: '100%', padding: '10px', borderRadius: 8, cursor: 'pointer',
                 background: '#16a34a', color: '#fff',
