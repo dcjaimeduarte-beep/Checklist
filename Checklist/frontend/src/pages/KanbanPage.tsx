@@ -466,10 +466,10 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
 
   // Colunas com largura dinâmica: preenche a tela sem scroll horizontal quando possível
   const nCols    = statuses.length || 1
-  const boardPad = isMobile ? 8 : 16
+  const boardPad = tvMode ? 20 : isMobile ? 8 : 16
   const colGap   = tvMode ? 14 : isMobile ? 6 : 10
   const rawColW  = Math.floor((winWidth - boardPad * 2 - colGap * (nCols - 1)) / nCols)
-  const colW     = tvMode ? 230 : Math.max(isMobile ? 145 : 130, Math.min(250, rawColW))
+  const colW     = Math.max(isMobile ? 145 : 130, Math.min(tvMode ? 320 : 250, rawColW))
 
   return (
     <div style={{
