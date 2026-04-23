@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Search, Printer, RotateCcw, Upload, Camera, X, Save, ImageIcon, History } from 'lucide-react'
+import { Search, Printer, RotateCcw, Upload, Camera, X, Save, ImageIcon, History, FilePlus } from 'lucide-react'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 // ─── Seven brand colors ───────────────────────────────────────────────────────
 const NAVY  = '#13293D'
@@ -306,11 +308,90 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
   const [fotos, setFotos] = useState<FotoItem[]>([])
   const fotoInputRef = useRef<HTMLInputElement>(null)
 
+  // ─── Ref do conteúdo para geração do PDF ─────────────────────────────────────
+  const contentRef = useRef<HTMLDivElement>(null)
+
   // ─── Modal salvar ─────────────────────────────────────────────────────────────
   const [modalSalvar, setModalSalvar] = useState(false)
   const [salvando, setSalvando]       = useState(false)
   const [sessaoSalva, setSessaoSalva] = useState<string | null>(null)
   const [printComFotos, setPrintComFotos] = useState(true)
+
+  // ─── Gera PDF do conteúdo do checklist como Blob ─────────────────────────────
+  const gerarPdfBlob = async (): Promise<Blob | null> => {
+    const el = contentRef.current
+    if (!el) return null
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        ignoreElements: (node) => node.classList?.contains('no-print'),
+        onclone: (_doc, clonedEl) => {
+          // Mostrar elementos print-only (ocultos na tela, mas devem aparecer no PDF)
+          clonedEl.querySelectorAll('.print-only').forEach(el => {
+            (el as HTMLElement).style.setProperty('display', 'flex', 'important')
+          })
+          // Mostrar fotos no PDF se visíveis
+          clonedEl.querySelectorAll('.fotos-print-visible').forEach(el => {
+            (el as HTMLElement).style.setProperty('display', 'block', 'important')
+          })
+          clonedEl.querySelectorAll('.fotos-print-hidden').forEach(el => {
+            (el as HTMLElement).style.setProperty('display', 'none', 'important')
+          })
+
+          // html2canvas não captura value de inputs React — substituir por spans visíveis
+          clonedEl.querySelectorAll('input').forEach(inp => {
+            const input = inp as HTMLInputElement
+            if (['file', 'checkbox', 'radio'].includes(input.type)) return
+            const span = _doc.createElement('span')
+            span.textContent = input.value
+            span.style.display = 'block'
+            span.style.fontSize = '12px'
+            span.style.color = '#13293D'
+            span.style.borderBottom = input.style.borderBottom || '1px solid #d1d5db'
+            span.style.paddingBottom = '2px'
+            span.style.minHeight = '18px'
+            span.style.fontFamily = 'Inter, sans-serif'
+            span.style.width = '100%'
+            inp.replaceWith(span)
+          })
+          clonedEl.querySelectorAll('textarea').forEach(ta => {
+            const textarea = ta as HTMLTextAreaElement
+            const div = _doc.createElement('div')
+            div.textContent = textarea.value
+            div.style.fontSize = '11px'
+            div.style.color = '#374151'
+            div.style.border = '1px solid #e5e7eb'
+            div.style.borderRadius = '4px'
+            div.style.padding = '6px 8px'
+            div.style.whiteSpace = 'pre-wrap'
+            div.style.fontFamily = 'Inter, sans-serif'
+            div.style.minHeight = '44px'
+            ta.replaceWith(div)
+          })
+        },
+      })
+      const imgW   = 210                                    // A4 largura em mm
+      const imgH   = (canvas.height * imgW) / canvas.width
+      const pdf    = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageH  = 297                                    // A4 altura em mm
+      let   posY   = 0
+
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', 0, posY, imgW, imgH)
+      let restante = imgH - pageH
+      while (restante > 0) {
+        posY -= pageH
+        pdf.addPage()
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', 0, posY, imgW, imgH)
+        restante -= pageH
+      }
+      return pdf.output('blob')
+    } catch {
+      return null
+    }
+  }
 
   const handleBuscar = async () => {
     const p = placa.trim().toUpperCase()
@@ -420,6 +501,13 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
       form.append('dados', JSON.stringify(buildPayload()))
       fotos.forEach(f => form.append('fotos', f.file))
 
+      // Gera PDF do checklist e envia junto
+      const pdfBlob = await gerarPdfBlob()
+      if (pdfBlob) {
+        const nome = placaV ? `checklist_${placaV}.pdf` : 'checklist.pdf'
+        form.append('pdf', pdfBlob, nome)
+      }
+
       const res  = await fetch('/api/vistoria/salvar', { method: 'POST', body: form })
       const json = await res.json()
       if (!json.ok) throw new Error(json.erro || 'Erro ao salvar.')
@@ -429,7 +517,6 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
 
       if (imprimirApos) {
         setPrintComFotos(comFotos)
-        // Aguarda um tick para o state propagar antes de imprimir
         setTimeout(() => window.print(), 120)
       }
     } catch (err: unknown) {
@@ -437,6 +524,25 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
     } finally {
       setSalvando(false)
     }
+  }
+
+  const handleNovaVistoria = () => {
+    fotos.forEach(f => URL.revokeObjectURL(f.preview))
+    setPlaca('')
+    setVeiculo(null)
+    setUltimaOS(null)
+    setOsList([])
+    setShowOSPicker(false)
+    setErro('')
+    setMarca(''); setModelo(''); setAno(''); setKm(''); setPlacaV('')
+    setUltima(''); setNome(''); setFone(''); setCnh(''); setCat(''); setVenc('')
+    setOutroObs(''); setObs(''); setResp('')
+    setData(new Date().toISOString().slice(0, 10))
+    setItems(initItems())
+    setBody(initBody())
+    setSelAvaria('A')
+    setFotos([])
+    setSessaoSalva(null)
   }
 
   const avariaCount = Object.values(body).filter(v => v !== 'ok').length
@@ -484,6 +590,12 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
             padding: '0 16px', height: 36, cursor: 'pointer', fontSize: 13, fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: 6, opacity: loading ? 0.6 : 1 }}>
           <Search size={14} />{loading ? 'Buscando…' : 'Buscar'}
+        </button>
+        <button onClick={handleNovaVistoria}
+          style={{ background: '#3E7080', color: '#fff', border: 'none',
+            borderRadius: 6, padding: '0 16px', height: 36, cursor: 'pointer', fontSize: 13,
+            fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <FilePlus size={14} /> Nova Vistoria
         </button>
         <button onClick={() => { setItems(initItems()); setBody(initBody()); setObs('') }}
           style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
@@ -621,7 +733,7 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
       )}
 
       {/* ── Document ── */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '16px', background: '#fff' }}
+      <div ref={contentRef} style={{ maxWidth: 900, margin: '0 auto', padding: '16px', background: '#fff' }}
         className="print:p-0 print:max-w-none">
 
         {/* ── Print Header ── */}

@@ -20,3 +20,12 @@ seven-reforma-tributaria-monorepo/
 # OS
 .DS_Store
 Thumbs.db
+
+# Deploy folders e zips gerados
+checklist-seven-deploy/
+checklist-seven-deploy.zip
+checklist-seven-v2-deploy/
+checklist-seven-v2-deploy.zip
+
+# Logs
+**/*.log

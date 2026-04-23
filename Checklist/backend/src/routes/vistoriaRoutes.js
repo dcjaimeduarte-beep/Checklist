@@ -45,10 +45,10 @@ function listarSessoes(placa) {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB por foto
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB por arquivo
   fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error('Apenas imagens são aceitas.'));
+    if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
+      return cb(new Error('Apenas imagens e PDF são aceitos.'));
     }
     cb(null, true);
   },
@@ -58,7 +58,8 @@ const upload = multer({
 // Body: multipart/form-data
 //   dados  (campo text)  → JSON com todo o estado do checklist
 //   fotos  (campos file) → imagens opcionais
-router.post('/salvar', upload.array('fotos', 30), async (req, res) => {
+//   pdf    (campo file)  → PDF do checklist gerado no frontend
+router.post('/salvar', upload.fields([{ name: 'fotos', maxCount: 30 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
   try {
     const { dados } = req.body;
     if (!dados) return res.status(400).json({ ok: false, erro: 'Campo "dados" é obrigatório.' });
@@ -81,19 +82,25 @@ router.post('/salvar', upload.array('fotos', 30), async (req, res) => {
 
     // Salvar fotos com compressão e montar lista de nomes
     const fotosNomes = [];
-    if (req.files && req.files.length > 0) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
-        const nome = `foto_${String(i + 1).padStart(2, '0')}.jpg`;
-        const destPath = path.join(dir, nome);
-        // Redimensiona para no máximo FOTO_MAX_WIDTH e comprime em JPEG
-        await sharp(file.buffer)
-          .rotate()                             // corrige orientação EXIF
-          .resize({ width: FOTO_MAX_WIDTH, withoutEnlargement: true })
-          .jpeg({ quality: FOTO_QUALITY, mozjpeg: true })
-          .toFile(destPath);
-        fotosNomes.push(nome);
-      }
+    const fotosArquivos = req.files?.fotos || [];
+    for (let i = 0; i < fotosArquivos.length; i++) {
+      const file = fotosArquivos[i];
+      const nome = `foto_${String(i + 1).padStart(2, '0')}.jpg`;
+      const destPath = path.join(dir, nome);
+      await sharp(file.buffer)
+        .rotate()
+        .resize({ width: FOTO_MAX_WIDTH, withoutEnlargement: true })
+        .jpeg({ quality: FOTO_QUALITY, mozjpeg: true })
+        .toFile(destPath);
+      fotosNomes.push(nome);
+    }
+
+    // Salvar PDF do checklist (gerado no frontend)
+    const pdfArquivos = req.files?.pdf || [];
+    let pdfNome = null;
+    if (pdfArquivos.length > 0) {
+      pdfNome = `checklist_${placa}.pdf`;
+      fs.writeFileSync(path.join(dir, pdfNome), pdfArquivos[0].buffer);
     }
 
     // Enriquecer o JSON com metadados e lista de fotos
@@ -104,6 +111,7 @@ router.post('/salvar', upload.array('fotos', 30), async (req, res) => {
         sessao,
         savedAt: now.toISOString(),
         fotos: fotosNomes,
+        pdf: pdfNome,
       },
     };
 
