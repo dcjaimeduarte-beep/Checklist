@@ -82,6 +82,8 @@ router.post('/card', (req, res) => {
     motorista:   motorista   || '',
     colaborador: colaborador || '',
     sessao:      sessao      || null,
+    concluido:   false,
+    concluidoEm: null,
     status: 1,
     criadoEm:           now,
     statusAtualizadoEm: now,
@@ -127,6 +129,21 @@ router.patch('/card/:id/colaborador', (req, res) => {
   if (!card) return res.status(404).json({ ok: false, erro: 'Card não encontrado.' });
 
   card.colaborador = req.body.colaborador || '';
+  writeDb(db);
+  broadcast('card_updated', card);
+  res.json({ ok: true, card });
+});
+
+// ─── PATCH /api/kanban/card/:id/concluido ────────────────────────────────────
+router.patch('/card/:id/concluido', (req, res) => {
+  const db   = readDb();
+  const card = db.cards.find(c => c.id === req.params.id);
+  if (!card) return res.status(404).json({ ok: false, erro: 'Card não encontrado.' });
+
+  const concluido = req.body.concluido !== false; // default true
+  card.concluido   = concluido;
+  card.concluidoEm = concluido ? new Date().toISOString() : null;
+
   writeDb(db);
   broadcast('card_updated', card);
   res.json({ ok: true, card });

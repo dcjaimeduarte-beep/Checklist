@@ -95,6 +95,8 @@ interface KanbanCard {
   motorista: string
   colaborador: string
   sessao: string | null
+  concluido: boolean
+  concluidoEm: string | null
   status: number
   criadoEm: string
   statusAtualizadoEm: string
@@ -259,6 +261,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
   const [settingsTab, setSettingsTab] = useState<'timing' | 'statuses'>('timing')
   const [colaboradorInput, setColaboradorInput] = useState('')
   const [colaboradorSalvo, setColaboradorSalvo] = useState(false)
+  const [mostrarEntregues, setMostrarEntregues] = useState(false)
   const sseRef = useRef<EventSource | null>(null)
 
   // Sincroniza o input com o colaborador do card sempre que o modal abrir ou o card atualizar via SSE
@@ -331,6 +334,16 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
     }
     setTvMode(v => !v)
   }
+
+  const marcarConcluido = useCallback(async (cardId: string, concluido: boolean) => {
+    await fetch(`/api/kanban/card/${cardId}/concluido`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ concluido }),
+    })
+    setSelected(null)
+    setColaboradorInput('')
+  }, [])
 
   const salvarColaborador = async () => {
     if (!selected) return
@@ -438,6 +451,20 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!tvMode && (() => {
+            const nEntregues = cards.filter(c => c.concluido).length
+            return nEntregues > 0 ? (
+              <button onClick={() => setMostrarEntregues(true)} style={{
+                background: mostrarEntregues ? '#16a34a' : 'transparent',
+                color: mostrarEntregues ? '#fff' : '#22c55e',
+                border: '1px solid #16a34a',
+                borderRadius: 6, padding: '0 12px', height: 36, cursor: 'pointer',
+                fontSize: 13, display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                📦 Entregues ({nEntregues})
+              </button>
+            ) : null
+          })()}
           {!tvMode && (
             <button onClick={abrirSettings} style={{
               background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
@@ -478,7 +505,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
         alignItems: 'flex-start',
       }}>
         {statuses.map(st => {
-          const colCards = cards.filter(c => c.status === st.id)
+          const colCards = cards.filter(c => c.status === st.id && !c.concluido)
           return (
             <div key={st.id} style={{
               minWidth: tvMode ? 230 : 195,
@@ -898,8 +925,15 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
               </div>
             </div>
 
-            {/* Remover */}
-            <div style={{ padding: '0 20px 18px' }}>
+            {/* Ações finais */}
+            <div style={{ padding: '0 20px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={() => marcarConcluido(selected.id, true)} style={{
+                width: '100%', padding: '10px', borderRadius: 8, cursor: 'pointer',
+                background: '#16a34a', color: '#fff',
+                border: 'none', fontSize: 13, fontWeight: 700,
+              }}>
+                ✅ Marcar como Entregue
+              </button>
               <button onClick={() => removeCard(selected.id)} style={{
                 width: '100%', padding: '9px', borderRadius: 8, cursor: 'pointer',
                 background: '#fff', color: '#ef4444',
@@ -907,6 +941,78 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
               }}>
                 Remover do Kanban
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Entregues ── */}
+      {mostrarEntregues && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+            zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16,
+          }}
+          onClick={() => setMostrarEntregues(false)}
+        >
+          <div
+            style={{
+              background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520,
+              boxShadow: '0 -8px 40px rgba(0,0,0,0.4)', overflow: 'hidden', marginBottom: 4,
+              maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ background: '#16a34a', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>
+                📦 Veículos Entregues
+              </div>
+              <button onClick={() => setMostrarEntregues(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {cards.filter(c => c.concluido).length === 0 && (
+                <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: 13, padding: '20px 0' }}>
+                  Nenhum veículo entregue
+                </div>
+              )}
+              {cards.filter(c => c.concluido).map(card => (
+                <div key={card.id} style={{
+                  border: '1px solid #e5e7eb', borderRadius: 10,
+                  padding: '10px 14px', background: '#f9fafb',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 900, fontSize: 15, color: NAVY, letterSpacing: 1 }}>
+                      {card.placa}
+                    </div>
+                    {card.veiculo && (
+                      <div style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>
+                        {card.veiculo}{card.cor ? ` · ${card.cor}` : ''}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>
+                      {card.colaborador && <span>🔧 {card.colaborador} · </span>}
+                      {card.concluidoEm && (
+                        <span>Entregue {new Date(card.concluidoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                      )}
+                      <span> · Total: {formatDuration(card.criadoEm, card.concluidoEm ?? undefined)}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => marcarConcluido(card.id, false)}
+                    style={{
+                      background: '#fff', color: TEAL, border: `1px solid ${TEAL}`,
+                      borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ↩ Reabrir
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
