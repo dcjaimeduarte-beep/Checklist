@@ -1072,6 +1072,68 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
               )}
             </div>
 
+            {/* Processo Solutio */}
+            {selected.cdSaida && (
+              <div style={{ padding: '0 20px 12px' }}>
+                <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
+                  PROCESSO SOLUTIO
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+                  {/* Passo 1: OS vinculada */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 10px', borderRadius: 7,
+                    background: '#f0fdf4', border: '1px solid #bbf7d0',
+                  }}>
+                    <span style={{ fontSize: 14 }}>✅</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>
+                        O.S vinculada
+                      </div>
+                      <div style={{ fontSize: 10, color: '#6b7280' }}>OS #{selected.cdSaida} no Solutio</div>
+                    </div>
+                  </div>
+
+                  {/* Passo 2: Aguardando conclusão OS e emissão NF */}
+                  {!selected.nfEmitida ? (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '7px 10px', borderRadius: 7,
+                      background: '#fffbeb', border: '1px solid #fde68a',
+                    }}>
+                      <span style={{ fontSize: 14, animation: 'spin 2s linear infinite' }}>⏳</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#d97706' }}>
+                          Aguardando conclusão da O.S e emissão da nota
+                        </div>
+                        <div style={{ fontSize: 10, color: '#6b7280' }}>
+                          Feche a OS no Solutio e transmita a NF
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '7px 10px', borderRadius: 7,
+                      background: '#f0fdf4', border: '1px solid #bbf7d0',
+                    }}>
+                      <span style={{ fontSize: 14 }}>✅</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>
+                          Nota Fiscal emitida
+                        </div>
+                        <div style={{ fontSize: 10, color: '#6b7280' }}>
+                          {selected.nfNumero ? `NF #${selected.nfNumero}` : 'NF transmitida no Solutio'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            )}
+
             {/* Ações finais */}
             <div style={{ padding: '0 20px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button onClick={() => marcarConcluido(selected.id, true)} style={{
@@ -1147,6 +1209,18 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                       )}
                       <span> · Total: {formatDuration(card.criadoEm, card.concluidoEm ?? undefined)}</span>
                     </div>
+                    {card.cdSaida && (
+                      <div style={{
+                        marginTop: 6, padding: '5px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                        background: card.nfEmitida ? '#dcfce7' : '#fffbeb',
+                        color:      card.nfEmitida ? '#16a34a'  : '#d97706',
+                        border: `1px solid ${card.nfEmitida ? '#86efac' : '#fde68a'}`,
+                      }}>
+                        {card.nfEmitida
+                          ? `✅ NF ${card.nfNumero ? `#${card.nfNumero}` : ''} emitida`
+                          : `⏳ OS #${card.cdSaida} — aguardando conclusão e emissão da nota`}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => marcarConcluido(card.id, false)}
