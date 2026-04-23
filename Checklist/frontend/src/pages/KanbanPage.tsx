@@ -464,6 +464,13 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
     ])
   }
 
+  // Colunas com largura dinâmica: preenche a tela sem scroll horizontal quando possível
+  const nCols    = statuses.length || 1
+  const boardPad = isMobile ? 8 : 16
+  const colGap   = tvMode ? 14 : isMobile ? 6 : 10
+  const rawColW  = Math.floor((winWidth - boardPad * 2 - colGap * (nCols - 1)) / nCols)
+  const colW     = tvMode ? 230 : Math.max(isMobile ? 145 : 130, Math.min(250, rawColW))
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -574,14 +581,13 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
         overflowX: 'auto',
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
-        padding: tvMode ? '20px' : isMobile ? '8px' : '16px',
+        padding: `${boardPad}px`,
         display: 'flex',
-        gap: tvMode ? 14 : isMobile ? 6 : 10,
+        gap: colGap,
         alignItems: 'flex-start',
       }}>
         {statuses.map(st => {
           const colCards = cards.filter(c => c.status === st.id && !c.concluido)
-          const colW = tvMode ? 230 : isMobile ? 150 : 195
           return (
             <div key={st.id} style={{
               minWidth: colW,
