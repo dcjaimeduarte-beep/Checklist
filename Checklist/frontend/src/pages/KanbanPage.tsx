@@ -261,6 +261,11 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
   const [colaboradorSalvo, setColaboradorSalvo] = useState(false)
   const sseRef = useRef<EventSource | null>(null)
 
+  // Sincroniza o input com o colaborador do card sempre que o modal abrir ou o card atualizar via SSE
+  useEffect(() => {
+    if (selected) setColaboradorInput(selected.colaborador ?? '')
+  }, [selected?.id, selected?.colaborador])
+
   useEffect(() => {
     const t = setInterval(() => setClock(new Date()), 60000)
     return () => clearInterval(t)
@@ -514,7 +519,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                     tvMode={tvMode}
                     settings={settings}
                     statuses={statuses}
-                    onClick={() => { if (!tvMode) { setSelected(card); setColaboradorInput(card.colaborador ?? '') } }}
+                    onClick={() => { if (!tvMode) setSelected(card) }}
                     onRemove={() => removeCard(card.id)}
                   />
                 ))}
