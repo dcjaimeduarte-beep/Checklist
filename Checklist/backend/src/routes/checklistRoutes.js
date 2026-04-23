@@ -475,4 +475,55 @@ router.get('/os/:id', async (req, res) => {
   }
 });
 
+// ─── GET /api/checklist/veiculo/placa/:placa/os-abertas ──────────────────────
+// Lista OSs abertas (não transmitidas) do veículo — para vincular ao card kanban
+router.get('/veiculo/placa/:placa/os-abertas', async (req, res) => {
+  const placa = req.params.placa.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let db;
+  try {
+    db = await connectFirebird();
+
+    const sql = `
+      SELECT FIRST 20
+        s.CD_SAIDA,
+        s.DT_EMISSAO,
+        s.DT_PEDIDO,
+        s.DS_NUMERO_NOTA,
+        s.VL_TOTAL_NOTA,
+        s.DS_TIPO_SAIDA,
+        s.DS_OBS_NOTA_SAI,
+        c.NM_FANTASIA_CLIENTE,
+        c.NM_RAZ_SOC_CLIENTE
+      FROM SAIDAS s
+      INNER JOIN VEICULOS v ON v.CD_VEICULOS = s.CD_VEICULO
+      LEFT  JOIN CLIENTE  c ON c.CD_CLIENTE  = s.CD_CLIENTE
+      WHERE TRIM(v.DS_PLACA) = ?
+        AND s.DT_TRANSMISSAO IS NULL
+        AND (s.CK_CANCELADA IS NULL OR s.CK_CANCELADA <> 'T')
+      ORDER BY s.DT_EMISSAO DESC
+    `;
+
+    db.query(sql, [placa], (err, rows) => {
+      db.detach();
+      if (err) return res.status(500).json({ ok: false, erro: err.message });
+
+      const lista = (rows || []).map(r => ({
+        cdSaida:    r.CD_SAIDA,
+        dtEmissao:  r.DT_EMISSAO,
+        dtPedido:   r.DT_PEDIDO,
+        nrNota:     (r.DS_NUMERO_NOTA || '').trim(),
+        vlTotal:    r.VL_TOTAL_NOTA,
+        tipo:       labelTipo(r.DS_TIPO_SAIDA),
+        obs:        (r.DS_OBS_NOTA_SAI || '').trim(),
+        cliente:    (r.NM_FANTASIA_CLIENTE || r.NM_RAZ_SOC_CLIENTE || '').trim(),
+      }));
+
+      res.json({ ok: true, placa, total: lista.length, lista });
+    });
+  } catch (error) {
+    if (db) db.detach();
+    res.status(500).json({ ok: false, erro: error.message });
+  }
+});
+
 module.exports = router;

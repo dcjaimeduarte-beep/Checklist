@@ -1,14 +1,10 @@
-const express  = require('express');
-const { v4: uuidv4 } = require('uuid');
+const express              = require('express');
+const { v4: uuidv4 }       = require('uuid');
 const { getDb, rowToCard } = require('../config/database');
+const { connectFirebird }  = require('../config/firebird');
+const { addClient, removeClient, broadcast } = require('../services/sseClients');
 
-const router  = express.Router();
-const clients = new Set();
-
-function broadcast(event, data) {
-  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  clients.forEach(c => { try { c.write(msg); } catch { clients.delete(c); } });
-}
+const router = express.Router();
 
 function allCards() {
   return getDb().prepare('SELECT * FROM kanban_cards ORDER BY criado_em').all().map(rowToCard);
@@ -24,12 +20,12 @@ router.get('/eventos', (req, res) => {
   res.write(`event: init\ndata: ${JSON.stringify(allCards())}\n\n`);
 
   const hb = setInterval(() => { try { res.write(': ping\n\n'); } catch { clearInterval(hb); } }, 25000);
-  clients.add(res);
-  req.on('close', () => { clients.delete(res); clearInterval(hb); });
+  addClient(res);
+  req.on('close', () => { removeClient(res); clearInterval(hb); });
 });
 
 // ─── GET /api/kanban/cards ────────────────────────────────────────────────────
-router.get('/cards', (req, res) => {
+router.get('/cards', (_req, res) => {
   res.json({ ok: true, cards: allCards() });
 });
 
@@ -38,9 +34,9 @@ router.post('/card', (req, res) => {
   const { placa, veiculo, cor, motorista, sessao, colaborador } = req.body;
   if (!placa) return res.status(400).json({ ok: false, erro: 'Placa obrigatória.' });
 
-  const now  = new Date().toISOString();
-  const id   = uuidv4();
-  const hist = JSON.stringify([{ status: 1, label: 'Aguardando Diagnóstico', entrada: now, saida: null }]);
+  const now      = new Date().toISOString();
+  const id       = uuidv4();
+  const hist     = JSON.stringify([{ status: 1, label: 'Aguardando Diagnóstico', entrada: now, saida: null }]);
   const placaNorm = placa.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   getDb().prepare(`
@@ -64,8 +60,8 @@ router.patch('/card/:id/status', (req, res) => {
   const s = Number(req.body.status);
   if (!s || s < 1) return res.status(400).json({ ok: false, erro: 'Status inválido.' });
 
-  const db   = getDb();
-  const row  = db.prepare('SELECT * FROM kanban_cards WHERE id = ?').get(req.params.id);
+  const db  = getDb();
+  const row = db.prepare('SELECT * FROM kanban_cards WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ ok: false, erro: 'Card não encontrado.' });
 
   const now      = new Date().toISOString();
@@ -75,12 +71,7 @@ router.patch('/card/:id/status', (req, res) => {
   if (cur) cur.saida = now;
   historico.push({ status: s, label, entrada: now, saida: null });
 
-  const patch = {
-    status:    s,
-    now,
-    hist:      JSON.stringify(historico),
-    id:        req.params.id,
-  };
+  const patch = { status: s, now, hist: JSON.stringify(historico), id: req.params.id };
 
   if (req.body.colaborador !== undefined) {
     db.prepare(`
@@ -101,7 +92,7 @@ router.patch('/card/:id/status', (req, res) => {
 
 // ─── PATCH /api/kanban/card/:id/colaborador ──────────────────────────────────
 router.patch('/card/:id/colaborador', (req, res) => {
-  const db = getDb();
+  const db  = getDb();
   const row = db.prepare('SELECT id FROM kanban_cards WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ ok: false, erro: 'Card não encontrado.' });
 
@@ -115,8 +106,8 @@ router.patch('/card/:id/colaborador', (req, res) => {
 
 // ─── PATCH /api/kanban/card/:id/concluido ────────────────────────────────────
 router.patch('/card/:id/concluido', (req, res) => {
-  const db = getDb();
-  const row = db.prepare('SELECT id FROM kanban_cards WHERE id = ?').get(req.params.id);
+  const db  = getDb();
+  const row = db.prepare('SELECT * FROM kanban_cards WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ ok: false, erro: 'Card não encontrado.' });
 
   const concluido   = req.body.concluido !== false ? 1 : 0;
@@ -126,6 +117,31 @@ router.patch('/card/:id/concluido', (req, res) => {
     .run(concluido, concluidoEm, req.params.id);
 
   const card = rowToCard(db.prepare('SELECT * FROM kanban_cards WHERE id = ?').get(req.params.id));
+
+  // Ao marcar como entregue: sinaliza checklist concluído no Firebird
+  if (concluido && card.cdSaida) {
+    setImmediate(() => sinalizarConcluidoFirebird(card.cdSaida, card));
+  }
+
+  broadcast('card_updated', card);
+  res.json({ ok: true, card });
+});
+
+// ─── PATCH /api/kanban/card/:id/link-os ──────────────────────────────────────
+router.patch('/card/:id/link-os', (req, res) => {
+  const db  = getDb();
+  const row = db.prepare('SELECT * FROM kanban_cards WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ ok: false, erro: 'Card não encontrado.' });
+
+  const cdSaida   = req.body.cdSaida   ? Number(req.body.cdSaida)   : null;
+  const cdEmpresa = req.body.cdEmpresa ? Number(req.body.cdEmpresa) : 1;
+  if (!cdSaida) return res.status(400).json({ ok: false, erro: 'cdSaida obrigatório.' });
+
+  db.prepare('UPDATE kanban_cards SET cd_saida = ? WHERE id = ?').run(cdSaida, req.params.id);
+
+  const card = rowToCard(db.prepare('SELECT * FROM kanban_cards WHERE id = ?').get(req.params.id));
+  setImmediate(() => criarLinkFirebird(cdSaida, cdEmpresa, card));
+
   broadcast('card_updated', card);
   res.json({ ok: true, card });
 });
@@ -140,5 +156,66 @@ router.delete('/card/:id', (req, res) => {
   broadcast('card_removed', { id: req.params.id });
   res.json({ ok: true });
 });
+
+// ─── Helpers Firebird (fire-and-forget, não bloqueiam HTTP) ──────────────────
+
+async function criarLinkFirebird(cdSaida, cdEmpresa, card) {
+  let fbDb;
+  try {
+    fbDb = await connectFirebird();
+    const now = new Date();
+
+    const existe = await new Promise((resolve, reject) => {
+      fbDb.query(
+        'SELECT 1 FROM WEB_CHECKLIST_OS_LINK WHERE CD_SAIDA = ? AND CD_EMPRESA = ?',
+        [cdSaida, cdEmpresa],
+        (err, rows) => { if (err) reject(err); else resolve(rows && rows.length > 0); }
+      );
+    });
+
+    if (!existe) {
+      await new Promise((resolve, reject) => {
+        fbDb.query(
+          `INSERT INTO WEB_CHECKLIST_OS_LINK
+           (CD_EMPRESA, CD_SAIDA, DS_SESSAO_WEB, DS_COLABORADOR,
+            DT_CHECKLIST, HR_CHECKLIST, CK_CHECKLIST_CONCLUIDO, CK_NF_EMITIDA)
+           VALUES (?, ?, ?, ?, ?, ?, 'F', 'F')`,
+          [cdEmpresa, cdSaida, card.sessao || '', card.colaborador || '', now, now],
+          (err) => { if (err) reject(err); else resolve(); }
+        );
+      });
+    }
+
+    fbDb.detach();
+  } catch (err) {
+    if (fbDb) try { fbDb.detach(); } catch {}
+    console.error('[Firebird] criarLinkFirebird erro:', err.message);
+  }
+}
+
+async function sinalizarConcluidoFirebird(cdSaida, card) {
+  let fbDb;
+  try {
+    fbDb = await connectFirebird();
+    const obs = card.colaborador
+      ? `Checklist concluído. Técnico: ${card.colaborador}.`
+      : 'Checklist concluído.';
+
+    await new Promise((resolve, reject) => {
+      fbDb.query(
+        `UPDATE WEB_CHECKLIST_OS_LINK
+         SET CK_CHECKLIST_CONCLUIDO = 'T', DS_OBSERVACAO = ?
+         WHERE CD_SAIDA = ? AND CK_CHECKLIST_CONCLUIDO = 'F'`,
+        [obs, cdSaida],
+        (err) => { if (err) reject(err); else resolve(); }
+      );
+    });
+
+    fbDb.detach();
+  } catch (err) {
+    if (fbDb) try { fbDb.detach(); } catch {}
+    console.error('[Firebird] sinalizarConcluidoFirebird erro:', err.message);
+  }
+}
 
 module.exports = router;

@@ -8,6 +8,9 @@ const checklistRoutes = require('./routes/checklistRoutes');
 const vistoriaRoutes  = require('./routes/vistoriaRoutes');
 const kanbanRoutes    = require('./routes/kanbanRoutes');
 
+const { initFirebirdWebTables } = require('./config/firebird-web');
+const { startPoller }           = require('./services/nfPoller');
+
 const app = express();
 
 app.use(cors());
@@ -40,9 +43,13 @@ app.get('/{*path}', (_req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-const HOST = '0.0.0.0'; // aceita conexões de qualquer máquina da rede
+const HOST = '0.0.0.0';
 
 app.listen(PORT, HOST, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
   console.log(`Acessível na rede em http://SEU_IP:${PORT}`);
+
+  // Inicializa tabelas WEB_ no Firebird e inicia poller de NF
+  initFirebirdWebTables();
+  startPoller(30000);
 });

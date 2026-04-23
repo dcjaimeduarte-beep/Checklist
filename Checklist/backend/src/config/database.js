@@ -64,12 +64,26 @@ function initSchema(db) {
       concluido_em         TEXT,
       criado_em            TEXT NOT NULL,
       status_atualizado_em TEXT NOT NULL,
-      historico_json       TEXT NOT NULL DEFAULT '[]'
+      historico_json       TEXT NOT NULL DEFAULT '[]',
+      cd_saida             INTEGER,
+      nf_emitida           INTEGER NOT NULL DEFAULT 0,
+      nf_numero            TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_kanban_placa     ON kanban_cards(placa);
     CREATE INDEX IF NOT EXISTS idx_kanban_status    ON kanban_cards(status);
     CREATE INDEX IF NOT EXISTS idx_kanban_concluido ON kanban_cards(concluido);
   `);
+
+  // Migração v2: adiciona colunas de integração Firebird em instalações existentes
+  const v2 = db.prepare("SELECT 1 FROM migrations WHERE name = 'v2_kanban_firebird'").get();
+  if (!v2) {
+    const cols = db.prepare('PRAGMA table_info(kanban_cards)').all().map(c => c.name);
+    if (!cols.includes('cd_saida'))    db.exec('ALTER TABLE kanban_cards ADD COLUMN cd_saida INTEGER');
+    if (!cols.includes('nf_emitida'))  db.exec('ALTER TABLE kanban_cards ADD COLUMN nf_emitida INTEGER NOT NULL DEFAULT 0');
+    if (!cols.includes('nf_numero'))   db.exec('ALTER TABLE kanban_cards ADD COLUMN nf_numero TEXT');
+    db.prepare("INSERT OR IGNORE INTO migrations (name, run_at) VALUES ('v2_kanban_firebird', ?)").run(new Date().toISOString());
+    console.log('[DB] Migração v2: colunas Firebird adicionadas ao kanban_cards.');
+  }
 }
 
 // ─── Migração automática de dados existentes (roda só uma vez) ───────────────
@@ -176,6 +190,9 @@ function rowToCard(row) {
     criadoEm:           row.criado_em,
     statusAtualizadoEm: row.status_atualizado_em,
     historico:          JSON.parse(row.historico_json),
+    cdSaida:            row.cd_saida    || null,
+    nfEmitida:          row.nf_emitida  === 1,
+    nfNumero:           row.nf_numero   || null,
   };
 }
 

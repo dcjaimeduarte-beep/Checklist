@@ -87,6 +87,16 @@ interface HistoricoItem {
   saida: string | null
 }
 
+interface OsAberta {
+  cdSaida:   number
+  dtEmissao: string | null
+  nrNota:    string
+  vlTotal:   number | null
+  tipo:      string
+  obs:       string
+  cliente:   string
+}
+
 interface KanbanCard {
   id: string
   placa: string
@@ -101,6 +111,9 @@ interface KanbanCard {
   criadoEm: string
   statusAtualizadoEm: string
   historico: HistoricoItem[]
+  cdSaida:   number | null
+  nfEmitida: boolean
+  nfNumero:  string | null
 }
 
 function formatDuration(from: string, to?: string): string {
@@ -226,6 +239,16 @@ function Card({ card, tvMode, onClick, onRemove, settings, statuses }: {
           🔧 {card.colaborador}
         </div>
       )}
+      {card.nfEmitida && (
+        <div style={{ fontSize: tvMode ? 11 : 9, color: '#16a34a', marginTop: 2, fontWeight: 700 }}>
+          ✅ NF {card.nfNumero ? `#${card.nfNumero}` : 'emitida'}
+        </div>
+      )}
+      {card.cdSaida && !card.nfEmitida && (
+        <div style={{ fontSize: tvMode ? 11 : 9, color: '#6b7280', marginTop: 2 }}>
+          🔗 OS {card.cdSaida}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <span style={{
           fontSize: tvMode ? 12 : 10, fontWeight: 700,
@@ -262,6 +285,9 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
   const [colaboradorInput, setColaboradorInput] = useState('')
   const [colaboradorSalvo, setColaboradorSalvo] = useState(false)
   const [mostrarEntregues, setMostrarEntregues] = useState(false)
+  const [osLista, setOsLista]       = useState<OsAberta[]>([])
+  const [osLoading, setOsLoading]   = useState(false)
+  const [osPanelOpen, setOsPanelOpen] = useState(false)
   const sseRef = useRef<EventSource | null>(null)
 
   // Sincroniza o input com o colaborador do card sempre que o modal abrir ou o card atualizar via SSE
@@ -357,6 +383,29 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
       setColaboradorInput('')
       setColaboradorSalvo(false)
     }
+  }
+
+  const buscarOsAbertas = async (placa: string) => {
+    setOsLoading(true)
+    setOsPanelOpen(true)
+    setOsLista([])
+    try {
+      const r = await fetch(`/api/checklist/veiculo/placa/${placa}/os-abertas`)
+      const d = await r.json()
+      setOsLista(d.lista || [])
+    } catch { setOsLista([]) }
+    setOsLoading(false)
+  }
+
+  const vincularOs = async (cdSaida: number) => {
+    if (!selected) return
+    await fetch(`/api/kanban/card/${selected.id}/link-os`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cdSaida }),
+    })
+    setOsPanelOpen(false)
+    setOsLista([])
   }
 
   const abrirSettings = () => {
@@ -923,6 +972,92 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                   )
                 })}
               </div>
+            </div>
+
+            {/* Vínculo com OS Solutio */}
+            <div style={{ padding: '0 20px 12px' }}>
+              {selected.nfEmitida ? (
+                <div style={{
+                  background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8,
+                  padding: '8px 12px', fontSize: 12, color: '#16a34a', fontWeight: 700,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  ✅ NF {selected.nfNumero ? `#${selected.nfNumero}` : ''} emitida no Solutio
+                </div>
+              ) : selected.cdSaida ? (
+                <div style={{
+                  background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8,
+                  padding: '8px 12px', fontSize: 12, color: '#16a34a',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  🔗 Vinculado à OS <b>#{selected.cdSaida}</b>
+                  <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>
+                    — aguardando transmissão da NF
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <button
+                    onClick={() => buscarOsAbertas(selected.placa)}
+                    style={{
+                      width: '100%', padding: '9px', borderRadius: 8, cursor: 'pointer',
+                      background: '#eff6ff', color: '#2563eb',
+                      border: '1px solid #bfdbfe', fontSize: 12, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}
+                  >
+                    🔗 Vincular OS do Solutio
+                  </button>
+
+                  {osPanelOpen && (
+                    <div style={{ marginTop: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                      <div style={{
+                        background: '#1e3a5f', color: '#fff', padding: '6px 12px',
+                        fontSize: 11, fontWeight: 700, display: 'flex', justifyContent: 'space-between',
+                      }}>
+                        <span>Selecione a OS</span>
+                        <button onClick={() => setOsPanelOpen(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 0 }}>✕</button>
+                      </div>
+
+                      {osLoading && (
+                        <div style={{ padding: '12px', textAlign: 'center', fontSize: 12, color: '#9ca3af' }}>
+                          Buscando...
+                        </div>
+                      )}
+
+                      {!osLoading && osLista.length === 0 && (
+                        <div style={{ padding: '12px', textAlign: 'center', fontSize: 12, color: '#9ca3af' }}>
+                          Nenhuma OS aberta encontrada para esta placa.
+                        </div>
+                      )}
+
+                      {!osLoading && osLista.map(os => (
+                        <div
+                          key={os.cdSaida}
+                          onClick={() => vincularOs(os.cdSaida)}
+                          style={{
+                            padding: '8px 12px', borderBottom: '1px solid #f3f4f6',
+                            cursor: 'pointer', fontSize: 11,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#f0f9ff')}
+                          onMouseLeave={e => (e.currentTarget.style.background = '')}
+                        >
+                          <div style={{ fontWeight: 700, color: NAVY }}>
+                            OS #{os.cdSaida}
+                            {os.tipo ? <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>{os.tipo}</span> : null}
+                          </div>
+                          <div style={{ color: '#374151', marginTop: 1 }}>
+                            {os.cliente}
+                            {os.dtEmissao ? ` · ${new Date(os.dtEmissao).toLocaleDateString('pt-BR')}` : ''}
+                            {os.vlTotal ? ` · R$ ${Number(os.vlTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                          </div>
+                          {os.obs && <div style={{ color: '#9ca3af', marginTop: 1 }}>{os.obs.slice(0, 80)}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Ações finais */}
