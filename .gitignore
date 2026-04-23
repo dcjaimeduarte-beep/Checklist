@@ -29,3 +29,9 @@ checklist-seven-v2-deploy.zip
 
 # Logs
 **/*.log
+
+# Dados de runtime (kanban, uploads de vistoria)
+checklist/backend/data/
+checklist/backend/uploads/
+Checklist/backend/data/
+Checklist/backend/uploads/

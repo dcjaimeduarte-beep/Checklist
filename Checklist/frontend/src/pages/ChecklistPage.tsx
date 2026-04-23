@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Search, Printer, RotateCcw, Upload, Camera, X, Save, ImageIcon, History, FilePlus } from 'lucide-react'
+import { Search, Printer, RotateCcw, Upload, Camera, X, Save, ImageIcon, History, FilePlus, LayoutDashboard } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -273,7 +273,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function ChecklistPage({ onHistorico }: { onHistorico?: () => void }) {
+export default function ChecklistPage({ onHistorico, onKanban }: { onHistorico?: () => void; onKanban?: () => void }) {
   const [placa, setPlaca]     = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro]       = useState('')
@@ -316,6 +316,8 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
   const [salvando, setSalvando]       = useState(false)
   const [sessaoSalva, setSessaoSalva] = useState<string | null>(null)
   const [printComFotos, setPrintComFotos] = useState(true)
+
+  const handleAbrirKanban = () => window.open('/?kanban', '_blank')
 
   // ─── Gera PDF do conteúdo do checklist como Blob ─────────────────────────────
   const gerarPdfBlob = async (): Promise<Blob | null> => {
@@ -494,14 +496,13 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
   })
 
   // ─── Salvar no servidor ───────────────────────────────────────────────────────
-  const handleSalvar = async (imprimirApos: boolean, comFotos: boolean) => {
+  const handleSalvar = async (imprimirApos: boolean, comFotos: boolean, iniciarKanban = false) => {
     setSalvando(true)
     try {
       const form = new FormData()
       form.append('dados', JSON.stringify(buildPayload()))
       fotos.forEach(f => form.append('fotos', f.file))
 
-      // Gera PDF do checklist e envia junto
       const pdfBlob = await gerarPdfBlob()
       if (pdfBlob) {
         const nome = placaV ? `checklist_${placaV}.pdf` : 'checklist.pdf'
@@ -514,6 +515,23 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
 
       setSessaoSalva(json.sessao)
       setModalSalvar(false)
+
+      // Criar card no Kanban se solicitado
+      if (iniciarKanban) {
+        await fetch('/api/kanban/card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            placa:     placaV || json.placa,
+            veiculo:   `${marca} ${modelo}`.trim(),
+            cor:       veiculo?.descricao || '',
+            motorista: nome,
+            sessao:    json.sessao,
+          }),
+        })
+        window.open('/?kanban', '_blank')
+        return
+      }
 
       if (imprimirApos) {
         setPrintComFotos(comFotos)
@@ -609,6 +627,14 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
               borderRadius: 6, padding: '0 14px', height: 36, cursor: 'pointer', fontSize: 13,
               display: 'flex', alignItems: 'center', gap: 6 }}>
             <History size={14} /> Histórico
+          </button>
+        )}
+        {onKanban && (
+          <button onClick={handleAbrirKanban}
+            style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
+              borderRadius: 6, padding: '0 14px', height: 36, cursor: 'pointer', fontSize: 13,
+              display: 'flex', alignItems: 'center', gap: 6 }}>
+            <LayoutDashboard size={14} /> Kanban
           </button>
         )}
         <button onClick={() => logoRef.current?.click()}
@@ -1164,6 +1190,16 @@ export default function ChecklistPage({ onHistorico }: { onHistorico?: () => voi
 
             {/* Ações */}
             <div style={{ padding: '0 24px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={() => handleSalvar(false, false, true)}
+                disabled={salvando}
+                style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '12px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  opacity: salvando ? 0.7 : 1 }}>
+                <LayoutDashboard size={16} />
+                {salvando ? 'Salvando…' : 'Salvar e Iniciar Kanban'}
+              </button>
               <button
                 onClick={() => handleSalvar(true, printComFotos)}
                 disabled={salvando}

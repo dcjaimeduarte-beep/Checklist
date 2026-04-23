@@ -1,62 +1,97 @@
-# Backend — CLAUDE.md
+# Backend — CLAUDE.md (Checklist Automotivo)
 
-Instruções específicas para o backend NestJS.
+Instruções específicas para o backend do sistema de checklist de vistoria veicular.
 
 ## Stack
 
-NestJS 11 · TypeORM · SQLite (better-sqlite3) · Jest · xlsx · pdf-parse
+Node.js · Express · node-firebird · multer · sharp · uuid · dotenv · nodemon
 
-## Módulos
+## Entry point
 
-| Módulo | Responsabilidade |
-|--------|-----------------|
-| **AuthModule** | JWT em cookie HttpOnly, login/logout, guard `JwtAuthGuard` |
-| **ConsultationModule** | `POST /api/consultation/analyze` — consulta individual NCM |
-| **BatchModule** | `POST /api/batch/process` — processamento de planilhas XLSX em lote |
-| **IngestionModule** | Ingestão automática no boot (LC 214 PDF, cClassTrib XLSX, NCM XLSX) |
-| **SiscomexService** | Fallback web scraping do portal Siscomex |
+`src/app.js` — registra todas as rotas, serve frontend buildado de `public/`, serve uploads estático.
 
-## Arquitetura de consulta
+## Rotas
 
-1. Resolver hierarquia NCM (exato → pai → capítulo → seção)
-2. Buscar cClassTrib por: texto NCM → keywords da descrição → mapeamento de capítulo
-3. Extrair dados estruturados (CST, reduções, alíquotas, indicadores, artigos LC 214)
-4. Montar `TaxAnalysisViewDto` com todos os painéis
+| Arquivo | Prefixo | Descrição |
+|---------|---------|-----------|
+| `routes/bancoRoutes.js` | `/api/banco` | Diagnóstico da conexão Firebird, listagem de tabelas |
+| `routes/checklistRoutes.js` | `/api/checklist` | Busca de clientes, veículos e OS no Firebird |
+| `routes/vistoriaRoutes.js` | `/api/vistoria` | Salvar/listar/carregar vistorias e fotos (filesystem) |
+| `routes/kanbanRoutes.js` | `/api/kanban` | Kanban SSE + CRUD de cards (JSON filesystem) |
 
-**Lógica compartilhada** em `src/consultation/tax-analysis.utils.ts` — funções puras usadas tanto pela consulta individual quanto pelo batch.
+## checklistRoutes — endpoints Firebird
 
-## Entidades (SQLite)
+| Endpoint | Descrição |
+|----------|-----------|
+| `GET /api/checklist/cliente/buscar?q=` | Busca por nome/CPF/telefone |
+| `GET /api/checklist/cliente/:id/veiculos` | Veículos do cliente |
+| `GET /api/checklist/cliente/:id/historico` | OS do cliente via SAIDAS |
+| `GET /api/checklist/veiculo/placa/:placa` | Veículo pela placa |
+| `GET /api/checklist/veiculo/:id/historico` | OS do veículo |
+| `GET /api/checklist/os/:id` | Detalhes de uma OS |
 
-| Tabela | Descrição |
-|--------|-----------|
-| `ncm_rows` | Códigos NCM (2–8 dígitos) com descrição e rawRow |
-| `cclass_rows` | cClassTrib — rowData JSON com CST, reduções, indicadores |
-| `lc214_chunks` | Blocos de texto da LC 214 (4500 chars cada) |
-| `search_result_cache` | Cache de consultas (SHA256 key → payload JSON) |
-| `web_fetch_cache` | Cache de scraping Siscomex |
+## vistoriaRoutes — endpoints filesystem
 
-## Testes
+| Endpoint | Descrição |
+|----------|-----------|
+| `POST /api/vistoria/salvar` | Salva JSON + fotos. Compressão: JPEG q75, max 1600px (sharp) |
+| `GET /api/vistoria/historico/:placa` | Lista sessões salvas |
+| `GET /api/vistoria/:placa/:sessao` | Carrega checklist.json + URLs das fotos |
+| `GET /uploads/{placa}/{sessao}/{arquivo}` | Serve fotos via static |
 
-- Todo arquivo de lógica deve ter `.spec.ts` correspondente.
-- Cobertura mínima: **90%** (configurado em `package.json > jest > coverageThreshold`).
-- Rodar: `npm test` (unit) ou `npm run test:cov` (com cobertura).
-- Mocks: `@nestjs/testing` + `getRepositoryToken()` para repositórios.
+## kanbanRoutes — endpoints + SSE
 
-## Variáveis de ambiente
+| Endpoint | Descrição |
+|----------|-----------|
+| `GET /api/kanban/eventos` | SSE — broadcast de `init`, `card_added`, `card_updated`, `card_removed` |
+| `GET /api/kanban/cards` | Lista todos os cards |
+| `POST /api/kanban/card` | Cria card (`placa`, `veiculo`, `cor`, `motorista`, `sessao`) |
+| `PATCH /api/kanban/card/:id/status` | Atualiza status (`status`, `label` opcional) — atualiza histórico |
+| `DELETE /api/kanban/card/:id` | Remove card |
 
-Ver `backend/.env.example`. Principais:
-- `DATABASE_PATH` — caminho do SQLite (padrão `./data/app.sqlite`)
-- `PORT` — porta HTTP (padrão `3000`)
-- `FRONTEND_ORIGIN` — CORS (padrão `http://localhost:8080`)
-- `AUTH_LOGIN_USERNAME` / `AUTH_LOGIN_PASSWORD` — credenciais demo
-- `JWT_SECRET` — segredo para assinar tokens
-- `DOCS_PATH` — pasta dos documentos de ingestão (padrão `../docs`)
-- `FORCE_REINGEST=1` — forçar re-ingestão no boot
+Persistência: `data/kanban.json` (criado automaticamente). **Não commitar este arquivo.**
+
+SSE mantém heartbeat `: ping\n\n` a cada 25s para evitar timeout de proxy.
+
+## Banco de dados Firebird
+
+- Arquivo: `D:\Seven\Solutio Server\Dados\AML_AUTO.FDB`
+- Configuração via `.env`: `FB_HOST`, `FB_PORT`, `FB_DATABASE`, `FB_USER`, `FB_PASSWORD`
+- Tabelas-chave: `CLIENTE`, `VEICULOS`, `MARCA_VEICULO`, `MODELO_VEICULO`, `SAIDAS`, `SAIDA_ITENS`, `COLABORADOR`
+
+## Variáveis de ambiente (`.env`)
+
+```
+PORT=3000
+UPLOADS_PATH=               # caminho absoluto para pasta de fotos (padrão: backend/uploads/)
+FB_HOST=localhost
+FB_PORT=3050
+FB_DATABASE=D:\Seven\Solutio Server\Dados\AML_AUTO.FDB
+FB_USER=SYSDBA
+FB_PASSWORD=masterkey
+```
+
+## Portas
+
+| Ambiente | Porta |
+|----------|-------|
+| Produção (PM2) | **3000** |
+| Dev v2 local | **3001** (definir `PORT=3001` no `.env`) |
+
+## Estrutura de uploads
+
+```
+uploads/
+└── {PLACA}/
+    └── {YYYY-MM-DD_HHmmss_uuid}/
+        ├── checklist.json
+        ├── foto_01.jpg
+        └── foto_02.jpg
+```
 
 ## Convenções
 
-- DTOs em `dto/` com `class-validator`.
-- Entidades em `entities/` com decorators TypeORM.
-- Nomes de símbolos em inglês, comentários em português.
-- Não colocar lógica fiscal no frontend — tudo no backend.
-- Usar `tax-analysis.utils.ts` para lógica compartilhada (evitar duplicação entre consulta e batch).
+- Sem TypeScript — JavaScript puro com CommonJS (`require`/`module.exports`).
+- Toda lógica de negócio fica no backend; frontend só exibe.
+- Não commitar `data/`, `uploads/` — dados de runtime.
+- `.env` nunca commitado.

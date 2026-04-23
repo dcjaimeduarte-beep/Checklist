@@ -6,6 +6,7 @@ require('dotenv').config();
 const bancoRoutes     = require('./routes/bancoRoutes');
 const checklistRoutes = require('./routes/checklistRoutes');
 const vistoriaRoutes  = require('./routes/vistoriaRoutes');
+const kanbanRoutes    = require('./routes/kanbanRoutes');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/uploads', express.static(uploadsPath));
 app.use('/api/banco',     bancoRoutes);
 app.use('/api/checklist', checklistRoutes);
 app.use('/api/vistoria',  vistoriaRoutes);
+app.use('/api/kanban',    kanbanRoutes);
 
 // SPA fallback — qualquer rota que não seja /api retorna o index.html
 app.get('/{*path}', (_req, res) => {
