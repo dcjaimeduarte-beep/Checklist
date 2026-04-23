@@ -4,8 +4,8 @@ const path    = require('path');
 const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const sharp   = require('sharp');
+const { getDb } = require('../config/database');
 
-// Qualidade e dimensão máxima das fotos salvas no servidor
 const FOTO_MAX_WIDTH  = 1600;
 const FOTO_QUALITY    = 75;
 
@@ -19,7 +19,6 @@ function uploadsBase() {
     : path.join(__dirname, '..', '..', 'uploads');
 }
 
-/** Pasta de uma sessão: {base}/{PLACA}/{sessao}  */
 function sessaoDir(placa, sessao) {
   return path.join(uploadsBase(), placa.toUpperCase(), sessao);
 }
@@ -28,24 +27,11 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-/** Lista as sessões salvas para uma placa (mais recente primeiro). */
-function listarSessoes(placa) {
-  const dir = path.join(uploadsBase(), placa.toUpperCase());
-  if (!fs.existsSync(dir)) return [];
-
-  return fs.readdirSync(dir)
-    .filter(name => {
-      const jsonPath = path.join(dir, name, 'checklist.json');
-      return fs.existsSync(jsonPath);
-    })
-    .sort((a, b) => b.localeCompare(a)); // mais recente primeiro (nome contém timestamp)
-}
-
 // ─── Multer — armazena em memória até sabermos o destino final ────────────────
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB por arquivo
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf') {
       return cb(new Error('Apenas imagens e PDF são aceitos.'));
@@ -55,10 +41,6 @@ const upload = multer({
 });
 
 // ─── POST /api/vistoria/salvar ────────────────────────────────────────────────
-// Body: multipart/form-data
-//   dados  (campo text)  → JSON com todo o estado do checklist
-//   fotos  (campos file) → imagens opcionais
-//   pdf    (campo file)  → PDF do checklist gerado no frontend
 router.post('/salvar', upload.fields([{ name: 'fotos', maxCount: 30 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
   try {
     const { dados } = req.body;
@@ -71,85 +53,82 @@ router.post('/salvar', upload.fields([{ name: 'fotos', maxCount: 30 }, { name: '
 
     const placa = (checklist?.veiculo?.placa || 'SEM_PLACA').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-    // Sessão: YYYY-MM-DD_HHmmss_uuid-curto
-    const now    = new Date();
-    const datePart = now.toISOString().slice(0, 10);           // 2025-04-16
-    const timePart = now.toTimeString().slice(0, 8).replace(/:/g, ''); // 143022
-    const sessao = `${datePart}_${timePart}_${uuidv4().slice(0, 6)}`;
+    const now      = new Date();
+    const datePart = now.toISOString().slice(0, 10);
+    const timePart = now.toTimeString().slice(0, 8).replace(/:/g, '');
+    const sessao   = `${datePart}_${timePart}_${uuidv4().slice(0, 6)}`;
 
     const dir = sessaoDir(placa, sessao);
     ensureDir(dir);
 
-    // Salvar fotos com compressão e montar lista de nomes
+    // Salvar fotos com compressão
     const fotosNomes = [];
-    const fotosArquivos = req.files?.fotos || [];
-    for (let i = 0; i < fotosArquivos.length; i++) {
-      const file = fotosArquivos[i];
+    for (let i = 0; i < (req.files?.fotos || []).length; i++) {
+      const file = req.files.fotos[i];
       const nome = `foto_${String(i + 1).padStart(2, '0')}.jpg`;
-      const destPath = path.join(dir, nome);
       await sharp(file.buffer)
         .rotate()
         .resize({ width: FOTO_MAX_WIDTH, withoutEnlargement: true })
         .jpeg({ quality: FOTO_QUALITY, mozjpeg: true })
-        .toFile(destPath);
+        .toFile(path.join(dir, nome));
       fotosNomes.push(nome);
     }
 
-    // Salvar PDF do checklist (gerado no frontend)
-    const pdfArquivos = req.files?.pdf || [];
+    // Salvar PDF
     let pdfNome = null;
-    if (pdfArquivos.length > 0) {
+    if ((req.files?.pdf || []).length > 0) {
       pdfNome = `checklist_${placa}.pdf`;
-      fs.writeFileSync(path.join(dir, pdfNome), pdfArquivos[0].buffer);
+      fs.writeFileSync(path.join(dir, pdfNome), req.files.pdf[0].buffer);
     }
 
-    // Enriquecer o JSON com metadados e lista de fotos
     const payload = {
       ...checklist,
-      _meta: {
-        placa,
-        sessao,
-        savedAt: now.toISOString(),
-        fotos: fotosNomes,
-        pdf: pdfNome,
-      },
+      _meta: { placa, sessao, savedAt: now.toISOString(), fotos: fotosNomes, pdf: pdfNome },
     };
 
+    // Persistir no SQLite
+    getDb().prepare(`
+      INSERT OR REPLACE INTO vistorias (id, placa, dados_json, fotos_json, pdf_nome, criado_em)
+      VALUES (@id, @placa, @dados_json, @fotos_json, @pdf_nome, @criado_em)
+    `).run({
+      id:        sessao,
+      placa,
+      dados_json: JSON.stringify(payload),
+      fotos_json: JSON.stringify(fotosNomes),
+      pdf_nome:   pdfNome,
+      criado_em:  now.toISOString(),
+    });
+
+    // Manter checklist.json no disco (backup / compatibilidade com migração)
     fs.writeFileSync(path.join(dir, 'checklist.json'), JSON.stringify(payload, null, 2));
 
-    return res.json({
-      ok: true,
-      sessao,
-      placa,
-      fotos: fotosNomes.length,
-      savedAt: payload._meta.savedAt,
-    });
+    return res.json({ ok: true, sessao, placa, fotos: fotosNomes.length, savedAt: payload._meta.savedAt });
   } catch (err) {
     return res.status(500).json({ ok: false, erro: err.message });
   }
 });
 
 // ─── GET /api/vistoria/historico/:placa ──────────────────────────────────────
-// Lista todas as sessões salvas para uma placa.
 router.get('/historico/:placa', (req, res) => {
   try {
     const placa = req.params.placa.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const sessoes = listarSessoes(placa);
 
-    const lista = sessoes.map(sessao => {
-      const jsonPath = path.join(uploadsBase(), placa, sessao, 'checklist.json');
-      try {
-        const payload = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-        return {
-          sessao,
-          savedAt: payload._meta?.savedAt || null,
-          fotos:   payload._meta?.fotos?.length || 0,
-          veiculo: payload.veiculo || null,
-          motorista: payload.motorista?.nome || null,
-        };
-      } catch {
-        return { sessao, savedAt: null, fotos: 0 };
-      }
+    const rows = getDb().prepare(
+      'SELECT id, dados_json, fotos_json, criado_em FROM vistorias WHERE placa = ? ORDER BY criado_em DESC'
+    ).all(placa);
+
+    const lista = rows.map(row => {
+      let dados = {};
+      try { dados = JSON.parse(row.dados_json); } catch {}
+      let fotos = [];
+      try { fotos = JSON.parse(row.fotos_json); } catch {}
+      return {
+        sessao:    row.id,
+        savedAt:   row.criado_em,
+        fotos:     fotos.length,
+        veiculo:   dados.veiculo   || null,
+        motorista: dados.motorista?.nome || null,
+      };
     });
 
     return res.json({ ok: true, placa, total: lista.length, lista });
@@ -159,23 +138,20 @@ router.get('/historico/:placa', (req, res) => {
 });
 
 // ─── GET /api/vistoria/:placa/:sessao ────────────────────────────────────────
-// Carrega uma sessão específica com URLs das fotos.
 router.get('/:placa/:sessao', (req, res) => {
   try {
     const placa  = req.params.placa.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const sessao = req.params.sessao;
 
-    const jsonPath = path.join(sessaoDir(placa, sessao), 'checklist.json');
-    if (!fs.existsSync(jsonPath)) {
-      return res.status(404).json({ ok: false, erro: 'Vistoria não encontrada.' });
-    }
+    const row = getDb().prepare('SELECT * FROM vistorias WHERE id = ?').get(sessao);
+    if (!row) return res.status(404).json({ ok: false, erro: 'Vistoria não encontrada.' });
 
-    const payload = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    let payload = {};
+    try { payload = JSON.parse(row.dados_json); } catch {}
+    let fotos = [];
+    try { fotos = JSON.parse(row.fotos_json); } catch {}
 
-    // Montar URLs públicas das fotos
-    const fotosUrls = (payload._meta?.fotos || []).map(nome =>
-      `/uploads/${placa}/${sessao}/${nome}`
-    );
+    const fotosUrls = fotos.map(nome => `/uploads/${placa}/${sessao}/${nome}`);
 
     return res.json({ ok: true, checklist: payload, fotosUrls });
   } catch (err) {
@@ -184,11 +160,10 @@ router.get('/:placa/:sessao', (req, res) => {
 });
 
 // ─── GET /api/vistoria/foto/:placa/:sessao/:arquivo ──────────────────────────
-// Serve uma foto individualmente (fallback caso o static não esteja configurado).
 router.get('/foto/:placa/:sessao/:arquivo', (req, res) => {
   const placa   = req.params.placa.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const sessao  = req.params.sessao;
-  const arquivo = path.basename(req.params.arquivo); // evita path traversal
+  const arquivo = path.basename(req.params.arquivo);
 
   const filePath = path.join(sessaoDir(placa, sessao), arquivo);
   if (!fs.existsSync(filePath)) {
