@@ -165,15 +165,28 @@ async function criarLinkFirebird(cdSaida, cdEmpresa, card) {
     fbDb = await connectFirebird();
     const now = new Date();
 
-    const existe = await new Promise((resolve, reject) => {
+    // Verifica se já existe vínculo para esta sessão (independente de qual OS estava antes)
+    const existente = await new Promise((resolve, reject) => {
       fbDb.query(
-        'SELECT 1 FROM WEB_CHECKLIST_OS_LINK WHERE CD_SAIDA = ? AND CD_EMPRESA = ?',
-        [cdSaida, cdEmpresa],
-        (err, rows) => { if (err) reject(err); else resolve(rows && rows.length > 0); }
+        'SELECT CD_WEB_CHECKLIST_OS_LINK FROM WEB_CHECKLIST_OS_LINK WHERE DS_SESSAO_WEB = ? AND CD_EMPRESA = ?',
+        [card.sessao || '', cdEmpresa],
+        (err, rows) => { if (err) reject(err); else resolve(rows && rows.length > 0 ? rows[0] : null); }
       );
     });
 
-    if (!existe) {
+    if (existente) {
+      // Atualiza para a nova OS (revínculo)
+      await new Promise((resolve, reject) => {
+        fbDb.query(
+          `UPDATE WEB_CHECKLIST_OS_LINK
+           SET CD_SAIDA = ?, DS_COLABORADOR = ?, CK_CHECKLIST_CONCLUIDO = 'F', CK_NF_EMITIDA = 'F',
+               DS_NUMERO_NF = NULL, DT_NF_EMITIDA = NULL
+           WHERE DS_SESSAO_WEB = ? AND CD_EMPRESA = ?`,
+          [cdSaida, card.colaborador || '', card.sessao || '', cdEmpresa],
+          (err) => { if (err) reject(err); else resolve(); }
+        );
+      });
+    } else {
       await new Promise((resolve, reject) => {
         fbDb.query(
           `INSERT INTO WEB_CHECKLIST_OS_LINK

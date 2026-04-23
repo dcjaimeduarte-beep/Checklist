@@ -984,16 +984,28 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                 }}>
                   ✅ NF {selected.nfNumero ? `#${selected.nfNumero}` : ''} emitida no Solutio
                 </div>
-              ) : selected.cdSaida ? (
+              ) : selected.cdSaida && !osPanelOpen ? (
                 <div style={{
                   background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8,
                   padding: '8px 12px', fontSize: 12, color: '#16a34a',
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
-                  🔗 Vinculado à OS <b>#{selected.cdSaida}</b>
-                  <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>
-                    — aguardando transmissão da NF
+                  <span style={{ flex: 1 }}>
+                    🔗 Vinculado à OS <b>#{selected.cdSaida}</b>
+                    <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>
+                      — aguardando transmissão da NF
+                    </span>
                   </span>
+                  <button
+                    onClick={() => buscarOsAbertas(selected.placa)}
+                    style={{
+                      background: '#fff', border: '1px solid #86efac', borderRadius: 6,
+                      padding: '3px 8px', cursor: 'pointer', fontSize: 10,
+                      color: '#16a34a', fontWeight: 700, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Alterar
+                  </button>
                 </div>
               ) : (
                 <div>
