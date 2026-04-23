@@ -68,7 +68,7 @@ router.get('/cards', (req, res) => {
 
 // ─── POST /api/kanban/card ────────────────────────────────────────────────────
 router.post('/card', (req, res) => {
-  const { placa, veiculo, cor, motorista, sessao } = req.body;
+  const { placa, veiculo, cor, motorista, sessao, colaborador } = req.body;
   if (!placa) return res.status(400).json({ ok: false, erro: 'Placa obrigatória.' });
 
   const db  = readDb();
@@ -77,10 +77,11 @@ router.post('/card', (req, res) => {
   const card = {
     id: uuidv4(),
     placa: placa.toUpperCase().replace(/[^A-Z0-9]/g, ''),
-    veiculo:   veiculo   || '',
-    cor:       cor       || '',
-    motorista: motorista || '',
-    sessao:    sessao    || null,
+    veiculo:     veiculo     || '',
+    cor:         cor         || '',
+    motorista:   motorista   || '',
+    colaborador: colaborador || '',
+    sessao:      sessao      || null,
     status: 1,
     criadoEm:           now,
     statusAtualizadoEm: now,
@@ -98,7 +99,7 @@ router.post('/card', (req, res) => {
 // ─── PATCH /api/kanban/card/:id/status ───────────────────────────────────────
 router.patch('/card/:id/status', (req, res) => {
   const s = Number(req.body.status);
-  if (!s || s < 1 || s > 9) return res.status(400).json({ ok: false, erro: 'Status inválido (1–9).' });
+  if (!s || s < 1) return res.status(400).json({ ok: false, erro: 'Status inválido.' });
 
   const db   = readDb();
   const card = db.cards.find(c => c.id === req.params.id);
@@ -111,8 +112,21 @@ router.patch('/card/:id/status', (req, res) => {
 
   card.status             = s;
   card.statusAtualizadoEm = now;
+  if (req.body.colaborador !== undefined) card.colaborador = req.body.colaborador;
   card.historico.push({ status: s, label, entrada: now, saida: null });
 
+  writeDb(db);
+  broadcast('card_updated', card);
+  res.json({ ok: true, card });
+});
+
+// ─── PATCH /api/kanban/card/:id/colaborador ──────────────────────────────────
+router.patch('/card/:id/colaborador', (req, res) => {
+  const db   = readDb();
+  const card = db.cards.find(c => c.id === req.params.id);
+  if (!card) return res.status(404).json({ ok: false, erro: 'Card não encontrado.' });
+
+  card.colaborador = req.body.colaborador || '';
   writeDb(db);
   broadcast('card_updated', card);
   res.json({ ok: true, card });

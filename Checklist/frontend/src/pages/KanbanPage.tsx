@@ -93,6 +93,7 @@ interface KanbanCard {
   veiculo: string
   cor: string
   motorista: string
+  colaborador: string
   sessao: string | null
   status: number
   criadoEm: string
@@ -218,6 +219,11 @@ function Card({ card, tvMode, onClick, onRemove, settings, statuses }: {
           👤 {card.motorista}
         </div>
       )}
+      {card.colaborador && (
+        <div style={{ fontSize: tvMode ? 12 : 10, color: TEAL, marginTop: 1, fontWeight: 600 }}>
+          🔧 {card.colaborador}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <span style={{
           fontSize: tvMode ? 12 : 10, fontWeight: 700,
@@ -251,6 +257,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
   const [draft, setDraft]             = useState<KanbanSettings>(loadSettings)
   const [draftStatuses, setDraftStatuses] = useState<StatusConfig[]>([])
   const [settingsTab, setSettingsTab] = useState<'timing' | 'statuses'>('timing')
+  const [colaboradorInput, setColaboradorInput] = useState('')
   const sseRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
@@ -294,12 +301,12 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
     return () => es?.close()
   }, [])
 
-  const changeStatus = useCallback(async (cardId: string, status: number) => {
+  const changeStatus = useCallback(async (cardId: string, status: number, colaborador?: string) => {
     const label = statuses.find(s => s.id === status)?.label
     await fetch(`/api/kanban/card/${cardId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, label }),
+      body: JSON.stringify({ status, label, colaborador }),
     })
     setSelected(null)
   }, [statuses])
@@ -492,7 +499,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                     tvMode={tvMode}
                     settings={settings}
                     statuses={statuses}
-                    onClick={() => { if (!tvMode) setSelected(card) }}
+                    onClick={() => { if (!tvMode) { setSelected(card); setColaboradorInput(card.colaborador ?? '') } }}
                     onRemove={() => removeCard(card.id)}
                   />
                 ))}
@@ -750,7 +757,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
             zIndex: 100, display: 'flex',
             alignItems: 'flex-end', justifyContent: 'center', padding: 16,
           }}
-          onClick={() => setSelected(null)}
+          onClick={() => { setSelected(null); setColaboradorInput('') }}
         >
           <div
             style={{
@@ -776,8 +783,23 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                   <span>⏱ Status atual: <b style={{ color: '#fff' }}>{formatDuration(selected.statusAtualizadoEm)}</b></span>
                   <span>🏁 Total: <b style={{ color: '#fff' }}>{formatDuration(selected.criadoEm)}</b></span>
                 </div>
+                {/* Colaborador */}
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>🔧</span>
+                  <input
+                    value={colaboradorInput}
+                    onChange={e => setColaboradorInput(e.target.value)}
+                    placeholder="Colaborador responsável"
+                    style={{
+                      flex: 1, background: 'rgba(255,255,255,0.1)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: 6, padding: '5px 10px',
+                      color: '#fff', fontSize: 12, outline: 'none',
+                    }}
+                  />
+                </div>
               </div>
-              <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 4 }}>
+              <button onClick={() => { setSelected(null); setColaboradorInput('') }} style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 4 }}>
                 <X size={20} />
               </button>
             </div>
@@ -793,7 +815,7 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
                   return (
                     <button
                       key={st.id}
-                      onClick={() => !isCurrent && changeStatus(selected.id, st.id)}
+                      onClick={() => !isCurrent && changeStatus(selected.id, st.id, colaboradorInput)}
                       style={{
                         padding: '10px 12px', borderRadius: 8,
                         cursor: isCurrent ? 'default' : 'pointer',
