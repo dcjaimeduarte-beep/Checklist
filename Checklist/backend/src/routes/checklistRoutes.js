@@ -206,12 +206,14 @@ router.get('/veiculo/placa/:placa', async (req, res) => {
           return res.json({ ok: true, veiculo, osList: [], ultimaOS: null });
         }
 
+        const fmtIso = d => d instanceof Date ? d.toISOString().slice(0, 10) : (d || null);
+
         const osList = osRows.map(os => {
           const tipo = (os.DS_TIPO_SAIDA || '').trim();
           return {
             id: os.CD_SAIDA,
-            data: os.DT_EMISSAO,
-            dataSaida: os.DT_SAIDA,
+            data: fmtIso(os.DT_EMISSAO),
+            dataSaida: fmtIso(os.DT_SAIDA),
             numeroNota: (os.DS_NUMERO_NOTA || '').trim(),
             tipo,
             tipoLabel: labelTipo(tipo),

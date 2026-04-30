@@ -32,7 +32,7 @@ router.get('/tabelas', async (req, res) => {
       SELECT RDB$RELATION_NAME
       FROM RDB$RELATIONS
       WHERE RDB$SYSTEM_FLAG = 0
-        AND COALESCE(RDB$VIEW_BLR, '') = ''
+        AND RDB$VIEW_BLR IS NULL
       ORDER BY RDB$RELATION_NAME
     `;
 
