@@ -359,11 +359,15 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
 
   const changeStatus = useCallback(async (cardId: string, status: number, colaborador?: string) => {
     const label = statuses.find(s => s.id === status)?.label
-    await fetch(`/api/kanban/card/${cardId}/status`, {
+    const res  = await fetch(`/api/kanban/card/${cardId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, label, colaborador }),
     })
+    const json = await res.json()
+    if (json.ok && json.card) {
+      setCards(prev => prev.map(c => c.id === json.card.id ? json.card : c))
+    }
     setSelected(null)
   }, [statuses])
 
@@ -384,23 +388,29 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
   }
 
   const marcarConcluido = useCallback(async (cardId: string, concluido: boolean) => {
-    await fetch(`/api/kanban/card/${cardId}/concluido`, {
+    const res  = await fetch(`/api/kanban/card/${cardId}/concluido`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ concluido }),
     })
+    const json = await res.json()
+    if (json.ok && json.card) {
+      setCards(prev => prev.map(c => c.id === json.card.id ? json.card : c))
+    }
     setSelected(null)
     setColaboradorInput('')
   }, [])
 
   const salvarColaborador = async () => {
     if (!selected) return
-    const res = await fetch(`/api/kanban/card/${selected.id}/colaborador`, {
+    const res  = await fetch(`/api/kanban/card/${selected.id}/colaborador`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ colaborador: colaboradorInput }),
     })
-    if (res.ok) {
+    const json = await res.json()
+    if (json.ok && json.card) {
+      setCards(prev => prev.map(c => c.id === json.card.id ? json.card : c))
       setSelected(null)
       setColaboradorInput('')
       setColaboradorSalvo(false)
@@ -421,11 +431,15 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
 
   const vincularOs = async (cdSaida: number) => {
     if (!selected) return
-    await fetch(`/api/kanban/card/${selected.id}/link-os`, {
+    const res  = await fetch(`/api/kanban/card/${selected.id}/link-os`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cdSaida }),
     })
+    const json = await res.json()
+    if (json.ok && json.card) {
+      setCards(prev => prev.map(c => c.id === json.card.id ? json.card : c))
+    }
     setOsPanelOpen(false)
     setOsLista([])
   }
