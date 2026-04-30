@@ -518,7 +518,7 @@ export default function ChecklistPage({ onHistorico, onKanban }: { onHistorico?:
 
       // Criar card no Kanban se solicitado
       if (iniciarKanban) {
-        await fetch('/api/kanban/card', {
+        const kanbanRes = await fetch('/api/kanban/card', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -529,6 +529,10 @@ export default function ChecklistPage({ onHistorico, onKanban }: { onHistorico?:
             sessao:    json.sessao,
           }),
         })
+        const kanbanJson = await kanbanRes.json()
+        if (kanbanJson.jaExiste) {
+          alert(`Este veículo (${placaV || json.placa}) já está no Kanban com uma O.S. em aberto. O Kanban será aberto.`)
+        }
         window.open('/?kanban', '_blank')
         return
       }

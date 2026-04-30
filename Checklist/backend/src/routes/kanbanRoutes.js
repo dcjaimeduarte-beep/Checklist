@@ -34,12 +34,22 @@ router.post('/card', (req, res) => {
   const { placa, veiculo, cor, motorista, sessao, colaborador } = req.body;
   if (!placa) return res.status(400).json({ ok: false, erro: 'Placa obrigatória.' });
 
-  const now      = new Date().toISOString();
-  const id       = uuidv4();
-  const hist     = JSON.stringify([{ status: 1, label: 'Aguardando Diagnóstico', entrada: now, saida: null }]);
   const placaNorm = placa.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const db = getDb();
 
-  getDb().prepare(`
+  // Impede duplicata: retorna card existente ativo para a mesma placa
+  const existente = db.prepare(
+    'SELECT * FROM kanban_cards WHERE placa = ? AND concluido = 0 LIMIT 1'
+  ).get(placaNorm);
+  if (existente) {
+    return res.json({ ok: true, jaExiste: true, card: rowToCard(existente) });
+  }
+
+  const now  = new Date().toISOString();
+  const id   = uuidv4();
+  const hist = JSON.stringify([{ status: 1, label: 'Aguardando Diagnóstico', entrada: now, saida: null }]);
+
+  db.prepare(`
     INSERT INTO kanban_cards
       (id, placa, veiculo, cor, motorista, colaborador, sessao,
        status, concluido, concluido_em, criado_em, status_atualizado_em, historico_json)
@@ -50,7 +60,7 @@ router.post('/card', (req, res) => {
             motorista: motorista || '', colaborador: colaborador || '',
             sessao: sessao || null, now, hist });
 
-  const card = rowToCard(getDb().prepare('SELECT * FROM kanban_cards WHERE id = ?').get(id));
+  const card = rowToCard(db.prepare('SELECT * FROM kanban_cards WHERE id = ?').get(id));
   broadcast('card_added', card);
   res.json({ ok: true, card });
 });
