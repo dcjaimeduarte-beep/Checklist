@@ -369,8 +369,9 @@ export default function KanbanPage({ onVoltar }: { onVoltar: () => void }) {
 
   const removeCard = useCallback(async (cardId: string) => {
     if (!confirm('Remover este veículo do Kanban?')) return
-    await fetch(`/api/kanban/card/${cardId}`, { method: 'DELETE' })
+    setCards(prev => prev.filter(c => c.id !== cardId))
     setSelected(null)
+    await fetch(`/api/kanban/card/${cardId}`, { method: 'DELETE' })
   }, [])
 
   const toggleTvMode = () => {
