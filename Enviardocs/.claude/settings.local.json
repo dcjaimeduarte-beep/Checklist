@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(API_SECRET_KEY=test DOCS_BASE_PATH=/tmp SMTP_HOST=h SMTP_USER=u SMTP_PASS=p npm test)",
+      "Bash(npm test:*)",
+      "Bash(mkdir -p backend frontend)",
+      "Bash(mv src:*)",
+      "Bash(mv node_modules backend/)",
+      "Read(//c/Users/Jaime Duarte/.claude/projects/c--Users-Jaime-Duarte-Documents-GitHub/memory//**)",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"require\\('better-sqlite3'\\); console.log\\('OK'\\)\")",
+      "Bash(npx ts-node:*)",
+      "Bash(API_SECRET_KEY=x DOCS_BASE_PATH=/tmp SMTP_HOST=h SMTP_USER=u SMTP_PASS=p npx ts-node src/scripts/importClients.ts)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(curl -s http://localhost:3000/api/clientes)",
+      "Bash(curl -s -X PUT http://localhost:3000/api/clientes/1 -H \"x-api-key: troque-por-uma-chave-forte-e-longa\" -H \"Content-Type: application/json\" -d '{\"nome\":\"Teste\"}')",
+      "Bash(curl -s http://localhost:3000/api/clientes/1 -H \"x-api-key: troque-por-uma-chave-forte-e-longa\")",
+      "Bash(curl -s -X PUT http://localhost:3000/api/clientes/1 -H 'x-api-key: troque-por-uma-chave-forte-e-longa' -H 'Content-Type: application/json' -d '{\"nome\":\"Servipa Transportes\",\"cnpj\":\"24.315.640/0001-59\",\"emails\":[\"gabriela@servipa.com.br\",\"contato@servipa.com.br\"]}')",
+      "Bash(curl -s http://localhost:3000/api/status -H \"x-api-key: troque-por-uma-chave-forte-e-longa\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(curl -s http://localhost:3000/api/clientes -H \"x-api-key: troque-por-uma-chave-forte-e-longa\")",
+      "Bash(curl -s \"http://localhost:3000/api/envios/preview?mes=2026-04\" -H \"x-api-key: troque-por-uma-chave-forte-e-longa\")",
+      "Bash(curl -s http://localhost:3000/api/clientes/54 -H \"x-api-key: troque-por-uma-chave-forte-e-longa\")",
+      "Bash(curl -s \"http://localhost:3000/api/status?mes=2026-04\" -H \"x-api-key: troque-por-uma-chave-forte-e-longa\")",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3000)",
+      "Bash(findstr LISTENING)",
+      "Bash(findstr :5173)",
+      "Bash(taskkill /PID 9620 /F)",
+      "Bash(taskkill /PID 24852 /F)",
+      "Bash(cmd //c \"taskkill /PID 9620 /F && taskkill /PID 24852 /F\")",
+      "Bash(findstr \":3000 \\\\|:5173 \")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Jaime Duarte\\Documents\\GitHub\\Enviardocs\\.claude"
+    ]
+  }
+}

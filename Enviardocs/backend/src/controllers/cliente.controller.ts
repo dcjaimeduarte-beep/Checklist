@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { criarClienteSchema, atualizarClienteSchema } from "../validations/cliente.validation";
 import * as clienteService from "../services/cliente.service";
+import { importarPlanilha } from "../services/import.service";
 
 export function listarClientes(_req: Request, res: Response, next: NextFunction): void {
   try {
@@ -74,10 +75,37 @@ export function desativarCliente(req: Request, res: Response, next: NextFunction
   } catch (err) { next(err); }
 }
 
+export function ativarCliente(req: Request, res: Response, next: NextFunction): void {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) { res.status(400).json({ erro: "ID inválido." }); return; }
+    clienteService.ativarCliente(id);
+    res.status(204).send();
+  } catch (err) { next(err); }
+}
+
+export function listarClientesInativos(_req: Request, res: Response, next: NextFunction): void {
+  try {
+    const clientes = clienteService.listarClientesInativos();
+    res.json({ dados: clientes, total: clientes.length });
+  } catch (err) { next(err); }
+}
+
 export function historicoEnvios(req: Request, res: Response, next: NextFunction): void {
   try {
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) { res.status(400).json({ erro: "ID inválido." }); return; }
     res.json({ dados: clienteService.historicoEnvios(id) });
+  } catch (err) { next(err); }
+}
+
+export function importarClientes(req: Request, res: Response, next: NextFunction): void {
+  try {
+    if (!req.file) {
+      res.status(400).json({ erro: "Nenhuma planilha enviada." });
+      return;
+    }
+    const resultado = importarPlanilha(req.file.buffer);
+    res.json(resultado);
   } catch (err) { next(err); }
 }

@@ -4,7 +4,12 @@ const listaEmails = z.array(z.string().email("E-mail inválido.")).default([]);
 
 export const criarClienteSchema = z.object({
   nome:           z.string().min(2).max(200),
-  cnpj:           z.string().max(20).optional(),
+  cnpj:           z.string().max(20).optional().transform(v => {
+    if (!v) return v;
+    const digits = v.replace(/[.\-\/\s]/g, '');
+    if (/^\d+$/.test(digits) && digits.length >= 8) return digits.padStart(14, '0');
+    return v;
+  }),
   nomeContato:    z.string().max(100).optional(),
   telefone:       z.string().max(50).optional(),
   tipoEnvio:      z.enum(["email", "boleto", "pix", "whatsapp", "recibo"]).default("email"),

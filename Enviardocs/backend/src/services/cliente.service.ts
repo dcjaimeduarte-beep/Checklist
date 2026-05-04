@@ -162,6 +162,27 @@ export function desativarCliente(id: number): void {
   if (result.changes === 0) throw new ErroClienteNaoEncontrado(id);
 }
 
+export function ativarCliente(id: number): void {
+  const db = getDb();
+  const result = db.prepare(
+    "UPDATE clients SET active = 1, updated_at = datetime('now') WHERE id = ?"
+  ).run(id);
+  if (result.changes === 0) throw new ErroClienteNaoEncontrado(id);
+}
+
+export function listarClientesInativos(): Cliente[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT c.*, GROUP_CONCAT(e.email, ';') AS emails_raw
+    FROM clients c
+    LEFT JOIN client_emails e ON e.client_id = c.id
+    WHERE c.active = 0
+    GROUP BY c.id
+    ORDER BY c.name
+  `).all() as Record<string, unknown>[];
+  return rows.map(mapearCliente);
+}
+
 export function registrarEnvio(
   clienteId: number,
   mes: string,
@@ -180,6 +201,20 @@ export function historicoEnvios(clienteId: number): unknown[] {
   return getDb().prepare(
     "SELECT * FROM send_log WHERE client_id = ? ORDER BY sent_at DESC LIMIT 50"
   ).all(clienteId);
+}
+
+export function foiEnviado(clienteId: number, mes: string): boolean {
+  const row = getDb()
+    .prepare("SELECT 1 FROM send_log WHERE client_id = ? AND month = ? AND status = 'success' LIMIT 1")
+    .get(clienteId, mes);
+  return row !== undefined;
+}
+
+export function jaEnviadosNoMes(mes: string): number[] {
+  const rows = getDb()
+    .prepare("SELECT DISTINCT client_id FROM send_log WHERE month = ? AND status = 'success'")
+    .all(mes) as { client_id: number }[];
+  return rows.map(r => r.client_id);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

@@ -88,6 +88,55 @@ export async function desativarCliente(id: number): Promise<void> {
   await api.delete(`/clientes/${id}`);
 }
 
+export async function ativarCliente(id: number): Promise<void> {
+  await api.put(`/clientes/${id}/ativar`);
+}
+
+export async function listarClientesInativos(): Promise<Cliente[]> {
+  const { data } = await api.get<{ dados: Cliente[] }>("/clientes/inativos");
+  return data.dados;
+}
+
+export interface ImportDetalhe {
+  nome: string;
+  cnpj: string;
+  acao: "inserido" | "atualizado" | "ignorado";
+  motivo?: string;
+}
+
+export interface ImportResult {
+  inseridos: number;
+  atualizados: number;
+  ignorados: number;
+  detalhes: ImportDetalhe[];
+}
+
+export async function importarPlanilha(file: File): Promise<ImportResult> {
+  const form = new FormData();
+  form.append("planilha", file);
+  const { data } = await api.post<ImportResult>("/clientes/importar", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+// ── Configurações ──────────────────────────────────────────────────────────
+
+export interface Template {
+  assunto: string;
+  corpo: string;
+  defaults: { assunto: string; corpo: string };
+}
+
+export async function buscarTemplate(): Promise<Template> {
+  const { data } = await api.get<Template>("/config/template");
+  return data;
+}
+
+export async function salvarTemplate(assunto: string, corpo: string): Promise<void> {
+  await api.put("/config/template", { assunto, corpo });
+}
+
 // ── Status / Dashboard ─────────────────────────────────────────────────────
 
 export async function buscarStatus(mes?: string): Promise<Status> {
@@ -147,4 +196,9 @@ export interface RespostaLote {
 export async function enviarLote(mes: string, clienteIds: number[]): Promise<RespostaLote> {
   const { data } = await api.post<RespostaLote>("/envios/lote", { mes, clienteIds });
   return data;
+}
+
+export async function buscarJaEnviados(mes: string): Promise<number[]> {
+  const { data } = await api.get<{ mes: string; clienteIds: number[] }>("/envios/enviados", { params: { mes } });
+  return data.clienteIds;
 }

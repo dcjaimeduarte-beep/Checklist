@@ -4,6 +4,7 @@ import {
   enviarDocumentosCliente,
   previewEnvios,
   enviarLote,
+  buscarJaEnviados,
 } from "../controllers/envio.controller";
 import { enviarLoteUpload } from "../controllers/upload.controller";
 import { apiKeyMiddleware } from "../middlewares/apiKey.middleware";
@@ -20,6 +21,7 @@ const router = Router();
 router.use(apiKeyMiddleware);
 
 router.get("/preview",       previewEnvios);
+router.get("/enviados",      buscarJaEnviados);
 router.post("/cliente",      validate(envioSchema), enviarDocumentosCliente);
 router.post("/lote",         enviarLote);
 router.post("/lote-upload",  upload.array("arquivos"), enviarLoteUpload);

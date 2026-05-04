@@ -1,12 +1,16 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   listarClientes,
+  listarClientesInativos,
   buscarClientePorNome,
   atualizarCliente,
   criarCliente,
   desativarCliente,
+  ativarCliente,
+  importarPlanilha,
   type Cliente,
   type ClienteInput,
+  type ImportResult,
 } from "../services/api";
 
 const TIPO_ENVIO_OPTS = ["email", "boleto", "pix", "whatsapp", "recibo"];
@@ -32,25 +36,31 @@ export function Clientes() {
   const [confirmarId, setConfirm]   = useState<number | null>(null);
   const [pagina, setPagina]         = useState(1);
   const [porPagina, setPorPagina]   = useState<PorPagina>(10);
+  const [importando, setImportando] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [mostrarInativos, setMostrarInativos] = useState(false);
+  const [confirmarInativar, setConfirmarInativar] = useState(false);
 
   const carregar = useCallback(() => {
     setCarreg(true);
-    listarClientes()
+    (mostrarInativos ? listarClientesInativos() : listarClientes())
       .then(setClientes)
       .catch(() => setErro("Não foi possível carregar os clientes."))
       .finally(() => setCarreg(false));
-  }, []);
+  }, [mostrarInativos]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
   useEffect(() => {
-    setPagina(1); // volta para a primeira página ao buscar
+    setPagina(1);
+    if (mostrarInativos) return; // busca só funciona para ativos por ora
     if (busca.length < 2) { carregar(); return; }
     const t = setTimeout(() => {
       buscarClientePorNome(busca).then(setClientes).catch(() => {});
     }, 400);
     return () => clearTimeout(t);
-  }, [busca, carregar]);
+  }, [busca, carregar, mostrarInativos]);
 
   // Paginação
   const totalPaginas = porPagina === 0 ? 1 : Math.ceil(clientes.length / porPagina);
@@ -77,7 +87,7 @@ export function Clientes() {
     setModal(c);
   }
 
-  function fecharModal() { setModal(null); setErro(""); }
+  function fecharModal() { setModal(null); setErro(""); setConfirmarInativar(false); }
 
   function campo(key: keyof ClienteInput, value: string) {
     setForm(f => ({ ...f, [key]: value }));
@@ -95,15 +105,23 @@ export function Clientes() {
     setForm(f => ({ ...f, emails: (f.emails ?? []).filter(x => x !== email) }));
   }
 
+  function normalizarCnpj(cnpj: string | null | undefined): string | undefined {
+    if (!cnpj) return undefined;
+    const digits = cnpj.replace(/[.\-\/\s]/g, '');
+    if (/^\d+$/.test(digits) && digits.length >= 8) return digits.padStart(14, '0');
+    return cnpj;
+  }
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     setSalvando(true);
     setErro("");
+    const formNorm = { ...form, cnpj: normalizarCnpj(form.cnpj) };
     try {
       if (modal === "novo") {
-        await criarCliente(form);
+        await criarCliente(formNorm);
       } else if (modal) {
-        await atualizarCliente(modal.id, form);
+        await atualizarCliente(modal.id, formNorm);
       }
       fecharModal();
       carregar();
@@ -113,6 +131,24 @@ export function Clientes() {
       setErro(msg);
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function handleImportar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImportando(true);
+    try {
+      const result = await importarPlanilha(file);
+      setImportResult(result);
+      carregar();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { erro?: string } } })
+        ?.response?.data?.erro ?? "Erro ao importar planilha.";
+      setErro(msg);
+    } finally {
+      setImportando(false);
     }
   }
 
@@ -127,13 +163,49 @@ export function Clientes() {
     }
   }
 
+  async function handleInativarNoModal() {
+    if (!modal || modal === "novo") return;
+    try {
+      await desativarCliente(modal.id);
+      fecharModal();
+      carregar();
+    } catch {
+      setErro("Erro ao inativar cliente.");
+    }
+  }
+
+  async function handleReativar(id: number) {
+    try {
+      await ativarCliente(id);
+      carregar();
+    } catch {
+      setErro("Erro ao reativar cliente.");
+    }
+  }
+
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
         {/* Cabeçalho */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-3)" }}>
           <h1 className="card__title" style={{ marginBottom: 0 }}>Clientes</h1>
-          <button className="btn btn--primary" onClick={abrirNovo}>+ Novo cliente</button>
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: "none" }}
+              onChange={handleImportar}
+            />
+            <button
+              className="btn btn--secondary"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importando}
+            >
+              {importando ? "Importando..." : "Importar planilha"}
+            </button>
+            <button className="btn btn--primary" onClick={abrirNovo}>+ Novo cliente</button>
+          </div>
         </div>
 
         {/* Busca */}
@@ -156,9 +228,20 @@ export function Clientes() {
             background: "var(--color-bg)",
             flexWrap: "wrap", gap: "var(--space-3)",
           }}>
-            <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
-              {clientes.length} cliente{clientes.length !== 1 ? "s" : ""} encontrado{clientes.length !== 1 ? "s" : ""}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
+              <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
+                {clientes.length} cliente{clientes.length !== 1 ? "s" : ""} {mostrarInativos ? "inativo" : "ativo"}{clientes.length !== 1 ? "s" : ""}
+              </span>
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", cursor: "pointer", fontSize: "var(--font-size-sm)" }}>
+                <input
+                  type="checkbox"
+                  checked={mostrarInativos}
+                  onChange={e => { setMostrarInativos(e.target.checked); setBusca(""); setPagina(1); }}
+                  style={{ width: 15, height: 15, accentColor: "var(--color-text-muted)", cursor: "pointer" }}
+                />
+                <span style={{ color: "var(--color-text-muted)" }}>Mostrar inativos</span>
+              </label>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
               <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>Mostrar:</span>
               {POR_PAGINA_OPTS.map(op => (
@@ -206,7 +289,10 @@ export function Clientes() {
                     onClick={() => abrirEditar(c)}
                   >
                     <td>
-                      <div style={{ fontWeight: 600, color: "var(--color-navy)", marginBottom: 2 }}>{c.nome}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: 2 }}>
+                        <span style={{ fontWeight: 600, color: mostrarInativos ? "var(--color-text-muted)" : "var(--color-navy)" }}>{c.nome}</span>
+                        {mostrarInativos && <span className="badge badge--neutral" style={{ fontSize: "10px" }}>Inativo</span>}
+                      </div>
                       <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginTop: 4 }}>
                         {c.nomeContato && (
                           <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
@@ -238,20 +324,33 @@ export function Clientes() {
                     </td>
                     <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: "var(--space-2)", justifyContent: "center" }}>
-                        <button
-                          title="Editar cliente"
-                          className="icon-btn icon-btn--edit"
-                          onClick={() => abrirEditar(c)}
-                        >
-                          ✎
-                        </button>
-                        <button
-                          title="Remover cliente"
-                          className="icon-btn icon-btn--delete"
-                          onClick={() => setConfirm(c.id)}
-                        >
-                          ✕
-                        </button>
+                        {mostrarInativos ? (
+                          <button
+                            title="Reativar cliente"
+                            className="btn btn--secondary"
+                            style={{ fontSize: "var(--font-size-xs)", padding: "4px 10px", height: "auto" }}
+                            onClick={() => handleReativar(c.id)}
+                          >
+                            Reativar
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              title="Editar cliente"
+                              className="icon-btn icon-btn--edit"
+                              onClick={() => abrirEditar(c)}
+                            >
+                              ✎
+                            </button>
+                            <button
+                              title="Remover cliente"
+                              className="icon-btn icon-btn--delete"
+                              onClick={() => setConfirm(c.id)}
+                            >
+                              ✕
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -457,13 +556,111 @@ export function Clientes() {
                 </div>
               )}
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-3)", paddingTop: "var(--space-2)" }}>
-                <button type="button" className="btn btn--secondary" onClick={fecharModal}>Cancelar</button>
-                <button type="submit" className="btn btn--primary" disabled={salvando}>
-                  {salvando ? "Salvando..." : "Salvar alterações"}
-                </button>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "var(--space-2)", flexWrap: "wrap", gap: "var(--space-2)" }}>
+                {/* Inativar — apenas para cliente existente */}
+                {modal !== "novo" && (
+                  confirmarInativar ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                      <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-error-text)" }}>
+                        Confirmar inativação?
+                      </span>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ fontSize: "var(--font-size-xs)", padding: "4px 12px", height: "auto", background: "var(--color-error-text)", color: "#fff", borderColor: "var(--color-error-text)" }}
+                        onClick={handleInativarNoModal}
+                      >
+                        Sim, inativar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--secondary"
+                        style={{ fontSize: "var(--font-size-xs)", padding: "4px 12px", height: "auto" }}
+                        onClick={() => setConfirmarInativar(false)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn--secondary"
+                      style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", borderColor: "var(--color-border)" }}
+                      onClick={() => setConfirmarInativar(true)}
+                    >
+                      Inativar cliente
+                    </button>
+                  )
+                )}
+                {modal === "novo" && <span />}
+
+                <div style={{ display: "flex", gap: "var(--space-3)" }}>
+                  <button type="button" className="btn btn--secondary" onClick={fecharModal}>Cancelar</button>
+                  <button type="submit" className="btn btn--primary" disabled={salvando}>
+                    {salvando ? "Salvando..." : "Salvar alterações"}
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal resultado da importação */}
+      {importResult !== null && (
+        <div className="modal-backdrop" onClick={() => setImportResult(null)}>
+          <div className="modal" style={{ maxWidth: 680 }} onClick={e => e.stopPropagation()}>
+            <div className="modal__header">
+              <span className="modal__title">Resultado da importação</span>
+              <button className="modal__close" onClick={() => setImportResult(null)}>✕</button>
+            </div>
+            <div className="modal__body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+              {/* Resumo */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-3)" }}>
+                {[
+                  { label: "Inseridos",    valor: importResult.inseridos,  cor: "var(--color-teal)" },
+                  { label: "Atualizados",  valor: importResult.atualizados, cor: "var(--color-navy)" },
+                  { label: "Sem e-mail",   valor: importResult.ignorados,  cor: "var(--color-text-muted)" },
+                ].map(c => (
+                  <div key={c.label} className="card" style={{ textAlign: "center", padding: "var(--space-3)" }}>
+                    <div style={{ fontSize: "1.75rem", fontWeight: 700, color: c.cor }}>{c.valor}</div>
+                    <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>{c.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Detalhes */}
+              <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>CNPJ</th>
+                      <th style={{ textAlign: "center" }}>Ação</th>
+                      <th>Observação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importResult.detalhes.map((d, i) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 500 }}>{d.nome}</td>
+                        <td style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>{d.cnpj}</td>
+                        <td style={{ textAlign: "center" }}>
+                          {d.acao === "inserido"   && <span className="badge badge--success">Inserido</span>}
+                          {d.acao === "atualizado" && <span className="badge badge--neutral">Atualizado</span>}
+                          {d.acao === "ignorado"   && <span className="badge badge--error">Ignorado</span>}
+                        </td>
+                        <td style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>{d.motivo ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button className="btn btn--primary" onClick={() => setImportResult(null)}>Fechar</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

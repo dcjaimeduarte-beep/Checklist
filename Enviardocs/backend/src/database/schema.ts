@@ -48,6 +48,11 @@ export function runMigrations(): void {
       sent_at       TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS config (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_clients_active    ON clients(active);
     CREATE INDEX IF NOT EXISTS idx_clients_cnpj      ON clients(cnpj);
     CREATE INDEX IF NOT EXISTS idx_emails_client     ON client_emails(client_id);

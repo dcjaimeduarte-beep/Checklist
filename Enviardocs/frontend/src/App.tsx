@@ -2,8 +2,16 @@ import { useState } from "react";
 import { Home } from "./pages/Home";
 import { Clientes } from "./pages/Clientes";
 import { Dashboard } from "./pages/Dashboard";
+import { Configuracoes } from "./pages/Configuracoes";
 
-type Pagina = "envio" | "clientes" | "dashboard";
+type Pagina = "envio" | "clientes" | "dashboard" | "config";
+
+const LABELS: Record<Pagina, string> = {
+  envio:     "Envio",
+  clientes:  "Clientes",
+  dashboard: "Dashboard",
+  config:    "Configurações",
+};
 
 export default function App() {
   const [pagina, setPagina] = useState<Pagina>("envio");
@@ -19,13 +27,13 @@ export default function App() {
           </div>
         </div>
         <nav className="header__nav">
-          {(["envio", "clientes", "dashboard"] as Pagina[]).map(p => (
+          {(["envio", "clientes", "dashboard", "config"] as Pagina[]).map(p => (
             <button
               key={p}
               className={`nav-item${pagina === p ? " nav-item--active" : ""}`}
               onClick={() => setPagina(p)}
             >
-              {p === "envio" ? "Envio" : p === "clientes" ? "Clientes" : "Dashboard"}
+              {LABELS[p]}
             </button>
           ))}
         </nav>
@@ -35,6 +43,7 @@ export default function App() {
         {pagina === "envio"     && <Home />}
         {pagina === "clientes"  && <Clientes />}
         {pagina === "dashboard" && <Dashboard />}
+        {pagina === "config"    && <Configuracoes />}
       </main>
 
       <footer className="footer">

@@ -10,6 +10,7 @@ import {
   resolverClienteParaEnvio,
   listarClientes,
   registrarEnvio,
+  jaEnviadosNoMes,
 } from "../services/cliente.service";
 import { logInfo } from "../utils/logger";
 import { gerarAssunto, gerarCorpo } from "../config/email.template";
@@ -172,4 +173,24 @@ export async function enviarLote(
   const erros    = resultados.filter((r) => r.status === "erro").length;
 
   res.json({ mes, total: clienteIds.length, enviados, erros, resultados });
+}
+
+// ── Clientes já enviados no mês ────────────────────────────────────────────
+
+export function buscarJaEnviados(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const mes = (req.query.mes as string) || "";
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) {
+    res.status(400).json({ erro: "Formato de mês inválido. Use YYYY-MM." });
+    return;
+  }
+  try {
+    const clienteIds = jaEnviadosNoMes(mes);
+    res.json({ mes, clienteIds });
+  } catch (err) {
+    next(err);
+  }
 }

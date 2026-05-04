@@ -7,6 +7,7 @@ import { runMigrations } from "./database/schema";
 import { getDb } from "./database/db";
 import envioRoutes from "./routes/envio.routes";
 import clienteRoutes from "./routes/cliente.routes";
+import configRoutes from "./routes/config.routes";
 import { errorMiddleware } from "./middlewares/error.middleware";
 import { apiKeyMiddleware } from "./middlewares/apiKey.middleware";
 
@@ -30,6 +31,7 @@ app.use(rateLimit({
   max:      env.rateLimit.max,
   standardHeaders: true,
   legacyHeaders:   false,
+  skip:     (req) => req.path === "/health",
   message: { erro: "Muitas requisições. Tente novamente em breve." },
 }));
 
@@ -92,6 +94,7 @@ app.get("/api/status", apiKeyMiddleware, (req, res) => {
 
 app.use("/api/envios",   envioRoutes);
 app.use("/api/clientes", clienteRoutes);
+app.use("/api/config",   configRoutes);
 
 app.use(errorMiddleware);
 
