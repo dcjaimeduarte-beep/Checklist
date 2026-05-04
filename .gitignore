@@ -16,6 +16,8 @@ seven-reforma-tributaria-monorepo/
 # Build
 **/coverage/
 **/.vite/
+Checklist/backend/public/assets/
+AnaliseSped/frontend/dist/
 
 # OS
 .DS_Store
