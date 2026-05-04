@@ -103,6 +103,17 @@ export class ConfrontController {
     res.send(buffer);
   }
 
+  /** Download Excel somente com a listagem de todas as notas */
+  @Get(':id/excel-notas')
+  async downloadExcelNotas(@Param('id') id: string, @Res() res: Response) {
+    const session = await this.confrontService.getSession(id);
+    const buffer = await this.reportService.generateExcelNotas(session);
+    const filename = `todas_notas_${session.spedInfo.cnpj}_${session.spedInfo.dtIni}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
   /** Envia relatório por e-mail */
   @Post(':id/email')
   async sendEmail(@Param('id') id: string, @Body() dto: SendEmailDto) {

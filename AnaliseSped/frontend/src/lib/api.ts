@@ -91,6 +91,12 @@ export async function downloadExcel(sessionId: string): Promise<Blob> {
   return res.blob()
 }
 
+export async function downloadExcelNotas(sessionId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/confront/${sessionId}/excel-notas`, { credentials: creds })
+  if (!res.ok) throw new Error('Erro ao gerar Excel de todas as notas')
+  return res.blob()
+}
+
 export async function downloadPdf(sessionId: string): Promise<Blob> {
   const res = await fetch(`${API_BASE}/confront/${sessionId}/pdf`, { credentials: creds })
   if (!res.ok) throw new Error('Erro ao gerar PDF')

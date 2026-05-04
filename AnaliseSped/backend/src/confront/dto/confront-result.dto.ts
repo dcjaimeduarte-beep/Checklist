@@ -1,3 +1,69 @@
+/** Visão unificada de uma nota fiscal — presente em um ou ambos os lados do confronto */
+export class NotaCompletaDto {
+  chave: string;
+  /** 'pareado' = encontrada em SPED e XML | 'so-xml' = apenas no XML | 'so-sped' = apenas no SPED */
+  status: 'pareado' | 'so-xml' | 'so-sped';
+  // ── Campos do XML ──────────────────────────────────────────────────────────
+  filename?: string;
+  tipo?: string;
+  nNF?: string;
+  serie?: string;
+  dhEmi?: string;
+  cnpjEmit?: string;
+  xNomeEmit?: string;
+  vNF?: string;
+  cfopsXml?: string;
+  tpNF?: string;
+  cStat?: string;
+  xMotivo?: string;
+  autorizada?: boolean;
+  vBC?: string;
+  vICMS?: string;
+  vBCST?: string;
+  vST?: string;
+  vIPI?: string;
+  vPIS?: string;
+  vCOFINS?: string;
+  // ── Campos do SPED ─────────────────────────────────────────────────────────
+  registro?: string;
+  numDoc?: string;
+  dtDoc?: string;
+  codSit?: string;
+  indOper?: string;
+  indEmit?: string;
+  vlDoc?: number;
+  cfopsSped?: string;
+  vlBcIcms?: number;
+  vlIcms?: number;
+  vlBcIcmsSt?: number;
+  vlIcmsSt?: number;
+  vlIpi?: number;
+  // ── Divergências ───────────────────────────────────────────────────────────
+  temDivergenciaValor?: boolean;
+  diferenca?: number;
+  temDivergenciaCfop?: boolean;
+  cfopsFaltamNoSped?: string[];
+  cfopsFaltamNoXml?: string[];
+}
+
+/** Nota encontrada nos dois lados (SPED e XML) mas com CFOPs distintos */
+export class CfopDivergenciaItemDto {
+  chave: string;
+  numDoc?: string;
+  dtDoc?: string;
+  nNF?: string;
+  dhEmi?: string;
+  xNomeEmit?: string;
+  /** CFOPs presentes no XML (ex: "5405, 5656") */
+  cfopsXml: string;
+  /** CFOPs presentes no SPED/C190 (ex: "5405") */
+  cfopsSped: string;
+  /** CFOPs que estão no XML mas não no SPED */
+  faltamNoSped: string[];
+  /** CFOPs que estão no SPED mas não no XML */
+  faltamNoXml: string[];
+}
+
 export class CfopSummaryDto {
   cfop: string;
   cstIcms: string;
@@ -208,6 +274,11 @@ export class ConfrontResultDto {
   /** Eventos de cancelamento (tpEvento 110111) consolidados com o SPED */
   cancelamentos: CancelamentoItemDto[];
   totalCancelamentos: number;
+  /** Notas pareadas por chave mas com CFOPs diferentes entre SPED (C190) e XML */
+  cfopDivergencias: CfopDivergenciaItemDto[];
+  totalCfopDivergencias: number;
+  /** Lista unificada de todas as notas (XML + SPED + pareadas) */
+  todasAsNotas: NotaCompletaDto[];
 }
 
 export class ConfrontSessionSummaryDto {

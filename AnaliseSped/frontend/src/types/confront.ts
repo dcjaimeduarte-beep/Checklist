@@ -59,6 +59,67 @@ export interface SpedItem {
   vlCofins?: number
 }
 
+export interface NotaCompleta {
+  chave: string
+  /** 'pareado' = encontrada em SPED e XML | 'so-xml' = apenas XML | 'so-sped' = apenas SPED */
+  status: 'pareado' | 'so-xml' | 'so-sped'
+  // XML
+  filename?: string
+  tipo?: string
+  nNF?: string
+  serie?: string
+  dhEmi?: string
+  cnpjEmit?: string
+  xNomeEmit?: string
+  vNF?: string
+  cfopsXml?: string
+  tpNF?: string
+  cStat?: string
+  xMotivo?: string
+  autorizada?: boolean
+  vBC?: string
+  vICMS?: string
+  vBCST?: string
+  vST?: string
+  vIPI?: string
+  vPIS?: string
+  vCOFINS?: string
+  // SPED
+  registro?: string
+  numDoc?: string
+  dtDoc?: string
+  codSit?: string
+  indOper?: string
+  indEmit?: string
+  vlDoc?: number
+  cfopsSped?: string
+  vlBcIcms?: number
+  vlIcms?: number
+  // Divergências
+  temDivergenciaValor?: boolean
+  diferenca?: number
+  temDivergenciaCfop?: boolean
+  cfopsFaltamNoSped?: string[]
+  cfopsFaltamNoXml?: string[]
+}
+
+export interface CfopDivergenciaItem {
+  chave: string
+  numDoc?: string
+  dtDoc?: string
+  nNF?: string
+  dhEmi?: string
+  xNomeEmit?: string
+  /** CFOPs no XML (ex: "5405, 5656") */
+  cfopsXml: string
+  /** CFOPs no SPED/C190 (ex: "5405") */
+  cfopsSped: string
+  /** CFOPs presentes no XML mas ausentes no SPED */
+  faltamNoSped: string[]
+  /** CFOPs presentes no SPED mas ausentes no XML */
+  faltamNoXml: string[]
+}
+
 export interface ConfrontResultDto {
   sessionId: string
   createdAt: string
@@ -78,6 +139,9 @@ export interface ConfrontResultDto {
   audit: AuditReport
   cancelamentos: CancelamentoItem[]
   totalCancelamentos: number
+  cfopDivergencias: CfopDivergenciaItem[]
+  totalCfopDivergencias: number
+  todasAsNotas: NotaCompleta[]
 }
 
 export interface CfopSummary {

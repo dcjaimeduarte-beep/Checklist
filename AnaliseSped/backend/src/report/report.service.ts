@@ -8,6 +8,7 @@ import {
   AuditReportDto,
   CancelamentoItemDto,
   ConfrontResultDto,
+  NotaCompletaDto,
 } from '../confront/dto/confront-result.dto';
 
 // ---------------------------------------------------------------------------
@@ -66,8 +67,18 @@ export class ReportService {
     this.buildCfopAgrupadoSheet(wb, data);
     this.buildCancelamentosSheet(wb, cancelamentos);
     this.buildSemAutorizacaoSheet(wb, data);
+    this.buildTodasAsNotasSheet(wb, data.todasAsNotas ?? []);
     this.buildErrosLeituraSheet(wb, data);
 
+    const buf = await wb.xlsx.writeBuffer();
+    return Buffer.from(buf);
+  }
+
+  async generateExcelNotas(data: ConfrontResultDto): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'AnaliseSped';
+    wb.created = new Date();
+    this.buildTodasAsNotasSheet(wb, data.todasAsNotas ?? []);
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.from(buf);
   }
@@ -1305,6 +1316,112 @@ export class ReportService {
     if (sit === 'ok')      return GREEN;
     if (sit === 'atencao') return RED;
     return GRAY;
+  }
+
+  private buildTodasAsNotasSheet(wb: ExcelJS.Workbook, notas: NotaCompletaDto[]): void {
+    const ws = wb.addWorksheet('Todas as Notas');
+
+    const STATUS_LABEL: Record<string, string> = {
+      pareado: 'Pareado (XML + SPED)',
+      'so-xml': 'Apenas XML',
+      'so-sped': 'Apenas SPED',
+    };
+    const STATUS_COLOR: Record<string, string> = {
+      pareado: GREEN,
+      'so-xml': YELLOW,
+      'so-sped': ORANGE,
+    };
+    const OPER: Record<string, string> = { '0': 'Entrada', '1': 'Saída' };
+    const TPNF: Record<string, string> = { '0': 'Entrada', '1': 'Saída' };
+
+    const cols = [
+      { header: 'Status',          width: 22 },
+      { header: 'Chave (44)',       width: 48 },
+      { header: 'Nº NF',           width: 12 },
+      { header: 'Série',           width: 8  },
+      { header: 'Dt Emissão',      width: 14 },
+      { header: 'CNPJ Emitente',   width: 18 },
+      { header: 'Emitente',        width: 30 },
+      { header: 'Tipo',            width: 10 },
+      { header: 'Operação',        width: 10 },
+      { header: 'COD_SIT SPED',    width: 12 },
+      { header: 'CFOPs XML',       width: 16 },
+      { header: 'CFOPs SPED',      width: 16 },
+      { header: 'VL NF (XML)',     width: 16 },
+      { header: 'VL DOC (SPED)',   width: 16 },
+      { header: 'Diferença R$',    width: 14 },
+      { header: 'Div. CFOP',       width: 12 },
+      { header: 'Faltam no SPED',  width: 18 },
+      { header: 'Faltam no XML',   width: 18 },
+      { header: 'Autorização',     width: 14 },
+      { header: 'BC ICMS',         width: 14 },
+      { header: 'VL ICMS',         width: 14 },
+    ];
+
+    ws.columns = cols.map((c) => ({ width: c.width }));
+
+    const hdr = ws.addRow(cols.map((c) => c.header));
+    hdr.height = 16;
+    hdr.eachCell((cell) => {
+      cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+      cell.font  = { bold: true, color: { argb: WHITE }, size: 10 };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+    });
+
+    const fmt2 = '#,##0.00';
+    for (let i = 0; i < notas.length; i++) {
+      const n = notas[i];
+      const bg = STATUS_COLOR[n.status] ?? GRAY;
+      const row = ws.addRow([
+        STATUS_LABEL[n.status] ?? n.status,
+        n.chave,
+        n.nNF ?? n.numDoc ?? '',
+        n.serie ?? '',
+        this.formatDate(n.dhEmi ?? n.dtDoc),
+        n.cnpjEmit ?? '',
+        n.xNomeEmit ?? '',
+        n.tipo ?? '',
+        n.tpNF ? TPNF[n.tpNF] ?? '' : (n.indOper ? OPER[n.indOper] ?? '' : ''),
+        n.codSit ?? '',
+        n.cfopsXml ?? '',
+        n.cfopsSped ?? '',
+        n.vNF ? parseFloat(n.vNF) : '',
+        n.vlDoc ?? '',
+        n.diferenca ?? '',
+        n.temDivergenciaCfop ? 'Sim' : '',
+        (n.cfopsFaltamNoSped ?? []).join(', '),
+        (n.cfopsFaltamNoXml ?? []).join(', '),
+        n.autorizada === true ? 'Autorizada' : n.autorizada === false ? 'Não autorizada' : '',
+        n.vlBcIcms ?? '',
+        n.vlIcms ?? '',
+      ]);
+
+      row.eachCell((cell, col) => {
+        if (col === 1) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+          cell.font = { bold: true, size: 9 };
+        } else {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? WHITE : LBLUE } };
+          cell.font = { size: 9 };
+        }
+        cell.alignment = { vertical: 'top', wrapText: false };
+        if ([13, 14, 15, 20, 21].includes(col)) {
+          cell.numFmt = fmt2;
+          cell.alignment = { ...cell.alignment, horizontal: 'right' };
+        }
+        if (n.temDivergenciaValor && col === 15) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED } };
+          cell.font = { ...cell.font, bold: true, color: { argb: 'FFCC0000' } };
+        }
+        if (n.temDivergenciaCfop && col === 16) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW } };
+          cell.font = { ...cell.font, bold: true };
+        }
+      });
+    }
+
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
   }
 
   private truncate(s: string, n: number): string {

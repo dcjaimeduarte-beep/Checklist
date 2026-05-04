@@ -19,6 +19,10 @@ export interface SpedEntry {
   indEmit: string;
   /** Valor total do documento (VL_DOC) */
   vlDoc: number;
+  /** CFOPs dos registros C190 filhos deste C100 (comma-separated, ex: "5405, 5656") */
+  cfops?: string;
+  /** VL_OPR por CFOP acumulado dos C190 filhos */
+  cfopVprod?: Record<string, number>;
   /** Base de cálculo do ICMS (VL_BC_ICMS) */
   vlBcIcms: number;
   /** Valor do ICMS (VL_ICMS) */

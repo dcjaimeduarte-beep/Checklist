@@ -70,4 +70,15 @@ export class ConfrontSession {
 
   @Column({ default: 0 })
   totalCancelamentos: number;
+
+  /** JSON com notas pareadas mas com CFOPs distintos entre SPED e XML */
+  @Column({ type: 'text', nullable: true })
+  cfopDivergenciasJson: string;
+
+  @Column({ default: 0 })
+  totalCfopDivergencias: number;
+
+  /** JSON com lista unificada de todas as notas (todas as pontas) */
+  @Column({ type: 'text', nullable: true })
+  todasAsNotasJson: string;
 }

@@ -35,6 +35,21 @@ export class SpedService {
     };
     let invalidLines = 0;
 
+    // Entrada pendente aguardando C190 filhos para enriquecer com CFOPs
+    let pendingEntry: SpedEntry | null = null;
+    let pendingCfopVprod: Record<string, number> = {};
+
+    const finalizePending = () => {
+      if (!pendingEntry) return;
+      if (Object.keys(pendingCfopVprod).length > 0) {
+        pendingEntry.cfopVprod = pendingCfopVprod;
+        pendingEntry.cfops = Object.keys(pendingCfopVprod).sort().join(', ');
+      }
+      entries.push(pendingEntry);
+      pendingEntry = null;
+      pendingCfopVprod = {};
+    };
+
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) continue;
@@ -49,25 +64,35 @@ export class SpedService {
       }
 
       if (reg === 'C100') {
+        finalizePending();
         const entry = this.parseC100(fields);
-        if (entry) entries.push(entry);
+        if (entry) pendingEntry = entry;
         else invalidLines++;
         continue;
       }
 
       if (reg === 'D100') {
+        finalizePending();
         const entry = this.parseD100(fields);
-        if (entry) entries.push(entry);
+        if (entry) pendingEntry = entry;
         else invalidLines++;
         continue;
       }
 
       if (reg === 'C190') {
         const c190 = this.parseC190(fields);
-        if (c190) cfopSummary.push(c190);
+        if (c190) {
+          cfopSummary.push(c190);
+          // Associa ao C100 pai (C190 é filho de C100, não de D100)
+          if (pendingEntry?.registro === 'C100') {
+            pendingCfopVprod[c190.cfop] = (pendingCfopVprod[c190.cfop] ?? 0) + c190.vlOpr;
+          }
+        }
         continue;
       }
     }
+
+    finalizePending();
 
     this.logger.log(
       `SPED parseado: ${entries.length} entradas, ${cfopSummary.length} CFOPs, ${invalidLines} linhas inválidas. CNPJ=${info.cnpj}`,

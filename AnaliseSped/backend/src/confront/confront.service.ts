@@ -11,9 +11,11 @@ import {
   AuditItemDto,
   AuditReportDto,
   CancelamentoItemDto,
+  CfopDivergenciaItemDto,
   ConfrontResultDto,
   ConfrontSessionSummaryDto,
   DashboardDto,
+  NotaCompletaDto,
   SpedItemDto,
   XmlItemDto,
 } from './dto/confront-result.dto';
@@ -75,7 +77,7 @@ export class ConfrontService {
     // Chaves com evento de cancelamento confirmado são excluídas da divergência SPED×XML
     const cancelChaves = new Set(cancelEntries.map((e) => e.chave));
     const {
-      xmlsNotInSped, spedNotInXml, matchedWithValueDiff,
+      xmlsNotInSped, spedNotInXml, matchedWithValueDiff, cfopDivergencias, matchedPairs,
       totalVlSpedMatched, totalVlXmlMatched,
       cancelledMatchedChaves,
     } = this.compare(spedEntries, xmlEntries, cancelChaves);
@@ -122,6 +124,7 @@ export class ConfrontService {
       xmlsNotInSped.length,
       spedNotInXml.length,
       matchedWithValueDiff,
+      cfopDivergencias.length,
       totalVlSpedMatched,
       totalVlXmlMatched,
       totalVlXmlNotInSped,
@@ -149,12 +152,16 @@ export class ConfrontService {
       auditJson: JSON.stringify(audit),
       cancelamentosJson: JSON.stringify(cancelamentos),
       totalCancelamentos: cancelamentos.length,
+      cfopDivergenciasJson: JSON.stringify(cfopDivergencias),
+      totalCfopDivergencias: cfopDivergencias.length,
+      todasAsNotasJson: JSON.stringify(this.buildTodasAsNotas(xmlsNotInSped, spedNotInXml, matchedPairs, cfopDivergencias)),
     });
 
     await this.sessionRepo.save(session);
     this.logger.log(`Sessão criada: ${session.id}`);
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao, dashboard, audit, cancelamentos);
+    const todasAsNotas = this.buildTodasAsNotas(xmlsNotInSped, spedNotInXml, matchedPairs, cfopDivergencias);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlResult.errors, xmlsSemAutorizacao, filtroEmissao, dashboard, audit, cancelamentos, cfopDivergencias, todasAsNotas);
   }
 
   async getSession(id: string): Promise<ConfrontResultDto> {
@@ -168,8 +175,10 @@ export class ConfrontService {
     const dashboard: DashboardDto = JSON.parse(session.dashboardJson ?? 'null') ?? this.emptyDashboard();
     const audit: AuditReportDto = JSON.parse(session.auditJson ?? 'null') ?? this.emptyAudit();
     const cancelamentos: CancelamentoItemDto[] = JSON.parse(session.cancelamentosJson ?? '[]');
+    const cfopDivergencias: CfopDivergenciaItemDto[] = JSON.parse(session.cfopDivergenciasJson ?? '[]');
+    const todasAsNotas: NotaCompletaDto[] = JSON.parse(session.todasAsNotasJson ?? '[]');
 
-    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao, undefined, dashboard, audit, cancelamentos);
+    return this.toDto(session, xmlsNotInSped, spedNotInXml, xmlErrors, xmlsSemAutorizacao, undefined, dashboard, audit, cancelamentos, cfopDivergencias, todasAsNotas);
   }
 
   async listSessions(page = 1, limit = 20): Promise<ConfrontSessionSummaryDto[]> {
@@ -214,6 +223,8 @@ export class ConfrontService {
     xmlsNotInSped: XmlItemDto[];
     spedNotInXml: SpedItemDto[];
     matchedWithValueDiff: AuditItemDto[];
+    cfopDivergencias: CfopDivergenciaItemDto[];
+    matchedPairs: Array<{ chave: string; sped: SpedEntry; xml: XmlEntry; diferenca: number }>;
     totalVlSpedMatched: number;
     totalVlXmlMatched: number;
     /** Chaves presentes em ambos os lados mas com COD_SIT cancelado/denegado */
@@ -244,6 +255,8 @@ export class ConfrontService {
 
     // Pares encontrados nos dois lados
     const matchedWithValueDiff: AuditItemDto[] = [];
+    const cfopDivergencias: CfopDivergenciaItemDto[] = [];
+    const matchedPairs: Array<{ chave: string; sped: SpedEntry; xml: XmlEntry; diferenca: number }> = [];
     const cancelledMatchedChaves = new Set<string>();
     let totalVlSpedMatched = 0;
     let totalVlXmlMatched  = 0;
@@ -280,9 +293,34 @@ export class ConfrontService {
           diferenca,
         });
       }
+
+      // Registrar par casado (para lista unificada de todas as notas)
+      matchedPairs.push({ chave, sped, xml, diferenca });
+
+      // Detectar divergência de CFOP: nota está em ambos os lados mas com CFOPs distintos
+      if (sped.cfops && xml.cfops) {
+        const spedCfopSet = new Set(sped.cfops.split(/[\s,]+/).filter(Boolean));
+        const xmlCfopSet  = new Set(xml.cfops.split(/[\s,]+/).filter(Boolean));
+        const faltamNoSped = [...xmlCfopSet].filter(c => !spedCfopSet.has(c));
+        const faltamNoXml  = [...spedCfopSet].filter(c => !xmlCfopSet.has(c));
+        if (faltamNoSped.length > 0 || faltamNoXml.length > 0) {
+          cfopDivergencias.push({
+            chave,
+            numDoc:    sped.numDoc,
+            dtDoc:     sped.dtDoc,
+            nNF:       xml.nNF,
+            dhEmi:     xml.dhEmi,
+            xNomeEmit: xml.xNomeEmit,
+            cfopsXml:  xml.cfops,
+            cfopsSped: sped.cfops,
+            faltamNoSped,
+            faltamNoXml,
+          });
+        }
+      }
     }
 
-    return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff, totalVlSpedMatched, totalVlXmlMatched, cancelledMatchedChaves };
+    return { xmlsNotInSped, spedNotInXml, matchedWithValueDiff, cfopDivergencias, matchedPairs, totalVlSpedMatched, totalVlXmlMatched, cancelledMatchedChaves };
   }
 
   /**
@@ -469,6 +507,7 @@ export class ConfrontService {
     xmlsNotInSpedCount: number,
     spedNotInXmlCount: number,
     matchedWithValueDiff: AuditItemDto[],
+    totalCfopDivergencias: number,
     totalVlSpedMatched: number,
     totalVlXmlMatched: number,
     totalVlXmlNotInSped: number,
@@ -511,6 +550,12 @@ export class ConfrontService {
       const totalDivDoc = matchedWithValueDiff.reduce((s, r) => s + r.diferenca, 0);
       verdictMessages.push(
         `${matchedWithValueDiff.length} documento(s) conferidos com divergência de valor (soma: R$ ${brl(totalDivDoc)}).`,
+      );
+      if (verdict === 'ok') verdict = 'atencao';
+    }
+    if (totalCfopDivergencias > 0) {
+      verdictMessages.push(
+        `${totalCfopDivergencias} nota(s) pareada(s) com CFOPs distintos entre SPED (C190) e XML — ver aba "CFOP Divergente".`,
       );
       if (verdict === 'ok') verdict = 'atencao';
     }
@@ -567,6 +612,8 @@ export class ConfrontService {
     dashboard: DashboardDto = this.emptyDashboard(),
     audit: AuditReportDto = this.emptyAudit(),
     cancelamentos: CancelamentoItemDto[] = [],
+    cfopDivergencias: CfopDivergenciaItemDto[] = [],
+    todasAsNotas: NotaCompletaDto[] = [],
   ): ConfrontResultDto {
     return {
       sessionId: session.id,
@@ -593,6 +640,87 @@ export class ConfrontService {
       audit,
       cancelamentos,
       totalCancelamentos: session.totalCancelamentos ?? cancelamentos.length,
+      cfopDivergencias,
+      totalCfopDivergencias: session.totalCfopDivergencias ?? cfopDivergencias.length,
+      todasAsNotas,
     };
+  }
+
+  private buildTodasAsNotas(
+    xmlsNotInSped: XmlItemDto[],
+    spedNotInXml: SpedItemDto[],
+    matchedPairs: Array<{ chave: string; sped: SpedEntry; xml: XmlEntry; diferenca: number }>,
+    cfopDivergencias: CfopDivergenciaItemDto[],
+  ): NotaCompletaDto[] {
+    const cfopDivMap = new Map(cfopDivergencias.map((d) => [d.chave, d]));
+    const notas: NotaCompletaDto[] = [];
+
+    // Notas apenas no XML
+    for (const item of xmlsNotInSped) {
+      notas.push({
+        chave: item.chave, status: 'so-xml',
+        filename: item.filename, tipo: item.tipo,
+        nNF: item.nNF, serie: item.serie, dhEmi: item.dhEmi,
+        cnpjEmit: item.cnpjEmit, xNomeEmit: item.xNomeEmit,
+        vNF: item.vNF, cfopsXml: item.cfops,
+        tpNF: item.tpNF, cStat: item.cStat, xMotivo: item.xMotivo,
+        autorizada: item.autorizada,
+        vBC: item.vBC, vICMS: item.vICMS,
+        vBCST: item.vBCST, vST: item.vST,
+        vIPI: item.vIPI, vPIS: item.vPIS, vCOFINS: item.vCOFINS,
+      });
+    }
+
+    // Notas apenas no SPED
+    for (const item of spedNotInXml) {
+      notas.push({
+        chave: item.chave, status: 'so-sped',
+        registro: item.registro, numDoc: item.numDoc, dtDoc: item.dtDoc,
+        codSit: item.codSit, indOper: item.indOper, indEmit: item.indEmit,
+        vlDoc: item.vlDoc, cfopsSped: undefined,
+        vlBcIcms: item.vlBcIcms, vlIcms: item.vlIcms,
+        vlBcIcmsSt: item.vlBcIcmsSt, vlIcmsSt: item.vlIcmsSt, vlIpi: item.vlIpi,
+      });
+    }
+
+    // Notas encontradas nos dois lados (pareadas)
+    for (const { chave, sped, xml, diferenca } of matchedPairs) {
+      const cfopDiv = cfopDivMap.get(chave);
+      notas.push({
+        chave, status: 'pareado',
+        // XML
+        filename: xml.filename, tipo: xml.tipo,
+        nNF: xml.nNF, serie: xml.serie, dhEmi: xml.dhEmi,
+        cnpjEmit: xml.cnpjEmit, xNomeEmit: xml.xNomeEmit,
+        vNF: xml.vNF, cfopsXml: xml.cfops,
+        tpNF: xml.tpNF, cStat: xml.cStat, xMotivo: xml.xMotivo,
+        autorizada: xml.autorizada,
+        vBC: xml.vBC, vICMS: xml.vICMS,
+        vBCST: xml.vBCST, vST: xml.vST,
+        vIPI: xml.vIPI, vPIS: xml.vPIS, vCOFINS: xml.vCOFINS,
+        // SPED
+        registro: sped.registro, numDoc: sped.numDoc, dtDoc: sped.dtDoc,
+        codSit: sped.codSit, indOper: sped.indOper, indEmit: sped.indEmit,
+        vlDoc: sped.vlDoc, cfopsSped: sped.cfops,
+        vlBcIcms: sped.vlBcIcms, vlIcms: sped.vlIcms,
+        vlBcIcmsSt: sped.vlBcIcmsSt, vlIcmsSt: sped.vlIcmsSt, vlIpi: sped.vlIpi,
+        // Divergências
+        temDivergenciaValor: diferenca > 0.01,
+        diferenca: diferenca > 0.01 ? diferenca : undefined,
+        temDivergenciaCfop: !!cfopDiv,
+        cfopsFaltamNoSped: cfopDiv?.faltamNoSped,
+        cfopsFaltamNoXml: cfopDiv?.faltamNoXml,
+      });
+    }
+
+    // Ordenar: pareados primeiro, depois só-xml, depois só-sped; dentro de cada grupo por data
+    const ORDER = { pareado: 0, 'so-xml': 1, 'so-sped': 2 };
+    notas.sort((a, b) => {
+      const s = ORDER[a.status] - ORDER[b.status];
+      if (s !== 0) return s;
+      return (a.dhEmi ?? a.dtDoc ?? '').localeCompare(b.dhEmi ?? b.dtDoc ?? '');
+    });
+
+    return notas;
   }
 }

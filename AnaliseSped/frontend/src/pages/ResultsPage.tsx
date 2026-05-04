@@ -19,9 +19,10 @@ import { usePage } from '@/App'
 import { downloadExcel, downloadPdf, sendEmailReport } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { AuditItem, CancelamentoItem, CfopSummary, SpedItem, XmlCfopSummary, XmlItem } from '@/types/confront'
+import type { AuditItem, CancelamentoItem, CfopDivergenciaItem, CfopSummary, NotaCompleta, SpedItem, XmlCfopSummary, XmlItem } from '@/types/confront'
+import { downloadExcelNotas } from '@/lib/api'
 
-type TabId = 'auditoria' | 'dashboard' | 'cfop-agrupado' | 'resumo' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'cancelamentos' | 'erros-leitura'
+type TabId = 'auditoria' | 'dashboard' | 'cfop-agrupado' | 'resumo' | 'todas-notas' | 'xml-sem-sped' | 'sped-sem-xml' | 'sem-autorizacao' | 'cancelamentos' | 'cfop-divergente' | 'erros-leitura'
 
 const CSTAT_LABEL: Record<string, string> = {
   '100': 'Autorizado',
@@ -108,6 +109,11 @@ export function ResultsPage() {
   const [spedPage, setSpedPage]         = useState(0)
   const [authPage, setAuthPage]         = useState(0)
   const [cancelPage, setCancelPage]     = useState(0)
+  const [cfopDivPage, setCfopDivPage]   = useState(0)
+  const [todasPage, setTodasPage]       = useState(0)
+  const [todasSearch, setTodasSearch]   = useState('')
+  const [todasStatus, setTodasStatus]   = useState<'todos' | 'pareado' | 'so-xml' | 'so-sped'>('todos')
+  const [dlNotas, setDlNotas]           = useState(false)
   // Filtro global de CFOP — compartilhado entre Dashboard e CFOP Agrupado
   const [cfopFilter, setCfopFilter]     = useState('')
 
@@ -133,10 +139,28 @@ export function ResultsPage() {
   const spedItems: SpedItem[] = result.spedNotInXml
   const authItems: XmlItem[]  = result.xmlsSemAutorizacao ?? []
   const cancelItems: CancelamentoItem[] = result.cancelamentos ?? []
-  const xmlSlice    = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
-  const spedSlice   = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
-  const authSlice   = authItems.slice(authPage * PAGE_SIZE, (authPage + 1) * PAGE_SIZE)
-  const cancelSlice = cancelItems.slice(cancelPage * PAGE_SIZE, (cancelPage + 1) * PAGE_SIZE)
+  const cfopDivItems: CfopDivergenciaItem[] = result.cfopDivergencias ?? []
+  const totalCfopDiv = result.totalCfopDivergencias ?? cfopDivItems.length
+  const xmlSlice      = xmlItems.slice(xmlPage * PAGE_SIZE, (xmlPage + 1) * PAGE_SIZE)
+  const spedSlice     = spedItems.slice(spedPage * PAGE_SIZE, (spedPage + 1) * PAGE_SIZE)
+  const authSlice     = authItems.slice(authPage * PAGE_SIZE, (authPage + 1) * PAGE_SIZE)
+  const cancelSlice   = cancelItems.slice(cancelPage * PAGE_SIZE, (cancelPage + 1) * PAGE_SIZE)
+  const cfopDivSlice  = cfopDivItems.slice(cfopDivPage * PAGE_SIZE, (cfopDivPage + 1) * PAGE_SIZE)
+
+  const todasItems: NotaCompleta[] = (result.todasAsNotas ?? []).filter((n) => {
+    if (todasStatus !== 'todos' && n.status !== todasStatus) return false
+    if (!todasSearch.trim()) return true
+    const q = todasSearch.toLowerCase()
+    return (
+      n.chave?.includes(todasSearch) ||
+      (n.nNF ?? n.numDoc ?? '').toLowerCase().includes(q) ||
+      (n.xNomeEmit ?? '').toLowerCase().includes(q) ||
+      (n.cnpjEmit ?? '').includes(todasSearch) ||
+      (n.cfopsXml ?? '').includes(todasSearch) ||
+      (n.cfopsSped ?? '').includes(todasSearch)
+    )
+  })
+  const todasSlice = todasItems.slice(todasPage * PAGE_SIZE, (todasPage + 1) * PAGE_SIZE)
 
   async function handleDownload(type: 'excel' | 'pdf') {
     if (!sessionId || !result) return
@@ -152,6 +176,22 @@ export function ResultsPage() {
       URL.revokeObjectURL(url)
     } finally {
       type === 'excel' ? setDlExcel(false) : setDlPdf(false)
+    }
+  }
+
+  async function handleDownloadNotas() {
+    if (!sessionId || !result) return
+    setDlNotas(true)
+    try {
+      const blob = await downloadExcelNotas(sessionId)
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = buildFilename(result.spedInfo.nome, result.spedInfo.dtIni, 'xlsx').replace('.xlsx', '_todas_notas.xlsx')
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setDlNotas(false)
     }
   }
 
@@ -281,10 +321,12 @@ export function ResultsPage() {
             { id: 'dashboard'       as TabId, label: 'Dashboard' },
             { id: 'cfop-agrupado'   as TabId, label: 'CFOP Agrupado' },
             { id: 'resumo'          as TabId, label: 'Resumo' },
+            { id: 'todas-notas'     as TabId, label: `Todas as Notas (${(result.todasAsNotas ?? []).length})` },
             { id: 'xml-sem-sped'    as TabId, label: `XMLs não no SPED (${result.xmlsNotInSped.length})` },
             { id: 'sped-sem-xml'    as TabId, label: `SPED sem XML (${result.spedNotInXml.length})` },
             { id: 'sem-autorizacao' as TabId, label: `Sem autorização (${semAuth})`,                  alert: semAuth > 0 },
             { id: 'cancelamentos'   as TabId, label: `Cancelamentos (${totalCanc})`,                   alert: false },
+            { id: 'cfop-divergente' as TabId, label: `CFOP Divergente (${totalCfopDiv})`,               alert: totalCfopDiv > 0 },
             { id: 'erros-leitura'   as TabId, label: `Erros de leitura (${result.xmlErrors.length})`,  alert: result.xmlErrors.length > 0 },
           ]).map(({ id, label, alert }) => (
             <button
@@ -433,6 +475,153 @@ export function ResultsPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Aba Todas as Notas ────────────────────────────────────────── */}
+        {activeTab === 'todas-notas' && (
+          <div className="space-y-3">
+            {/* Barra de controles */}
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-white px-4 py-3 shadow-sm">
+              {/* Busca */}
+              <div className="flex flex-1 min-w-[200px] items-center gap-2 rounded-lg border border-border bg-backgroundMuted px-3 py-1.5">
+                <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar por NF, emitente, CNPJ ou CFOP..."
+                  value={todasSearch}
+                  onChange={e => { setTodasSearch(e.target.value); setTodasPage(0) }}
+                  className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+                />
+                {todasSearch && (
+                  <button type="button" onClick={() => setTodasSearch('')} className="cursor-pointer text-muted-foreground hover:text-foreground">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              {/* Filtros de status */}
+              <div className="flex gap-1">
+                {([
+                  { v: 'todos',    label: 'Todos' },
+                  { v: 'pareado',  label: 'Pareado' },
+                  { v: 'so-xml',   label: 'Só XML' },
+                  { v: 'so-sped',  label: 'Só SPED' },
+                ] as const).map(({ v, label }) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => { setTodasStatus(v); setTodasPage(0) }}
+                    className={cn(
+                      'cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                      todasStatus === v
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-backgroundMuted border border-border',
+                    )}
+                  >{label}</button>
+                ))}
+              </div>
+              {/* Export */}
+              <button
+                type="button"
+                onClick={handleDownloadNotas}
+                disabled={dlNotas}
+                className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-white hover:bg-secondary/90 disabled:opacity-50 transition-colors"
+              >
+                {dlNotas ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                Exportar Excel
+              </button>
+            </div>
+
+            {/* Contagem filtrada */}
+            <p className="text-xs text-muted-foreground px-1">
+              {todasItems.length.toLocaleString('pt-BR')} nota{todasItems.length !== 1 ? 's' : ''} exibida{todasItems.length !== 1 ? 's' : ''}
+              {(todasSearch || todasStatus !== 'todos') && ` (filtro ativo)`}
+            </p>
+
+            {/* Tabela */}
+            <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+              {todasItems.length === 0 ? (
+                <EmptyState label="Nenhuma nota encontrada com esses filtros." />
+              ) : (
+                <>
+                  <TableScrollWrapper>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-primary text-white">
+                          <Th>Status</Th>
+                          <Th>Chave de Acesso (44)</Th>
+                          <Th>Nº NF</Th>
+                          <Th>Série</Th>
+                          <Th>Emissão / Doc</Th>
+                          <Th>CNPJ Emitente</Th>
+                          <Th>Emitente</Th>
+                          <Th>Tipo</Th>
+                          <Th>Oper.</Th>
+                          <Th>COD_SIT</Th>
+                          <Th>CFOPs XML</Th>
+                          <Th>CFOPs SPED</Th>
+                          <Th right>VL NF (R$)</Th>
+                          <Th right>VL DOC SPED</Th>
+                          <Th right>Diferença</Th>
+                          <Th>Div. CFOP</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {todasSlice.map((n, i) => {
+                          const statusCfg = {
+                            pareado:  { label: 'Pareado',  cls: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' },
+                            'so-xml': { label: 'Só XML',   cls: 'bg-amber-100  text-amber-700  ring-1 ring-amber-200'  },
+                            'so-sped':{ label: 'Só SPED',  cls: 'bg-blue-100   text-blue-700   ring-1 ring-blue-200'   },
+                          }[n.status]
+                          return (
+                            <tr key={n.chave + n.status} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                              <td className="px-3 py-2.5 align-top">
+                                <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap', statusCfg.cls)}>
+                                  {n.status === 'pareado' && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                                  {statusCfg.label}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 align-top">
+                                <span className="font-mono text-[10px] leading-relaxed text-foreground break-all">{n.chave}</span>
+                              </td>
+                              <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">{n.nNF ?? n.numDoc ?? '—'}</td>
+                              <td className="px-3 py-2.5 align-top">{n.serie ?? '—'}</td>
+                              <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(n.dhEmi ?? n.dtDoc)}</td>
+                              <td className="px-3 py-2.5 align-top font-mono whitespace-nowrap">{n.cnpjEmit ?? '—'}</td>
+                              <td className="px-3 py-2.5 align-top">
+                                <span className="block max-w-[160px] truncate" title={n.xNomeEmit}>{n.xNomeEmit ?? '—'}</span>
+                              </td>
+                              <td className="px-3 py-2.5 align-top">{n.tipo ? <TipoBadge tipo={n.tipo} /> : <span className="text-muted-foreground">—</span>}</td>
+                              <td className="px-3 py-2.5 align-top"><TpNFBadge tpNF={n.tpNF ?? (n.indOper === '0' ? '0' : n.indOper === '1' ? '1' : undefined)} /></td>
+                              <td className="px-3 py-2.5 align-top">{n.codSit ? <SituacaoBadge codSit={n.codSit} /> : <span className="text-muted-foreground">—</span>}</td>
+                              <td className="px-3 py-2.5 align-top font-mono text-[10px] text-secondary whitespace-nowrap">{n.cfopsXml ?? '—'}</td>
+                              <td className="px-3 py-2.5 align-top font-mono text-[10px] text-primary whitespace-nowrap">{n.cfopsSped ?? '—'}</td>
+                              <td className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
+                                {n.vNF ? Number(n.vNF).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
+                              </td>
+                              <td className="px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums">
+                                {n.vlDoc != null ? n.vlDoc.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
+                              </td>
+                              <td className={cn('px-3 py-2.5 align-top text-right whitespace-nowrap tabular-nums font-semibold', n.temDivergenciaValor ? 'text-red-600' : '')}>
+                                {n.diferenca != null && n.diferenca > 0 ? n.diferenca.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
+                              </td>
+                              <td className="px-3 py-2.5 align-top">
+                                {n.temDivergenciaCfop ? (
+                                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200">
+                                    Sim
+                                  </span>
+                                ) : <span className="text-muted-foreground">—</span>}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </TableScrollWrapper>
+                  <Pagination total={todasItems.length} page={todasPage} pageSize={PAGE_SIZE} onChange={setTodasPage} />
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -636,6 +825,81 @@ export function ResultsPage() {
             page={cancelPage}
             onPageChange={setCancelPage}
           />
+        )}
+
+        {/* ── Aba CFOP Divergente ───────────────────────────────────────── */}
+        {activeTab === 'cfop-divergente' && (
+          <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+            {cfopDivItems.length === 0 ? (
+              <div className="flex flex-col items-center py-16 text-center px-6">
+                <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-400" />
+                <p className="text-sm font-semibold text-emerald-700">Nenhuma divergência de CFOP encontrada</p>
+                <p className="mt-1 text-xs text-muted-foreground max-w-sm">
+                  Todos os documentos pareados possuem os mesmos CFOPs no SPED (C190) e no XML.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="border-b border-border bg-amber-50 px-4 py-3">
+                  <p className="text-xs text-amber-700">
+                    Notas encontradas nos dois lados (SPED e XML) mas com distribuição de CFOP diferente.
+                    O SPED registra CFOPs via C190 (registros analíticos filhos do C100); o XML extrai CFOPs dos itens do documento.
+                  </p>
+                </div>
+                <TableScrollWrapper>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-primary text-white">
+                        <Th>Chave de Acesso (44)</Th>
+                        <Th>Nº NF</Th>
+                        <Th>Dt Doc</Th>
+                        <Th>Emitente</Th>
+                        <Th>CFOPs no XML</Th>
+                        <Th>CFOPs no SPED</Th>
+                        <Th>Faltam no SPED</Th>
+                        <Th>Faltam no XML</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cfopDivSlice.map((item, i) => (
+                        <tr key={item.chave} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F2F5F7]'}>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="font-mono text-[10px] leading-relaxed text-foreground break-all">{item.chave}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">{item.nNF ?? item.numDoc ?? '—'}</td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">{formatDate(item.dhEmi ?? item.dtDoc)}</td>
+                          <td className="px-3 py-2.5 align-top">
+                            <span className="block max-w-[160px] truncate" title={item.xNomeEmit}>{item.xNomeEmit ?? '—'}</span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top font-mono text-[10px] text-secondary whitespace-nowrap">{item.cfopsXml}</td>
+                          <td className="px-3 py-2.5 align-top font-mono text-[10px] text-primary whitespace-nowrap">{item.cfopsSped}</td>
+                          <td className="px-3 py-2.5 align-top">
+                            {item.faltamNoSped.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {item.faltamNoSped.map(c => (
+                                  <span key={c} className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 ring-1 ring-red-200">{c}</span>
+                                ))}
+                              </div>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 align-top">
+                            {item.faltamNoXml.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {item.faltamNoXml.map(c => (
+                                  <span key={c} className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200">{c}</span>
+                                ))}
+                              </div>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableScrollWrapper>
+                <Pagination total={cfopDivItems.length} page={cfopDivPage} pageSize={PAGE_SIZE} onChange={setCfopDivPage} />
+              </>
+            )}
+          </div>
         )}
 
         {/* ── Aba Erros de Leitura ──────────────────────────────────────── */}
