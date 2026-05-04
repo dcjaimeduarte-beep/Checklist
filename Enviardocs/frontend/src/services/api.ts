@@ -202,3 +202,8 @@ export async function buscarJaEnviados(mes: string): Promise<number[]> {
   const { data } = await api.get<{ mes: string; clienteIds: number[] }>("/envios/enviados", { params: { mes } });
   return data.clienteIds;
 }
+
+export async function buscarArquivosEnviados(mes: string): Promise<{ arquivos: string[]; clientesComDados: number[] }> {
+  const { data } = await api.get<{ mes: string; arquivos: string[]; clientesComDados: number[] }>("/envios/arquivos-enviados", { params: { mes } });
+  return { arquivos: data.arquivos, clientesComDados: data.clientesComDados };
+}

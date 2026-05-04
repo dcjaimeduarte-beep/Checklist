@@ -59,4 +59,7 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_sendlog_client    ON send_log(client_id);
     CREATE INDEX IF NOT EXISTS idx_sendlog_month     ON send_log(month);
   `);
+
+  // Migration incremental: adiciona coluna de nomes de arquivos enviados
+  try { db.exec("ALTER TABLE send_log ADD COLUMN files_json TEXT"); } catch { /* já existe */ }
 }

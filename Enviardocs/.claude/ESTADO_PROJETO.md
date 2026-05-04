@@ -8,7 +8,7 @@
 ---
 
 ## Última atualização
-2026-05-03
+2026-05-04
 
 ---
 
@@ -77,11 +77,12 @@ Enviardocs/
 │   └── tsconfig.json
 └── frontend/
     ├── src/
-    │   ├── App.tsx               Navegação: Envio / Clientes / Configurações
+    │   ├── App.tsx               Navegação: Envio / Clientes / Dashboard / Config — display:none (estado persiste entre abas)
     │   ├── main.tsx              Importa brand.css + components.css
     │   ├── pages/
     │   │   ├── Home.tsx          Envio: pasta local → cruzar clientes → enviar lote consolidado
     │   │   ├── Clientes.tsx      CRUD: tabela paginada + modal + inativar/reativar
+    │   │   ├── Dashboard.tsx     Histórico de envios por mês com resumo
     │   │   └── Configuracoes.tsx Template de e-mail editável (assunto e corpo)
     │   ├── services/
     │   │   └── api.ts            axios com x-api-key; todos os endpoints do backend
@@ -113,7 +114,8 @@ Enviardocs/
 | PUT    | /api/clientes/:id/ativar    | API Key   | Reativa cliente inativo                                 |
 | DELETE | /api/clientes/:id           | API Key   | Desativa cliente (soft delete)                          |
 | GET    | /api/envios/preview?mes=    | API Key   | Escaneia STORAGE_DIR e cruza arquivos × clientes        |
-| GET    | /api/envios/enviados?mes=   | API Key   | IDs de clientes com envio bem-sucedido no mês           |
+| GET    | /api/envios/enviados?mes=          | API Key   | IDs de clientes com envio bem-sucedido no mês           |
+| GET    | /api/envios/arquivos-enviados?mes= | API Key   | Arquivos enviados no mês + clientesComDados (files_json) |
 | POST   | /api/envios/cliente         | API Key   | Envia documentos para um cliente (STORAGE_DIR)          |
 | POST   | /api/envios/lote            | API Key   | Envia para lista de clientes (STORAGE_DIR + _ok)        |
 | POST   | /api/envios/lote-upload     | API Key   | Envio via upload browser (multipart, consolida por e-mail) |
@@ -148,7 +150,7 @@ Arquivo: `backend/data/enviardocs.db`
 ### Tabelas
 - **clients** — id, name, cnpj, contact_name, phone, delivery_method, regime, section, folder_name, notes, active, created_at, updated_at
 - **client_emails** — id, client_id, email, is_primary
-- **send_log** — id, client_id, month, files_count, status (success/error/skipped), error_message, sent_at
+- **send_log** — id, client_id, month, files_count, status (success/error/skipped), error_message, sent_at, **files_json** (TEXT — JSON array com nomes dos arquivos enviados; NULL para envios antigos)
 - **config** — key, value (armazena template_assunto e template_corpo)
 
 ### Dados carregados (2026-05-03)
@@ -200,11 +202,15 @@ Arquivo: `backend/data/enviardocs.db`
 ## Frontend — Páginas
 
 ### Envio (Home.tsx)
-- Seletor de mês + botão "Procurar pasta"
-- 6 cartões clicáveis: Com arquivos / Já enviados / Sem arquivo / Sem e-mail / Selecionados / Total
+- Seletor de mês + botão "Procurar pasta" + botão "↺ Recarregar" (reprocessa arquivos em memória sem reselecionar)
+- 6 cartões clicáveis: **Não enviados** / Já enviados / Sem arquivo / Sem e-mail / Selecionados / Total
+- Grid inicia mostrando apenas clientes **não enviados** (jaEnviados excluídos do filtro padrão)
+- Badges por arquivo na coluna "Arquivos encontrados": ✓ Enviado (verde, preciso), Enviado? (cinza, sem dados históricos), sem badge (não enviado)
+- Detecção automática de arquivos novos: cliente enviado com `files_json` que recebeu arquivo novo volta para "Não enviados"
 - Tabela com checkbox por cliente, selecionar todos, busca, toggle "Forçar reenvio"
 - Barra de progresso durante envio (por grupo de e-mail)
 - Resultado: cards "Enviados" e "Erros" clicáveis (filtram tabela) + botão "⬇ Baixar Relatório"
+- CNPJ formatado com máscara no CSV (evita notação científica no Excel)
 
 ### Clientes (Clientes.tsx)
 - Tabela paginada: **10 / 25 / 50 / Todos** por página
@@ -327,3 +333,25 @@ Arquivo: `backend/data/enviardocs.db`
 - Frontend agrupa `itensSelecionados` por conjunto de e-mails antes do loop
 - Uma única requisição multipart por grupo → backend envia um único e-mail com todos os arquivos
 - Resolve: MCZ + PRIME (mesmo e-mail), Santos & Guedes unidades, matriz + filial
+
+### Sessão 6 — 2026-05-04
+**Rastreamento por arquivo, UX de reenvio e persistência de estado**
+
+#### Funcionalidades adicionadas
+- **`files_json` no `send_log`**: nova coluna TEXT gravada pelo `upload.controller.ts` a cada envio bem-sucedido — armazena JSON array com nomes exatos dos arquivos enviados; migration incremental com `ALTER TABLE ... ADD COLUMN` (idempotente)
+- **Rota `GET /api/envios/arquivos-enviados?mes=`**: retorna `{ arquivos: string[], clientesComDados: number[] }` — lista de arquivos enviados no mês e quais clientes têm `files_json` registrado
+- **Badges por arquivo na tabela**: ✓ Enviado (verde, dados precisos do `files_json`), Enviado? (cinza, cliente enviado mas sem `files_json` — envio antigo), sem badge (não enviado)
+- **Detecção automática de novos arquivos**: ao carregar a pasta, clientes com `files_json` registrado que têm arquivos novos (não presentes no envio anterior) voltam automaticamente para a fila "Não enviados" — apenas clientes com dados (`clientesComDados`) são verificados, evitando falsos positivos em envios antigos
+- **Botão "↺ Recarregar"**: aparece após selecionar pasta; reprocessa `arquivosOriginais` em memória buscando estado atualizado do banco — sem reabrir o seletor de pasta
+- **Estado persistente entre abas**: `App.tsx` mudou de `{pagina === X && <Componente />}` para `<div style={{ display: pagina === X ? 'block' : 'none' }}>` — componentes ficam montados, estado de pasta/arquivos/seleção sobrevive à navegação
+- **Filtro padrão "Não enviados"**: card renomeado de "Com arquivos" para "Não enviados"; filtro `com_arquivo` exclui `jaEnviados` por padrão (quando "Forçar reenvio" está desligado); contador do card mostra apenas pendentes
+- **`formatarCNPJ()` no relatório CSV**: aplica máscara `XX.XXX.XXX/XXXX-XX` (14 dígitos) e `XXX.XXX.XXX-XX` (11 dígitos CPF) antes de escrever no CSV — corrige notação científica no Excel para CNPJs sem formatação
+
+#### Bugs corrigidos
+- **161 clientes marcados como "não enviados" incorretamente**: a lógica de detecção de novos arquivos usava `arquivosEnviadosSet.size > 0` globalmente, fazendo com que clientes enviados ANTES da feature (sem `files_json`) parecessem ter "arquivos novos" (seus arquivos não estavam no set global). Corrigido: verificação restrita a `clientesComDados` — só clientes com `files_json` são analisados
+- **CNPJ em notação científica no relatório**: CNPJs numéricos sem máscara viravam `4,30598E+13` no Excel. Corrigido com `formatarCNPJ()`
+
+#### Manutenção do monorepo (GitHub)
+- `.gitignore` raiz restaurado (havia sido deletado acidentalmente do disco; estava no histórico git)
+- `Checklist/backend/public/assets/` adicionado ao `.gitignore` — build artifacts não são mais rastreados
+- Projetos atualizados: AnaliseSped + Checklist (`checklist-v2`), Sermao, seven-reforma-tributaria

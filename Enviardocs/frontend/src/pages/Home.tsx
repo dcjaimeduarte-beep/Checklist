@@ -1,8 +1,16 @@
 ﻿import React, { useRef, useState } from "react";
-import { listarClientes, buscarJaEnviados, type Cliente } from "../services/api";
+import { listarClientes, buscarJaEnviados, buscarArquivosEnviados, type Cliente } from "../services/api";
 import { api } from "../services/api";
 
 const MES_ATUAL = new Date().toISOString().slice(0, 7);
+
+function formatarCNPJ(cnpj: string | null | undefined): string {
+  if (!cnpj) return "";
+  const d = cnpj.replace(/\D/g, "");
+  if (d.length === 14) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`;
+  if (d.length === 11) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`; // CPF
+  return cnpj; // já formatado ou formato desconhecido
+}
 
 const EXTENSOES = new Set(["pdf", "xml", "xlsx", "docx", "csv", "zip"]);
 
@@ -69,16 +77,16 @@ export function Home() {
   const [naoIdentificados, setNaoIdentificados]     = useState<string[]>([]);
   const [mostrarNaoIdent, setMostrarNaoIdent]       = useState(false);
   const [jaEnviados, setJaEnviados]                 = useState<Set<number>>(new Set());
+  const [arquivosEnviados, setArquivosEnviados]         = useState<Set<string>>(new Set());
+  const [clientesComDadosArquivo, setClientesComDadosArquivo] = useState<Set<number>>(new Set());
   const [forcarReenvio, setForcarReenvio]           = useState(false);
   const [progresso, setProgresso]                   = useState<{ atual: number; total: number; nome: string } | null>(null);
   const [filtroResultado, setFiltroResultado]       = useState<"todos" | "ok" | "erro">("todos");
+  const [arquivosOriginais, setArquivosOriginais]   = useState<File[]>([]);
 
-  // ── Selecionar pasta via browser ──────────────────────────────────────────
+  // ── Processa lista de arquivos já lida ────────────────────────────────────
 
-  async function handlePastaChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-
+  async function processarArquivos(arquivosValidos: File[]) {
     setErro("");
     setResultados(null);
     setBusca("");
@@ -86,31 +94,22 @@ export function Home() {
     setNaoIdentificados([]);
     setMostrarNaoIdent(false);
     setJaEnviados(new Set());
-    setForcarReenvio(false);
+    setArquivosEnviados(new Set());
+    setClientesComDadosArquivo(new Set());
     setCarregando(true);
 
-    // Nome da pasta: pega o caminho relativo do primeiro arquivo e extrai a pasta raiz
-    const relative = files[0].webkitRelativePath;
-    const raiz = relative.split("/")[0];
-    setPastaNome(raiz);
-
-    // Filtra apenas extensões permitidas (na raiz ou subpastas)
-    const arquivosValidos = files.filter(f => {
-      const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
-      return EXTENSOES.has(ext);
-    });
-
     try {
-      // Busca clientes e IDs já enviados para o mês
-      const [clientes, idsJaEnviados] = await Promise.all([
+      const [clientes, idsJaEnviados, nmsArquivosEnviados] = await Promise.all([
         listarClientes(),
         buscarJaEnviados(mes).catch(() => [] as number[]),
+        buscarArquivosEnviados(mes).catch(() => ({ arquivos: [] as string[], clientesComDados: [] as number[] })),
       ]);
-      const enviadosSet = new Set(idsJaEnviados);
+      const enviadosSet         = new Set(idsJaEnviados);
+      const arquivosEnviadosSet = new Set(nmsArquivosEnviados.arquivos);
+      const clientesComDadosSet = new Set(nmsArquivosEnviados.clientesComDados);
+      setArquivosEnviados(arquivosEnviadosSet);
+      setClientesComDadosArquivo(clientesComDadosSet);
 
-      // Pré-computa quais arquivos têm correspondência exata com o nome completo de algum
-      // cliente. Isso evita que o fallback de "nome base" atribua o arquivo de uma unidade
-      // (ex: "SANTOS & GUEDES - BOA VISTA") a outras unidades da mesma empresa.
       const filesWithFullMatch = new Set<string>();
       clientes.forEach(c => {
         if (c.emails.length === 0) return;
@@ -128,19 +127,14 @@ export function Home() {
           return { cliente, arquivos: [], status: "sem_email" as const };
         }
         const nomePastaRaw = (cliente.nomePasta || cliente.nome) as string;
-        // Remove CPF/CNPJ numérico colado ao final (" 06540741430")
         const nomeLimpo = nomePastaRaw.replace(/\s+\d{8,}\s*$/, "").trim();
-        // Nome completo normalizado
         const clienteNorm = normalizarNome(nomeLimpo);
-        // Nome base: parte antes de " - NOME FANTASIA" (muito comum em empresas BR)
-        // Ex: "CICERA FERREIRA DA SILVA MERCEARIA - MERC. DO BOLA" → "CICERA FERREIRA DA SILVA MERCEARIA"
         const nomeBase = nomeLimpo.replace(/\s*[-–]\s*.+$/, "").trim();
         const clienteNormBase = nomeBase !== nomeLimpo ? normalizarNome(nomeBase) : null;
 
         const matched = arquivosValidos.filter(f => {
           const fileNorm = normalizarNome(f.name.replace(/\.[^.]+$/, ""));
           return arquivoCasaComCliente(fileNorm, clienteNorm)
-            // Fallback de nome base só se nenhum cliente já "reivindicou" o arquivo pelo nome completo
             || (clienteNormBase !== null && !filesWithFullMatch.has(f.name) && arquivoCasaComCliente(fileNorm, clienteNormBase));
         });
 
@@ -151,18 +145,31 @@ export function Home() {
         };
       });
 
+      // Detecta clientes que foram enviados mas têm arquivos novos.
+      // Só verifica clientes que têm files_json registrado — os sem dados são ignorados
+      // (evita falso positivo em envios feitos antes desta feature).
+      const clientesComNovosArquivos = new Set<number>();
+      itens.forEach(i => {
+        if (i.status === "ok" && enviadosSet.has(i.cliente.id) && clientesComDadosSet.has(i.cliente.id)) {
+          if (i.arquivos.some(f => !arquivosEnviadosSet.has(f.name))) {
+            clientesComNovosArquivos.add(i.cliente.id);
+          }
+        }
+      });
+
+      // jaEnviadosEfetivo: exclui clientes que têm arquivos novos — eles voltam para a fila
+      const jaEnviadosEfetivo = new Set([...enviadosSet].filter(id => !clientesComNovosArquivos.has(id)));
+
       const comArquivo = new Set(
-        itens.filter(i => i.status === "ok" && !enviadosSet.has(i.cliente.id)).map(i => i.cliente.id)
+        itens.filter(i => i.status === "ok" && !jaEnviadosEfetivo.has(i.cliente.id)).map(i => i.cliente.id)
       );
 
       const arquivosUsados = new Set(itens.flatMap(i => i.arquivos.map(f => f.name)));
-      const naoIdent = arquivosValidos
-        .filter(f => !arquivosUsados.has(f.name))
-        .map(f => f.name);
+      const naoIdent = arquivosValidos.filter(f => !arquivosUsados.has(f.name)).map(f => f.name);
 
       setTotalArquivos(arquivosValidos.length);
       setNaoIdentificados(naoIdent);
-      setJaEnviados(enviadosSet);
+      setJaEnviados(jaEnviadosEfetivo);
       setPreview(itens);
       setSelecionados(comArquivo);
       setFiltro("com_arquivo");
@@ -173,12 +180,38 @@ export function Home() {
     }
   }
 
+  // ── Selecionar pasta via browser ──────────────────────────────────────────
+
+  async function handlePastaChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    setForcarReenvio(false);
+
+    const relative = files[0].webkitRelativePath;
+    setPastaNome(relative.split("/")[0]);
+
+    const arquivosValidos = files.filter(f => {
+      const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+      return EXTENSOES.has(ext);
+    });
+
+    setArquivosOriginais(arquivosValidos);
+    await processarArquivos(arquivosValidos);
+  }
+
+  async function recarregarPasta() {
+    if (arquivosOriginais.length === 0) return;
+    await processarArquivos(arquivosOriginais);
+  }
+
   // ── Seleção ───────────────────────────────────────────────────────────────
 
   const termoBusca = busca.trim().toLowerCase();
 
   const itensFiltrados = (preview ?? []).filter(item => {
     if (filtro === "com_arquivo"  && item.status !== "ok")          return false;
+    if (filtro === "com_arquivo"  && !forcarReenvio && jaEnviados.has(item.cliente.id)) return false;
     if (filtro === "sem_arquivo"  && item.status !== "sem_arquivo") return false;
     if (filtro === "sem_email"    && item.status !== "sem_email")   return false;
     if (filtro === "selecionados" && !selecionados.has(item.cliente.id)) return false;
@@ -278,8 +311,18 @@ export function Home() {
     setResultados(acumulados);
     setFiltroResultado("todos");
     setSelecionados(new Set());
+
     const recemEnviados = acumulados.filter(r => r.status === "ok").map(r => r.clienteId);
     setJaEnviados(prev => new Set([...prev, ...recemEnviados]));
+
+    const novosArquivosEnviados = new Set<string>();
+    for (const item of itensSelecionados) {
+      if (acumulados.find(r => r.clienteId === item.cliente.id && r.status === "ok")) {
+        item.arquivos.forEach(f => novosArquivosEnviados.add(f.name));
+      }
+    }
+    setArquivosEnviados(prev => new Set([...prev, ...novosArquivosEnviados]));
+
     setEnviando(false);
   }
 
@@ -325,7 +368,7 @@ export function Home() {
 
       linhas.push([
         item.cliente.nome,
-        item.cliente.cnpj ?? "",
+        formatarCNPJ(item.cliente.cnpj),
         item.cliente.emails.join("; "),
         status,
         qtd,
@@ -350,7 +393,7 @@ export function Home() {
 
   const resumo = preview
     ? {
-        ok:         preview.filter(i => i.status === "ok").length,
+        ok:         preview.filter(i => i.status === "ok" && !jaEnviados.has(i.cliente.id)).length,
         semArquivo: preview.filter(i => i.status === "sem_arquivo").length,
         semEmail:   preview.filter(i => i.status === "sem_email").length,
         total:      preview.length,
@@ -404,6 +447,18 @@ export function Home() {
             {carregando ? "Lendo arquivos..." : "Procurar pasta"}
           </button>
 
+          {arquivosOriginais.length > 0 && (
+            <button
+              className="btn btn--secondary"
+              style={{ height: 42 }}
+              onClick={recarregarPasta}
+              disabled={enviando || carregando}
+              title="Reprocessa os arquivos já lidos — útil após adicionar um arquivo novo na pasta"
+            >
+              ↺ Recarregar
+            </button>
+          )}
+
           {pastaNome && !carregando && (
             <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)", alignSelf: "center" }}>
               📁 {pastaNome}{totalArquivos > 0 ? ` — ${totalArquivos} arquivo(s) lido(s)` : ""}
@@ -425,7 +480,7 @@ export function Home() {
           {/* Cartões de resumo */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "var(--space-3)" }}>
             {([
-              { label: "Com arquivos", valor: resumo.ok,           cor: "var(--color-teal)",       f: "com_arquivo"  as Filtro },
+              { label: "Não enviados", valor: resumo.ok,           cor: "var(--color-teal)",       f: "com_arquivo"  as Filtro },
               { label: "Já enviados",  valor: jaEnviados.size,     cor: "#2563eb",                 f: "ja_enviado"   as Filtro },
               { label: "Sem arquivo",  valor: resumo.semArquivo,   cor: "var(--color-text-muted)", f: "sem_arquivo"  as Filtro },
               { label: "Sem e-mail",   valor: resumo.semEmail,     cor: "var(--color-error-text)", f: "sem_email"    as Filtro },
@@ -573,12 +628,26 @@ export function Home() {
                       </td>
                       <td>
                         {item.arquivos.length > 0 ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            {item.arquivos.map(f => (
-                              <span key={f.name} style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
-                                📎 {f.name}
-                              </span>
-                            ))}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            {item.arquivos.map(f => {
+                              const enviado    = arquivosEnviados.has(f.name);
+                              const semDados   = !enviado && jaEnviados.has(item.cliente.id) && !clientesComDadosArquivo.has(item.cliente.id);
+                              return (
+                                <span key={f.name} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-xs)", color: enviado ? "var(--color-teal)" : "var(--color-text-muted)" }}>
+                                  {enviado ? "✓" : "📎"} {f.name}
+                                  {enviado && (
+                                    <span style={{ background: "var(--color-teal)", color: "#fff", borderRadius: 3, padding: "0 4px", fontSize: "0.6rem", fontWeight: 600, lineHeight: "1.4" }}>
+                                      Enviado
+                                    </span>
+                                  )}
+                                  {semDados && (
+                                    <span title="Cliente enviado neste mês, mas sem registro de arquivo individual" style={{ background: "#e5e7eb", color: "#6b7280", borderRadius: 3, padding: "0 4px", fontSize: "0.6rem", fontWeight: 600, lineHeight: "1.4", cursor: "help" }}>
+                                      Enviado?
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
                         ) : (
                           <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>—</span>

@@ -40,10 +40,10 @@ export default function App() {
       </header>
 
       <main className="main-content">
-        {pagina === "envio"     && <Home />}
-        {pagina === "clientes"  && <Clientes />}
-        {pagina === "dashboard" && <Dashboard />}
-        {pagina === "config"    && <Configuracoes />}
+        <div style={{ display: pagina === "envio"     ? "block" : "none" }}><Home /></div>
+        <div style={{ display: pagina === "clientes"  ? "block" : "none" }}><Clientes /></div>
+        <div style={{ display: pagina === "dashboard" ? "block" : "none" }}><Dashboard /></div>
+        <div style={{ display: pagina === "config"    ? "block" : "none" }}><Configuracoes /></div>
       </main>
 
       <footer className="footer">

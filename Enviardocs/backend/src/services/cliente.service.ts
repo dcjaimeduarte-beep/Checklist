@@ -189,11 +189,12 @@ export function registrarEnvio(
   totalArquivos: number,
   status: "success" | "error" | "skipped",
   mensagemErro?: string,
+  arquivos?: string[],
 ): void {
   getDb().prepare(`
-    INSERT INTO send_log (client_id, month, files_count, status, error_message)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(clienteId, mes, totalArquivos, status, mensagemErro ?? null);
+    INSERT INTO send_log (client_id, month, files_count, status, error_message, files_json)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(clienteId, mes, totalArquivos, status, mensagemErro ?? null, arquivos ? JSON.stringify(arquivos) : null);
 }
 
 export function historicoEnvios(clienteId: number): unknown[] {
@@ -215,6 +216,21 @@ export function jaEnviadosNoMes(mes: string): number[] {
     .prepare("SELECT DISTINCT client_id FROM send_log WHERE month = ? AND status = 'success'")
     .all(mes) as { client_id: number }[];
   return rows.map(r => r.client_id);
+}
+
+export function arquivosEnviadosNoMes(mes: string): { arquivos: string[]; clientesComDados: number[] } {
+  const rows = getDb()
+    .prepare("SELECT client_id, files_json FROM send_log WHERE month = ? AND status = 'success' AND files_json IS NOT NULL")
+    .all(mes) as { client_id: number; files_json: string }[];
+  const todos: string[] = [];
+  const clientesComDados: number[] = [];
+  for (const row of rows) {
+    try {
+      todos.push(...(JSON.parse(row.files_json) as string[]));
+      clientesComDados.push(row.client_id);
+    } catch { /* ignora */ }
+  }
+  return { arquivos: [...new Set(todos)], clientesComDados: [...new Set(clientesComDados)] };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

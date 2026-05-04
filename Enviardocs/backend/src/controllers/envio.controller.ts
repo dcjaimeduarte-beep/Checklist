@@ -11,6 +11,7 @@ import {
   listarClientes,
   registrarEnvio,
   jaEnviadosNoMes,
+  arquivosEnviadosNoMes,
 } from "../services/cliente.service";
 import { logInfo } from "../utils/logger";
 import { gerarAssunto, gerarCorpo } from "../config/email.template";
@@ -190,6 +191,26 @@ export function buscarJaEnviados(
   try {
     const clienteIds = jaEnviadosNoMes(mes);
     res.json({ mes, clienteIds });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Arquivos já enviados no mês (por nome de arquivo) ─────────────────────
+
+export function buscarArquivosEnviados(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const mes = (req.query.mes as string) || "";
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) {
+    res.status(400).json({ erro: "Formato de mês inválido. Use YYYY-MM." });
+    return;
+  }
+  try {
+    const { arquivos, clientesComDados } = arquivosEnviadosNoMes(mes);
+    res.json({ mes, arquivos, clientesComDados });
   } catch (err) {
     next(err);
   }

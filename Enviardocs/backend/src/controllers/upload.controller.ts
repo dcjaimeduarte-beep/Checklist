@@ -124,7 +124,7 @@ export async function enviarLoteUpload(req: Request, res: Response): Promise<voi
       });
 
       for (const item of group) {
-        registrarEnvio(item.clienteId, mes, item.anexos.length, "success");
+        registrarEnvio(item.clienteId, mes, item.anexos.length, "success", undefined, item.anexos.map(a => a.filename));
         logInfo("Upload/envio OK", { clienteId: item.clienteId, nome: item.nome, arquivos: item.anexos.length });
         resultados.push({
           clienteId:     item.clienteId,
