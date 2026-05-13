@@ -62,4 +62,6 @@ export function runMigrations(): void {
 
   // Migration incremental: adiciona coluna de nomes de arquivos enviados
   try { db.exec("ALTER TABLE send_log ADD COLUMN files_json TEXT"); } catch { /* já existe */ }
+  // Migration incremental: adiciona coluna de e-mails destinatários
+  try { db.exec("ALTER TABLE send_log ADD COLUMN emails_json TEXT"); } catch { /* já existe */ }
 }

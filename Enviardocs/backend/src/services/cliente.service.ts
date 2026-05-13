@@ -190,11 +190,17 @@ export function registrarEnvio(
   status: "success" | "error" | "skipped",
   mensagemErro?: string,
   arquivos?: string[],
+  emails?: string[],
 ): void {
   getDb().prepare(`
-    INSERT INTO send_log (client_id, month, files_count, status, error_message, files_json)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(clienteId, mes, totalArquivos, status, mensagemErro ?? null, arquivos ? JSON.stringify(arquivos) : null);
+    INSERT INTO send_log (client_id, month, files_count, status, error_message, files_json, emails_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    clienteId, mes, totalArquivos, status,
+    mensagemErro ?? null,
+    arquivos ? JSON.stringify(arquivos) : null,
+    emails   ? JSON.stringify(emails)   : null,
+  );
 }
 
 export function historicoEnvios(clienteId: number): unknown[] {
@@ -216,6 +222,65 @@ export function jaEnviadosNoMes(mes: string): number[] {
     .prepare("SELECT DISTINCT client_id FROM send_log WHERE month = ? AND status = 'success'")
     .all(mes) as { client_id: number }[];
   return rows.map(r => r.client_id);
+}
+
+export interface EnvioResumidoDoMes {
+  client_id: number;
+  teve_sucesso: boolean;
+  teve_erro: boolean;
+  sucesso_em: string | null;
+  erro_em: string | null;
+  arquivos_enviados: string[];
+  mensagem_erro: string | null;
+}
+
+export function enviosDoMes(mes: string): EnvioResumidoDoMes[] {
+  const rows = getDb()
+    .prepare(`
+      SELECT client_id, status, files_json, sent_at, error_message
+      FROM send_log
+      WHERE month = ?
+      ORDER BY sent_at DESC
+    `)
+    .all(mes) as Array<{
+      client_id: number;
+      status: string;
+      files_json: string | null;
+      sent_at: string;
+      error_message: string | null;
+    }>;
+
+  const porCliente = new Map<number, EnvioResumidoDoMes>();
+
+  for (const row of rows) {
+    if (!porCliente.has(row.client_id)) {
+      porCliente.set(row.client_id, {
+        client_id: row.client_id,
+        teve_sucesso: false,
+        teve_erro: false,
+        sucesso_em: null,
+        erro_em: null,
+        arquivos_enviados: [],
+        mensagem_erro: null,
+      });
+    }
+    const atual = porCliente.get(row.client_id)!;
+
+    if (row.status === "success" && !atual.teve_sucesso) {
+      atual.teve_sucesso = true;
+      atual.sucesso_em = row.sent_at;
+      if (row.files_json) {
+        try { atual.arquivos_enviados = JSON.parse(row.files_json) as string[]; } catch { /* ignora */ }
+      }
+    }
+    if (row.status === "error" && !atual.teve_erro) {
+      atual.teve_erro = true;
+      atual.erro_em = row.sent_at;
+      atual.mensagem_erro = row.error_message;
+    }
+  }
+
+  return Array.from(porCliente.values());
 }
 
 export function arquivosEnviadosNoMes(mes: string): { arquivos: string[]; clientesComDados: number[] } {

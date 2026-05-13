@@ -36,16 +36,22 @@ function palavrasChave(norm: string): string[] {
   return norm.split("_").filter(p => p.length > 2 && !IGNORAR_PALAVRAS.has(p) && !/^\d+$/.test(p));
 }
 
-// Match exato: arquivo contém o nome normalizado do cliente
-// Match flexível: todas as palavras-chave do cliente aparecem no nome do arquivo
-function arquivoCasaComCliente(fileNorm: string, clienteNorm: string): boolean {
-  if (fileNorm.includes(clienteNorm)) return true;
+// Retorna o tipo de match ou null se não corresponde
+function tipoMatch(fileNorm: string, clienteNorm: string): "exato" | "parcial" | null {
+  if (fileNorm.includes(clienteNorm)) return "exato";
   const chaves = palavrasChave(clienteNorm);
-  return chaves.length >= 2 && chaves.every(p => fileNorm.includes(p));
+  if (chaves.length >= 2 && chaves.every(p => fileNorm.includes(p))) return "parcial";
+  return null;
+}
+
+function arquivoCasaComCliente(fileNorm: string, clienteNorm: string): boolean {
+  return tipoMatch(fileNorm, clienteNorm) !== null;
 }
 interface PreviewItem {
   cliente: Cliente;
   arquivos: File[];
+  matchTipo: Record<string, "exato" | "parcial">; // filename → tipo de match
+  chaveBusca: string; // nome normalizado usado para encontrar os arquivos
   status: "ok" | "sem_arquivo" | "sem_email";
 }
 
@@ -124,7 +130,7 @@ export function Home() {
 
       const itens: PreviewItem[] = clientes.map(cliente => {
         if (cliente.emails.length === 0) {
-          return { cliente, arquivos: [], status: "sem_email" as const };
+          return { cliente, arquivos: [], matchTipo: {}, chaveBusca: "", status: "sem_email" as const };
         }
         const nomePastaRaw = (cliente.nomePasta || cliente.nome) as string;
         const nomeLimpo = nomePastaRaw.replace(/\s+\d{8,}\s*$/, "").trim();
@@ -132,15 +138,31 @@ export function Home() {
         const nomeBase = nomeLimpo.replace(/\s*[-–]\s*.+$/, "").trim();
         const clienteNormBase = nomeBase !== nomeLimpo ? normalizarNome(nomeBase) : null;
 
-        const matched = arquivosValidos.filter(f => {
+        const matched: File[] = [];
+        const matchTipo: Record<string, "exato" | "parcial"> = {};
+
+        arquivosValidos.forEach(f => {
           const fileNorm = normalizarNome(f.name.replace(/\.[^.]+$/, ""));
-          return arquivoCasaComCliente(fileNorm, clienteNorm)
-            || (clienteNormBase !== null && !filesWithFullMatch.has(f.name) && arquivoCasaComCliente(fileNorm, clienteNormBase));
+          const t1 = tipoMatch(fileNorm, clienteNorm);
+          if (t1) {
+            matched.push(f);
+            matchTipo[f.name] = t1;
+            return;
+          }
+          if (clienteNormBase !== null && !filesWithFullMatch.has(f.name)) {
+            const t2 = tipoMatch(fileNorm, clienteNormBase);
+            if (t2) {
+              matched.push(f);
+              matchTipo[f.name] = t2;
+            }
+          }
         });
 
         return {
           cliente,
           arquivos: matched,
+          matchTipo,
+          chaveBusca: nomeLimpo,
           status: matched.length > 0 ? ("ok" as const) : ("sem_arquivo" as const),
         };
       });
@@ -625,16 +647,33 @@ export function Home() {
                             {item.cliente.emails.join(", ")}
                           </div>
                         )}
+                        {item.chaveBusca && item.chaveBusca !== item.cliente.nome && (
+                          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-border)", marginTop: 1 }}>
+                            🔑 {item.chaveBusca}
+                          </div>
+                        )}
                       </td>
                       <td>
                         {item.arquivos.length > 0 ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                             {item.arquivos.map(f => {
-                              const enviado    = arquivosEnviados.has(f.name);
-                              const semDados   = !enviado && jaEnviados.has(item.cliente.id) && !clientesComDadosArquivo.has(item.cliente.id);
+                              const enviado  = arquivosEnviados.has(f.name);
+                              const semDados = !enviado && jaEnviados.has(item.cliente.id) && !clientesComDadosArquivo.has(item.cliente.id);
+                              const tipo     = item.matchTipo[f.name];
                               return (
                                 <span key={f.name} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-xs)", color: enviado ? "var(--color-teal)" : "var(--color-text-muted)" }}>
                                   {enviado ? "✓" : "📎"} {f.name}
+                                  {/* Badge de conformidade */}
+                                  {!enviado && tipo === "exato" && (
+                                    <span title="Nome do arquivo contém o nome cadastrado do cliente" style={{ background: "#dcfce7", color: "#15803d", borderRadius: 3, padding: "0 5px", fontSize: "0.6rem", fontWeight: 700, lineHeight: "1.5", whiteSpace: "nowrap" }}>
+                                      ≡ Exato
+                                    </span>
+                                  )}
+                                  {!enviado && tipo === "parcial" && (
+                                    <span title="Correspondência por palavras-chave — verifique se o arquivo é deste cliente" style={{ background: "#fef9c3", color: "#854d0e", borderRadius: 3, padding: "0 5px", fontSize: "0.6rem", fontWeight: 700, lineHeight: "1.5", whiteSpace: "nowrap", cursor: "help" }}>
+                                      ≈ Parcial
+                                    </span>
+                                  )}
                                   {enviado && (
                                     <span style={{ background: "var(--color-teal)", color: "#fff", borderRadius: 3, padding: "0 4px", fontSize: "0.6rem", fontWeight: 600, lineHeight: "1.4" }}>
                                       Enviado

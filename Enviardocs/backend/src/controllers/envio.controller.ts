@@ -12,6 +12,7 @@ import {
   registrarEnvio,
   jaEnviadosNoMes,
   arquivosEnviadosNoMes,
+  enviosDoMes,
 } from "../services/cliente.service";
 import { logInfo } from "../utils/logger";
 import { gerarAssunto, gerarCorpo } from "../config/email.template";
@@ -37,7 +38,7 @@ export async function enviarDocumentosCliente(
       anexos,
     });
 
-    registrarEnvio(clienteId, mes ?? "", anexos.length, "success");
+    registrarEnvio(clienteId, mes ?? "", anexos.length, "success", undefined, anexos.map(a => a.filename), cliente.emails);
 
     // Renomeia arquivos com _ok após envio bem-sucedido
     for (const anexo of anexos) {
@@ -148,7 +149,7 @@ export async function enviarLote(
         anexos,
       });
 
-      registrarEnvio(clienteId, mes, anexos.length, "success");
+      registrarEnvio(clienteId, mes, anexos.length, "success", undefined, anexos.map(a => a.filename), cliente.emails);
       logInfo("Envio lote OK", { clienteId, nome: cliente.nome, arquivos: anexos.length });
 
       // Renomeia arquivos adicionando _ok após envio bem-sucedido
@@ -191,6 +192,87 @@ export function buscarJaEnviados(
   try {
     const clienteIds = jaEnviadosNoMes(mes);
     res.json({ mes, clienteIds });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Auditoria consolidada do mês ──────────────────────────────────────────
+
+export type StatusAuditoria =
+  | "enviado"
+  | "pendente_com_arquivo"
+  | "sem_arquivo"
+  | "sem_email"
+  | "erro";
+
+export async function auditarEnvios(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const mes = (req.query.mes as string) || mesAtual();
+
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) {
+    res.status(400).json({ erro: "Formato de mês inválido. Use YYYY-MM." });
+    return;
+  }
+
+  try {
+    const clientes  = listarClientes();
+    const envios    = enviosDoMes(mes);
+    const envioMap  = new Map(envios.map(e => [e.client_id, e]));
+
+    const resultados = await Promise.all(
+      clientes.map(async (cliente) => {
+        const envio = envioMap.get(cliente.id);
+        const nomePasta = cliente.nomePasta || cliente.nome;
+        const disponiveis = await tentarLocalizarArquivosDoCliente(nomePasta, mes);
+
+        let status: StatusAuditoria;
+        if (cliente.emails.length === 0) {
+          status = "sem_email";
+        } else if (envio?.teve_sucesso) {
+          status = "enviado";
+        } else if (envio?.teve_erro) {
+          status = "erro";
+        } else if (disponiveis.length > 0) {
+          status = "pendente_com_arquivo";
+        } else {
+          status = "sem_arquivo";
+        }
+
+        const arquivosEnviadosSet = new Set(envio?.arquivos_enviados ?? []);
+        const novosArquivos = disponiveis
+          .map(f => f.filename)
+          .filter(f => !arquivosEnviadosSet.has(f));
+
+        return {
+          id:                  cliente.id,
+          nome:                cliente.nome,
+          cnpj:                cliente.cnpj,
+          emails:              cliente.emails,
+          status,
+          arquivosEnviados:    envio?.arquivos_enviados ?? [],
+          arquivosDisponiveis: disponiveis.map(f => f.filename),
+          novosArquivos,
+          enviadoEm:           envio?.sucesso_em ?? null,
+          mensagemErro:        envio?.mensagem_erro ?? null,
+        };
+      }),
+    );
+
+    const enviados            = resultados.filter(r => r.status === "enviado").length;
+    const pendentesComArquivo = resultados.filter(r => r.status === "pendente_com_arquivo").length;
+    const semArquivo          = resultados.filter(r => r.status === "sem_arquivo").length;
+    const semEmail            = resultados.filter(r => r.status === "sem_email").length;
+    const comErro             = resultados.filter(r => r.status === "erro").length;
+
+    res.json({
+      mes,
+      resumo: { enviados, pendentesComArquivo, semArquivo, semEmail, comErro, total: clientes.length },
+      clientes: resultados,
+    });
   } catch (err) {
     next(err);
   }

@@ -8,9 +8,11 @@ import {
   desativarCliente,
   ativarCliente,
   importarPlanilha,
+  buscarHistoricoCliente,
   type Cliente,
   type ClienteInput,
   type ImportResult,
+  type HistoricoEnvio,
 } from "../services/api";
 
 const TIPO_ENVIO_OPTS = ["email", "boleto", "pix", "whatsapp", "recibo"];
@@ -41,6 +43,9 @@ export function Clientes() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [mostrarInativos, setMostrarInativos] = useState(false);
   const [confirmarInativar, setConfirmarInativar] = useState(false);
+  const [abaModal, setAbaModal]       = useState<"dados" | "historico">("dados");
+  const [historico, setHistorico]     = useState<HistoricoEnvio[]>([]);
+  const [carregandoHist, setCarrHist] = useState(false);
 
   const carregar = useCallback(() => {
     setCarreg(true);
@@ -84,10 +89,17 @@ export function Clientes() {
     });
     setNovoEmail("");
     setErro("");
+    setAbaModal("dados");
+    setHistorico([]);
     setModal(c);
+    setCarrHist(true);
+    buscarHistoricoCliente(c.id)
+      .then(setHistorico)
+      .catch(() => {})
+      .finally(() => setCarrHist(false));
   }
 
-  function fecharModal() { setModal(null); setErro(""); setConfirmarInativar(false); }
+  function fecharModal() { setModal(null); setErro(""); setConfirmarInativar(false); setAbaModal("dados"); setHistorico([]); }
 
   function campo(key: keyof ClienteInput, value: string) {
     setForm(f => ({ ...f, [key]: value }));
@@ -443,11 +455,120 @@ export function Clientes() {
         <div className="modal-backdrop" onClick={fecharModal}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal__header">
-              <span className="modal__title">{modal === "novo" ? "Novo cliente" : "Editar cliente"}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                <span className="modal__title">{modal === "novo" ? "Novo cliente" : "Editar cliente"}</span>
+                {modal !== "novo" && (
+                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    {(["dados", "historico"] as const).map(aba => (
+                      <button
+                        key={aba}
+                        type="button"
+                        onClick={() => setAbaModal(aba)}
+                        style={{
+                          padding: "3px 14px",
+                          border: "1.5px solid",
+                          borderRadius: "var(--radius-md)",
+                          fontSize: "var(--font-size-xs)",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          background: abaModal === aba ? "var(--color-navy)" : "var(--color-white)",
+                          color: abaModal === aba ? "var(--color-white)" : "var(--color-text-muted)",
+                          borderColor: abaModal === aba ? "var(--color-navy)" : "var(--color-border)",
+                        }}
+                      >
+                        {aba === "dados" ? "Dados" : `Histórico${historico.length > 0 ? ` (${historico.length})` : ""}`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button className="modal__close" onClick={fecharModal}>✕</button>
             </div>
 
             <form className="modal__body" onSubmit={salvar}>
+              {/* ── Aba Histórico ─────────────────────────────────────────── */}
+              {abaModal === "historico" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+                  {carregandoHist ? (
+                    <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>Carregando histórico...</p>
+                  ) : historico.length === 0 ? (
+                    <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>Nenhum envio registrado para este cliente.</p>
+                  ) : (
+                    <table className="table" style={{ fontSize: "var(--font-size-xs)" }}>
+                      <thead>
+                        <tr>
+                          <th>Mês</th>
+                          <th style={{ textAlign: "center" }}>Status</th>
+                          <th>Data/hora</th>
+                          <th>E-mails destinatários</th>
+                          <th>Arquivos enviados</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historico.map(h => {
+                          const arquivos: string[] = h.files_json ? (() => { try { return JSON.parse(h.files_json!) as string[]; } catch { return []; } })() : [];
+                          const emails: string[]   = h.emails_json ? (() => { try { return JSON.parse(h.emails_json!) as string[]; } catch { return []; } })()
+                                                   : (modal !== "novo" ? modal.emails : []);
+                          const dataFmt = (() => {
+                            const d = new Date(h.sent_at);
+                            return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+                          })();
+                          return (
+                            <tr key={h.id}>
+                              <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{h.month}</td>
+                              <td style={{ textAlign: "center" }}>
+                                {h.status === "success" && <span className="badge badge--success" style={{ fontSize: 10 }}>Enviado</span>}
+                                {h.status === "error"   && <span className="badge badge--error"   style={{ fontSize: 10 }}>Erro</span>}
+                                {h.status === "skipped" && <span className="badge badge--neutral" style={{ fontSize: 10 }}>Pulado</span>}
+                              </td>
+                              <td style={{ color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>{dataFmt}</td>
+                              <td>
+                                {emails.length > 0 ? (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                                    {emails.map(e => (
+                                      <span key={e} style={{ color: "var(--color-navy)" }}>
+                                        {h.emails_json ? "✉ " : "✉ "}{e}
+                                        {!h.emails_json && <span title="E-mail atual do cliente (registro histórico sem destinatário salvo)" style={{ color: "var(--color-text-muted)", marginLeft: 4 }}>*</span>}
+                                      </span>
+                                    ))}
+                                    {!h.emails_json && (
+                                      <span style={{ fontSize: 10, color: "var(--color-text-muted)", fontStyle: "italic" }}>* e-mail atual</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "var(--color-border)" }}>—</span>
+                                )}
+                              </td>
+                              <td>
+                                {h.status === "error" && h.error_message ? (
+                                  <span style={{ color: "var(--color-error-text)" }}>{h.error_message}</span>
+                                ) : arquivos.length > 0 ? (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                                    {arquivos.map(f => <span key={f} style={{ color: "var(--color-teal)" }}>✓ {f}</span>)}
+                                  </div>
+                                ) : h.files_count > 0 ? (
+                                  <span style={{ color: "var(--color-text-muted)", fontStyle: "italic" }}>
+                                    {h.files_count} arquivo{h.files_count !== 1 ? "s" : ""} enviado{h.files_count !== 1 ? "s" : ""}
+                                    <br /><span style={{ fontSize: 10 }}>nomes não registrados</span>
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "var(--color-border)" }}>—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: "var(--space-2)" }}>
+                    <button type="button" className="btn btn--secondary" onClick={fecharModal}>Fechar</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Aba Dados (conteúdo original) ──────────────────────── */}
+              {abaModal === "dados" && <>
               {/* Seção: Dados gerais */}
               <p className="section-label">Dados gerais</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
@@ -601,6 +722,7 @@ export function Clientes() {
                   </button>
                 </div>
               </div>
+              </>}
             </form>
           </div>
         </div>

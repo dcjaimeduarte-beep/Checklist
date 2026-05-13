@@ -203,6 +203,65 @@ export async function buscarJaEnviados(mes: string): Promise<number[]> {
   return data.clienteIds;
 }
 
+// ── Auditoria ──────────────────────────────────────────────────────────────
+
+export type StatusAuditoria =
+  | "enviado"
+  | "pendente_com_arquivo"
+  | "sem_arquivo"
+  | "sem_email"
+  | "erro";
+
+export interface AuditoriaCliente {
+  id: number;
+  nome: string;
+  cnpj: string | null;
+  emails: string[];
+  status: StatusAuditoria;
+  arquivosEnviados: string[];
+  arquivosDisponiveis: string[];
+  novosArquivos: string[];
+  enviadoEm: string | null;
+  mensagemErro: string | null;
+}
+
+export interface AuditoriaResult {
+  mes: string;
+  resumo: {
+    enviados: number;
+    pendentesComArquivo: number;
+    semArquivo: number;
+    semEmail: number;
+    comErro: number;
+    total: number;
+  };
+  clientes: AuditoriaCliente[];
+}
+
+// ── Histórico de envios do cliente ────────────────────────────────────────
+
+export interface HistoricoEnvio {
+  id: number;
+  client_id: number;
+  month: string;
+  files_count: number;
+  status: "success" | "error" | "skipped";
+  error_message: string | null;
+  sent_at: string;
+  files_json: string | null;
+  emails_json: string | null;
+}
+
+export async function buscarHistoricoCliente(id: number): Promise<HistoricoEnvio[]> {
+  const { data } = await api.get<{ dados: HistoricoEnvio[] }>(`/clientes/${id}/historico`);
+  return data.dados;
+}
+
+export async function buscarAuditoria(mes: string): Promise<AuditoriaResult> {
+  const { data } = await api.get<AuditoriaResult>("/envios/auditoria", { params: { mes } });
+  return data;
+}
+
 export async function buscarArquivosEnviados(mes: string): Promise<{ arquivos: string[]; clientesComDados: number[] }> {
   const { data } = await api.get<{ mes: string; arquivos: string[]; clientesComDados: number[] }>("/envios/arquivos-enviados", { params: { mes } });
   return { arquivos: data.arquivos, clientesComDados: data.clientesComDados };

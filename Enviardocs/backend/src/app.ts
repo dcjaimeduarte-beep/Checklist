@@ -20,7 +20,13 @@ app.use(helmet());
 app.disable("x-powered-by");
 
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ?? "*",
+  origin: (origin, cb) => {
+    const allowed = process.env.CORS_ORIGIN ?? "*";
+    if (allowed === "*" || !origin) return cb(null, true);
+    // Em desenvolvimento aceita qualquer porta de localhost
+    if (env.nodeEnv === "development" && /^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
+    cb(null, origin === allowed);
+  },
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
