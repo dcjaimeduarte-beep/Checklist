@@ -8,7 +8,7 @@
 ---
 
 ## Última atualização
-2026-05-04
+2026-06-03
 
 ---
 
@@ -25,7 +25,8 @@ Enviardocs/
 │   ├── ESTADO_PROJETO.md       ← este arquivo
 │   └── IDENTIDADE_VISUAL.md    Tokens de marca Seven (não alterar sem aprovação)
 ├── docs/
-│   └── Controle financeiro.xlsx  Planilha de clientes (fonte do banco de dados)
+│   ├── Controle financeiro.xlsx              Planilha original de clientes
+│   └── Controle Financeiro Seven - 2026.xlsx Planilha 2026 (Jan–Jun) — importada em 2026-06-03
 ├── backend/
 │   ├── data/
 │   │   └── enviardocs.db         SQLite — clientes, emails, logs de envio
@@ -153,10 +154,11 @@ Arquivo: `backend/data/enviardocs.db`
 - **send_log** — id, client_id, month, files_count, status (success/error/skipped), error_message, sent_at, **files_json** (TEXT — JSON array com nomes dos arquivos enviados; NULL para envios antigos)
 - **config** — key, value (armazena template_assunto e template_corpo)
 
-### Dados carregados (2026-05-03)
-- **~185 clientes ativos** com e-mail
-- 8 clientes sem arquivo em Maio/2026
-- 148+ envios registrados em Maio/2026
+### Dados carregados (2026-06-03)
+- **~187 clientes ativos** (4 novos importados em 2026-06-03: RCV NORDESTE BOLOS, M L SANTOS ALVES, ACESSORIOS TAMIRES BATISTA, EDUARDO PNEUS)
+- Cliente ID 31 (RAFAELLY BUARQUE DE MELO SILVA SOARES) desativado — duplicata do ID 30
+- Cliente ID 30 (RAFAELLY BUARQUE - AUTO PEÇAS 3 IRMÃOS) com `folder_name` = "RAFAELLY BUARQUE DE MELO SILVA SOARES"
+- 162 clientes enviados em Junho/2026 (2026-06-03)
 
 ---
 
@@ -180,6 +182,8 @@ Arquivo: `backend/data/enviardocs.db`
 ### Matching de arquivos
 - `normalizarNome()`: remove acentos, chars especiais, maiúsculas, espaços → underscore
 - Match exato: `fileNorm.includes(clienteNorm)` (nome completo do cliente)
+- Match parcial: todas as palavras-chave do cliente presentes no nome do arquivo (ignora `LTDA`, `EIRELI`, etc.; inclui dígitos 1-2 chars como "2" de "FILIAL 2")
+- **Longest match wins** (2026-06-03): quando arquivo tem match Exato em múltiplos clientes, fica apenas com o mais específico (nome normalizado mais longo) — evita arquivo de "EMPRESA - OKR" ir para "EMPRESA" base
 - Fallback nome base (remove " - UNIDADE"): **só ativado se o arquivo não teve match exato** — evita arquivos de uma unidade aparecerem em outras
 - Campo `folder_name` tem prioridade sobre `name`; se vazio/null, usa `name`
 
@@ -208,7 +212,9 @@ Arquivo: `backend/data/enviardocs.db`
 - Badges por arquivo na coluna "Arquivos encontrados": ✓ Enviado (verde, preciso), Enviado? (cinza, sem dados históricos), sem badge (não enviado)
 - Detecção automática de arquivos novos: cliente enviado com `files_json` que recebeu arquivo novo volta para "Não enviados"
 - Tabela com checkbox por cliente, selecionar todos, busca, toggle "Forçar reenvio"
-- Barra de progresso durante envio (por grupo de e-mail)
+- **Barra de progresso** (overlay fixo no rodapé, sempre visível): mostra "X de Y", percentual, nome do cliente e **e-mail de destino** do grupo atual
+- **Botão "Encerrar"** na barra de progresso: interrompe após o envio em andamento; clientes não enviados permanecem selecionados
+- **Auto-scroll para resultados**: após envio completo (sucesso ou erro) a página rola para a seção de resultados automaticamente
 - Resultado: cards "Enviados" e "Erros" clicáveis (filtram tabela) + botão "⬇ Baixar Relatório"
 - CNPJ formatado com máscara no CSV (evita notação científica no Excel)
 
@@ -219,6 +225,7 @@ Arquivo: `backend/data/enviardocs.db`
 - Modal de edição: todos os campos + gerenciamento de e-mails
 - Inativar cliente: botão com confirmação em dois passos dentro do modal
 - Reativar cliente: botão na lista de inativos
+- **Importação de planilha** (2026-06-03): modal de resultado exibe seção de aviso amarelo com e-mails diferentes encontrados — não adiciona automaticamente, aguarda revisão manual
 
 ### Configurações (Configuracoes.tsx)
 - Edição de template de e-mail: assunto e corpo com placeholders `{{mes}}` e `{{cliente}}`
@@ -355,3 +362,31 @@ Arquivo: `backend/data/enviardocs.db`
 - `.gitignore` raiz restaurado (havia sido deletado acidentalmente do disco; estava no histórico git)
 - `Checklist/backend/public/assets/` adicionado ao `.gitignore` — build artifacts não são mais rastreados
 - Projetos atualizados: AnaliseSped + Checklist (`checklist-v2`), Sermao, seven-reforma-tributaria
+
+### Sessão 7 — 2026-06-03
+**Operação Junho/2026 — importação, matching melhorado, UX de envio**
+
+#### Importação e banco
+- **Nova planilha importada**: `docs/Controle Financeiro Seven - 2026.xlsx` (Jan–Jun 2026) — 4 clientes novos inseridos (RCV NORDESTE BOLOS, M L SANTOS ALVES COMERCIO DE MOVEIS, ACESSORIOS TAMIRES BATISTA LTDA, EDUARDO PNEUS LTDA)
+- **Duplicata RAFAELLY corrigida**: ID 31 (nome pessoal) desativado; ID 30 recebeu `folder_name = "RAFAELLY BUARQUE DE MELO SILVA SOARES"` para encontrar os arquivos corretamente
+- **162 clientes enviados** com sucesso em Junho/2026
+
+#### Importação de planilha — proteção de e-mails
+- `import.service.ts`: para clientes existentes, e-mails novos encontrados na planilha **não são adicionados automaticamente** — reportados em `emailsParaRevisar` para revisão manual
+- `api.ts` + `Clientes.tsx`: modal de resultado exibe seção amarela com e-mails para revisar (antes/depois lado a lado)
+
+#### Matching de arquivos — correções (Home.tsx)
+- **Dígitos como palavra-chave**: `palavrasChave()` agora inclui números 1-2 dígitos (ex: "2" de "FILIAL 2") — corrige match parcial cruzado entre FILIAL e FILIAL 2
+- **Longest match wins**: após montar todos os matches, arquivo com Exato em múltiplos clientes fica apenas com o de nome mais longo — elimina NF 9338 aparecendo em PARAGOMINAS base E em OKR simultaneamente
+- **Função morta removida**: `arquivoCasaComCliente` declarada mas nunca usada
+
+#### UX de envio (Home.tsx)
+- **Barra de progresso reposicionada**: de abaixo da tabela para overlay fixo no rodapé (`position: fixed`, `bottom: 28px`) — sempre visível independente de scroll
+- **E-mail de destino na barra**: mostra nome do cliente + e-mail(s) do grupo sendo enviado
+- **Botão "Encerrar"**: cancela o envio após o grupo atual; clientes não processados ficam selecionados para retomar depois
+- **Auto-scroll para resultados**: `scrollIntoView({ behavior: "smooth" })` após envio completa — resolve invisibilidade dos resultados em telas longas
+
+#### Verificação de segurança de matching
+- Script de análise confirmou: nenhum risco de arquivo cruzar para cliente errado (além dos casos PARAGOMINAS/FILIAL já corrigidos)
+- `johnanthan18@hotmail.com` (representante) não causa consolidação indevida — cada cliente tem e-mail próprio combinado com ele
+- 15 grupos de consolidação de e-mail confirmados como corretos pelo usuário

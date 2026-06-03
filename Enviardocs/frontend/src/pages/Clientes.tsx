@@ -12,6 +12,7 @@ import {
   type Cliente,
   type ClienteInput,
   type ImportResult,
+  type EmailParaRevisar,
   type HistoricoEnvio,
 } from "../services/api";
 
@@ -750,6 +751,47 @@ export function Clientes() {
                   </div>
                 ))}
               </div>
+
+              {/* E-mails para revisar */}
+              {importResult.emailsParaRevisar.length > 0 && (
+                <div style={{
+                  background: "var(--color-warning-bg, #fffbeb)",
+                  border: "1px solid var(--color-warning-border, #f59e0b)",
+                  borderRadius: "var(--radius)",
+                  padding: "var(--space-3)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--space-2)",
+                }}>
+                  <div style={{ fontWeight: 600, color: "var(--color-warning-text, #b45309)", fontSize: "var(--font-size-sm)" }}>
+                    E-mails diferentes encontrados — aguardando sua revisão
+                  </div>
+                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+                    Os e-mails abaixo constam na planilha mas não estão cadastrados no sistema. Nenhum foi adicionado automaticamente.
+                  </div>
+                  {importResult.emailsParaRevisar.map((item: EmailParaRevisar, i: number) => (
+                    <div key={i} style={{
+                      background: "var(--color-bg-card, #fff)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "var(--space-2) var(--space-3)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "var(--space-1)",
+                    }}>
+                      <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{item.nome}</div>
+                      <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+                        <span style={{ fontWeight: 500 }}>No sistema: </span>
+                        {item.emailsNaBd.length > 0 ? item.emailsNaBd.join(", ") : <em>nenhum</em>}
+                      </div>
+                      <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-warning-text, #b45309)" }}>
+                        <span style={{ fontWeight: 500 }}>Na planilha (não adicionado): </span>
+                        {item.emailsNaPlanilha.join(", ")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Detalhes */}
               <div style={{ maxHeight: 360, overflowY: "auto" }}>

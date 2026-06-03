@@ -9,10 +9,18 @@ interface RawRow {
   emails: string[];
 }
 
+export interface EmailParaRevisar {
+  nome: string;
+  cnpj: string;
+  emailsNaBd: string[];
+  emailsNaPlanilha: string[];
+}
+
 export interface ImportResult {
   inseridos: number;
   atualizados: number;
   ignorados: number;
+  emailsParaRevisar: EmailParaRevisar[];
   detalhes: Array<{
     nome: string;
     cnpj: string;
@@ -90,7 +98,7 @@ export function importarPlanilha(buffer: Buffer): ImportResult {
   }
 
   const db = getDb();
-  const result: ImportResult = { inseridos: 0, atualizados: 0, ignorados: 0, detalhes: [] };
+  const result: ImportResult = { inseridos: 0, atualizados: 0, ignorados: 0, emailsParaRevisar: [], detalhes: [] };
 
   // Carrega índice de clientes existentes — nome é o identificador principal
   const existingByName = new Map<string, number>();
@@ -112,6 +120,10 @@ export function importarPlanilha(buffer: Buffer): ImportResult {
     'INSERT OR IGNORE INTO client_emails (client_id, email, is_primary) VALUES (?, ?, ?)'
   );
 
+  const selectEmails = db.prepare(
+    'SELECT email FROM client_emails WHERE client_id = ?'
+  );
+
   db.transaction(() => {
     for (const row of allRows) {
       // Identificação por NOME (case-insensitive) — CNPJ não é usado para deduplicação
@@ -119,20 +131,29 @@ export function importarPlanilha(buffer: Buffer): ImportResult {
       const existingId = existingByName.get(row.name.toUpperCase());
 
       if (existingId !== undefined) {
-        // Já cadastrado — preserva todos os dados; acrescenta apenas e-mails ausentes
-        const emailsNovos: string[] = [];
-        row.emails.forEach((email, idx) => {
-          const r = insertEmail.run(existingId, email, idx === 0 ? 1 : 0);
-          if (r.changes > 0) emailsNovos.push(email);
-        });
+        // Já cadastrado — preserva todos os dados; não adiciona e-mails automaticamente
+        const emailsNaBd = (selectEmails.all(existingId) as { email: string }[]).map(e => e.email);
+        const emailsNaBdSet = new Set(emailsNaBd);
+
+        // E-mails da planilha que ainda não existem no banco
+        const emailsDiferentes = row.emails.filter(e => !emailsNaBdSet.has(e));
+
+        if (emailsDiferentes.length > 0) {
+          result.emailsParaRevisar.push({
+            nome: row.name,
+            cnpj: row.cnpj || '—',
+            emailsNaBd,
+            emailsNaPlanilha: emailsDiferentes,
+          });
+        }
 
         result.atualizados++;
         result.detalhes.push({
           nome: row.name,
           cnpj: row.cnpj || '—',
           acao: 'atualizado',
-          motivo: emailsNovos.length > 0
-            ? `e-mail(s) adicionado(s): ${emailsNovos.join(', ')}`
+          motivo: emailsDiferentes.length > 0
+            ? `e-mail diferente na planilha — verifique antes de adicionar`
             : 'sem alterações (dados já cadastrados)',
         });
         continue;

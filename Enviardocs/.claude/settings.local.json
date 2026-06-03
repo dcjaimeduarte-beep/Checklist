@@ -34,10 +34,14 @@
       "Bash(taskkill /PID 9620 /F)",
       "Bash(taskkill /PID 24852 /F)",
       "Bash(cmd //c \"taskkill /PID 9620 /F && taskkill /PID 24852 /F\")",
-      "Bash(findstr \":3000 \\\\|:5173 \")"
+      "Bash(findstr \":3000 \\\\|:5173 \")",
+      "Bash(ping -n 5 127.0.0.1 > nul && echo done)",
+      "Bash(xargs grep -l \"client_emails\")",
+      "Bash(node -e ' *)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\Jaime Duarte\\Documents\\GitHub\\Enviardocs\\.claude"
+      "C:\\Users\\Jaime Duarte\\Documents\\GitHub\\Enviardocs\\.claude",
+      "c:\\Users\\Jaime Duarte\\Documents\\GitHub\\Enviardocs"
     ]
   }
 }

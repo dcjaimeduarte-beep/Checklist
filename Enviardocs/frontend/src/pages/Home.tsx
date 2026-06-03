@@ -33,7 +33,9 @@ const IGNORAR_PALAVRAS = new Set([
 ]);
 
 function palavrasChave(norm: string): string[] {
-  return norm.split("_").filter(p => p.length > 2 && !IGNORAR_PALAVRAS.has(p) && !/^\d+$/.test(p));
+  return norm.split("_").filter(p =>
+    !IGNORAR_PALAVRAS.has(p) && (p.length > 2 || /^\d{1,2}$/.test(p))
+  );
 }
 
 // Retorna o tipo de match ou null se não corresponde
@@ -44,9 +46,7 @@ function tipoMatch(fileNorm: string, clienteNorm: string): "exato" | "parcial" |
   return null;
 }
 
-function arquivoCasaComCliente(fileNorm: string, clienteNorm: string): boolean {
-  return tipoMatch(fileNorm, clienteNorm) !== null;
-}
+
 interface PreviewItem {
   cliente: Cliente;
   arquivos: File[];
@@ -67,7 +67,9 @@ interface ResultadoEnvio {
 type Filtro = "com_arquivo" | "sem_arquivo" | "sem_email" | "todos" | "selecionados" | "ja_enviado";
 
 export function Home() {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef          = useRef<HTMLInputElement>(null);
+  const cancelarEnvioRef  = useRef(false);
+  const resultadosRef     = useRef<HTMLDivElement>(null);
 
   const [mes, setMes]                   = useState(MES_ATUAL);
   const [pastaNome, setPastaNome]       = useState("");
@@ -86,7 +88,7 @@ export function Home() {
   const [arquivosEnviados, setArquivosEnviados]         = useState<Set<string>>(new Set());
   const [clientesComDadosArquivo, setClientesComDadosArquivo] = useState<Set<number>>(new Set());
   const [forcarReenvio, setForcarReenvio]           = useState(false);
-  const [progresso, setProgresso]                   = useState<{ atual: number; total: number; nome: string } | null>(null);
+  const [progresso, setProgresso]                   = useState<{ atual: number; total: number; nome: string; email: string } | null>(null);
   const [filtroResultado, setFiltroResultado]       = useState<"todos" | "ok" | "erro">("todos");
   const [arquivosOriginais, setArquivosOriginais]   = useState<File[]>([]);
 
@@ -165,6 +167,33 @@ export function Home() {
           chaveBusca: nomeLimpo,
           status: matched.length > 0 ? ("ok" as const) : ("sem_arquivo" as const),
         };
+      });
+
+      // Para cada arquivo capturado via Exato por múltiplos clientes,
+      // mantém apenas o cliente com nome normalizado mais longo (mais específico).
+      // Evita que "PARAGOMINAS LTDA" receba arquivos de "PARAGOMINAS LTDA - OKR".
+      const melhorExatoPorArquivo = new Map<string, number>();
+      itens.forEach(item => {
+        const normLen = normalizarNome(item.chaveBusca).length;
+        item.arquivos.forEach(f => {
+          if (item.matchTipo[f.name] === "exato") {
+            const best = melhorExatoPorArquivo.get(f.name) ?? 0;
+            if (normLen > best) melhorExatoPorArquivo.set(f.name, normLen);
+          }
+        });
+      });
+      itens.forEach(item => {
+        const normLen = normalizarNome(item.chaveBusca).length;
+        item.arquivos = item.arquivos.filter(f => {
+          const best = melhorExatoPorArquivo.get(f.name);
+          if (best === undefined) return true; // sem exato em nenhum cliente — mantém
+          return item.matchTipo[f.name] === "exato" && normLen === best;
+        });
+        const mantidos = new Set(item.arquivos.map(f => f.name));
+        for (const k of Object.keys(item.matchTipo)) {
+          if (!mantidos.has(k)) delete item.matchTipo[k];
+        }
+        if (item.arquivos.length === 0 && item.status === "ok") item.status = "sem_arquivo";
       });
 
       // Detecta clientes que foram enviados mas têm arquivos novos.
@@ -274,12 +303,14 @@ export function Home() {
     e.preventDefault();
     if (!preview || selecionados.size === 0) return;
 
+    cancelarEnvioRef.current = false;
     setEnviando(true);
     setResultados(null);
     setErro("");
 
     const itensSelecionados = preview.filter(i => selecionados.has(i.cliente.id));
     const acumulados: ResultadoEnvio[] = [];
+    let cancelado = false;
 
     // Agrupa clientes pelo conjunto de e-mails: mesma caixa → um único envio com todos os arquivos
     const emailGroups: Array<{ key: string; itens: typeof itensSelecionados }> = [];
@@ -293,9 +324,10 @@ export function Home() {
     const totalGrupos = emailGroups.length;
 
     for (let i = 0; i < totalGrupos; i++) {
+      if (cancelarEnvioRef.current) { cancelado = true; break; }
       const grupo = emailGroups[i];
       const nomes = grupo.itens.map(it => it.cliente.nome).join(" + ");
-      setProgresso({ atual: i + 1, total: totalGrupos, nome: nomes });
+      setProgresso({ atual: i + 1, total: totalGrupos, nome: nomes, email: grupo.key.replace(/\|/g, ", ") });
 
       const formData = new FormData();
       formData.append("mes", mes);
@@ -332,7 +364,14 @@ export function Home() {
     setProgresso(null);
     setResultados(acumulados);
     setFiltroResultado("todos");
-    setSelecionados(new Set());
+    setTimeout(() => resultadosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    if (cancelado) {
+      // Mantém selecionados apenas os que não foram enviados
+      const enviadosIds = new Set(acumulados.filter(r => r.status === "ok").map(r => r.clienteId));
+      setSelecionados(prev => new Set([...prev].filter(id => !enviadosIds.has(id))));
+    } else {
+      setSelecionados(new Set());
+    }
 
     const recemEnviados = acumulados.filter(r => r.status === "ok").map(r => r.clienteId);
     setJaEnviados(prev => new Set([...prev, ...recemEnviados]));
@@ -346,6 +385,10 @@ export function Home() {
     setArquivosEnviados(prev => new Set([...prev, ...novosArquivosEnviados]));
 
     setEnviando(false);
+  }
+
+  function handleCancelarEnvio() {
+    cancelarEnvioRef.current = true;
   }
 
   function gerarRelatorio() {
@@ -705,22 +748,33 @@ export function Home() {
             )}
           </div>
 
-          {/* Barra de progresso — visível durante o envio */}
+          {/* Barra de progresso — overlay fixo no rodapé, sempre visível durante o envio */}
           {progresso && (
-            <div className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <div style={{
+              position: "fixed",
+              bottom: 28,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "min(500px, calc(100vw - 48px))",
+              background: "var(--color-bg-card, #fff)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius)",
+              boxShadow: "0 6px 32px rgba(0,0,0,0.14)",
+              padding: "var(--space-4)",
+              zIndex: 1000,
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-3)",
+            }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--color-navy)" }}>
                   Enviando {progresso.atual} de {progresso.total}
                 </span>
-                <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+                <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--color-teal)" }}>
                   {Math.round((progresso.atual / progresso.total) * 100)}%
                 </span>
               </div>
-              <div style={{
-                height: 8, borderRadius: 99,
-                background: "var(--color-border)",
-                overflow: "hidden",
-              }}>
+              <div style={{ height: 8, borderRadius: 99, background: "var(--color-border)", overflow: "hidden" }}>
                 <div style={{
                   height: "100%",
                   width: `${(progresso.atual / progresso.total) * 100}%`,
@@ -729,21 +783,43 @@ export function Home() {
                   transition: "width 0.3s ease",
                 }} />
               </div>
-              <div style={{
-                fontSize: "var(--font-size-xs)",
-                color: "var(--color-text-muted)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}>
-                {progresso.nome}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-3)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: "var(--font-size-xs)",
+                    fontWeight: 600,
+                    color: "var(--color-text)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}>
+                    {progresso.nome}
+                  </div>
+                  <div style={{
+                    fontSize: "var(--font-size-xs)",
+                    color: "var(--color-text-muted)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}>
+                    {progresso.email}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelarEnvio}
+                  className="btn btn--secondary"
+                  style={{ flexShrink: 0, fontSize: "var(--font-size-xs)", padding: "4px 10px" }}
+                >
+                  Encerrar
+                </button>
               </div>
             </div>
           )}
 
           {/* Resultado do envio — aparece abaixo da tabela, dentro do mesmo form */}
           {resultados && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <div ref={resultadosRef} style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-2)" }}>
                 <h2 style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--color-navy)" }}>
                   Resultado do envio

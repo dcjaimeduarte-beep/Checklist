@@ -104,10 +104,18 @@ export interface ImportDetalhe {
   motivo?: string;
 }
 
+export interface EmailParaRevisar {
+  nome: string;
+  cnpj: string;
+  emailsNaBd: string[];
+  emailsNaPlanilha: string[];
+}
+
 export interface ImportResult {
   inseridos: number;
   atualizados: number;
   ignorados: number;
+  emailsParaRevisar: EmailParaRevisar[];
   detalhes: ImportDetalhe[];
 }
 
