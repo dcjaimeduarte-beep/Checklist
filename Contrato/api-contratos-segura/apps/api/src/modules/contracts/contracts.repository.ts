@@ -9,14 +9,46 @@ export class ContractsRepository {
     status?: ContractStatus;
     isSigned?: boolean;
     revendaId?: string;
+    search?: string;
     skip: number;
     take: number;
   }) {
+    const searchTerm = params.search?.trim();
+
+    // Pré-query: clientes que batem com o termo
+    let clientIds: string[] = [];
+    if (searchTerm) {
+      const matched = await this.prisma.client.findMany({
+        where: {
+          OR: [
+            { razaoSocial:  { contains: searchTerm } },
+            { nomeFantasia: { contains: searchTerm } },
+            { cnpj:         { contains: searchTerm } },
+          ],
+        },
+        select: { id: true },
+      });
+      clientIds = matched.map((c) => c.id);
+    }
+
+    // A UI exibe: identifier ?? id.slice(0,8).toUpperCase()
+    // Então buscamos pelo identifier E pelo id (cuid é minúsculo, por isso toLowerCase)
+    const searchCondition = searchTerm
+      ? {
+          OR: [
+            { identifier: { contains: searchTerm } },
+            { id:         { startsWith: searchTerm.toLowerCase() } },
+            ...(clientIds.length > 0 ? [{ clientId: { in: clientIds } }] : []),
+          ],
+        }
+      : {};
+
     const where = {
       ...(params.clientId ? { clientId: params.clientId } : {}),
       ...(params.status ? { status: params.status } : {}),
       ...(params.isSigned !== undefined ? { isSigned: params.isSigned } : {}),
       ...(params.revendaId ? { client: { revendaId: params.revendaId } } : {}),
+      ...searchCondition,
     };
 
     const [data, total] = await Promise.all([
@@ -27,7 +59,10 @@ export class ContractsRepository {
         orderBy: { createdAt: "desc" },
         include: {
           client: {
-            select: { id: true, razaoSocial: true, nomeFantasia: true, cnpj: true }
+            select: {
+              id: true, razaoSocial: true, nomeFantasia: true, cnpj: true,
+              revenda: { select: { id: true, name: true } },
+            }
           }
         }
       }),

@@ -126,20 +126,20 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginTop: "1.5rem" }}>
 
-              {/* E-mail */}
+              {/* E-mail ou nome */}
               <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
                 <label style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#0D2235" }}>
-                  E-mail
+                  E-mail ou nome de usuário
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="login-input"
                   style={{ width: "100%", padding: "0.625rem 0.875rem", fontSize: "0.875rem", background: "#fff", outline: "none", boxSizing: "border-box" }}
-                  placeholder="seu@email.com"
-                  autoComplete="email"
+                  placeholder="seu@email.com ou seu nome"
+                  autoComplete="username"
                 />
               </div>
 

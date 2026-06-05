@@ -20,12 +20,40 @@ export async function contractsRoutes(app: FastifyInstance) {
     return contractsController.list(req, reply);
   });
   app.get("/contracts/:id", { preHandler: [requireAuth] }, contractsController.getById);
-  app.post("/contracts", { preHandler: [requireRole(["admin", "juridico", "comercial"])] }, contractsController.create);
-  app.patch("/contracts/:id", { preHandler: [requireRole(["admin", "juridico"])] }, contractsController.update);
+  app.post("/contracts", { preHandler: [requireRole(["admin", "juridico", "comercial", "revenda"])] }, contractsController.create);
+
+  // Revenda pode editar, mas não após assinatura
+  app.patch<{ Params: { id: string } }>(
+    "/contracts/:id",
+    { preHandler: [requireRole(["admin", "juridico", "revenda"])] },
+    async (req, reply) => {
+      const authUser = getAuthUser(req);
+      if (authUser.role === "revenda") {
+        const c = await prisma.contract.findUnique({ where: { id: req.params.id }, select: { isSigned: true } });
+        if (c?.isSigned) return reply.status(403).send({ message: "Contrato já assinado. Somente a matriz pode editá-lo." });
+      }
+      return contractsController.update(req, reply);
+    }
+  );
+
   app.patch("/contracts/:id/sign", { preHandler: [requireRole(["admin", "juridico"])] }, contractsController.sign);
   app.patch("/contracts/:id/status", { preHandler: [requireRole(["admin"])] }, contractsController.updateStatus);
-  app.delete("/contracts/:id", { preHandler: [requireRole(["admin"])] }, contractsController.delete);
-  app.post("/contracts/:id/sign-link", { preHandler: [requireRole(["admin", "juridico"])] }, contractsController.generateSignLink);
+
+  // Revenda pode excluir, mas não após assinatura
+  app.delete<{ Params: { id: string } }>(
+    "/contracts/:id",
+    { preHandler: [requireRole(["admin", "revenda"])] },
+    async (req, reply) => {
+      const authUser = getAuthUser(req);
+      if (authUser.role === "revenda") {
+        const c = await prisma.contract.findUnique({ where: { id: req.params.id }, select: { isSigned: true } });
+        if (c?.isSigned) return reply.status(403).send({ message: "Contrato já assinado. Somente a matriz pode excluí-lo." });
+      }
+      return contractsController.delete(req, reply);
+    }
+  );
+
+  app.post("/contracts/:id/sign-link", { preHandler: [requireRole(["admin", "juridico", "revenda"])] }, contractsController.generateSignLink);
 
   app.patch<{ Params: { id: string } }>(
     "/contracts/:id/reset-signatures",

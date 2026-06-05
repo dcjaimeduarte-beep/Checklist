@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getCurrentUser } from "@/lib/api";
 import { Plus, Search, Building2, X, Download, CheckCircle2, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown, Pencil } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 
@@ -99,16 +99,28 @@ function ClientDrawer({ onClose, onSaved, editId, initialData }: {
   editId?: string;
   initialData?: Partial<FormData>;
 }) {
-  const isEdit = !!editId;
-  const [form, setForm] = useState<FormData>({ ...EMPTY_FORM, ...initialData });
+  const isEdit    = !!editId;
+  const authUser  = getCurrentUser();
+  const isRevenda = authUser?.role === "revenda";
+
+  // Se for usuário de revenda, preenche revendaId automaticamente
+  const defaultRevendaId = isRevenda && authUser?.revendaId ? authUser.revendaId : "";
+  const [form, setForm] = useState<FormData>({
+    ...EMPTY_FORM,
+    ...initialData,
+    ...(isRevenda && !initialData?.revendaId ? { revendaId: defaultRevendaId } : {}),
+  });
   const [errors, setErrors] = useState<Partial<FormData>>({});
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState("");
   const [revendas, setRevendas] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    apiFetch<{ id: string; name: string }[]>("/revendas").then(setRevendas).catch(() => {});
-  }, []);
+    // Só admin busca a lista de revendas — revenda usa o próprio ID automaticamente
+    if (!isRevenda) {
+      apiFetch<{ id: string; name: string }[]>("/revendas").then(setRevendas).catch(() => {});
+    }
+  }, [isRevenda]);
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState("");
 
@@ -203,15 +215,24 @@ function ClientDrawer({ onClose, onSaved, editId, initialData }: {
             <p className="form-section-title">Dados Principais</p>
 
             {/* Vínculo com Revenda */}
-            <div className="form-group">
-              <label className="form-label">Revenda <span className="form-label-optional">(opcional)</span></label>
-              <select className="form-input" value={form.revendaId} onChange={(e) => set("revendaId", e.target.value)}>
-                <option value="">Seven Sistemas — cliente direto</option>
-                {revendas.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </select>
-            </div>
+            {isRevenda ? (
+              <div className="form-group">
+                <label className="form-label">Revenda</label>
+                <div style={{ padding: "0.5rem 0.875rem", background: "#F0F9F7", border: "1px solid #1B7A8C30", borderRadius: 8, fontSize: "0.875rem", color: "#0F7A6B", fontWeight: 600 }}>
+                  Vinculado automaticamente à sua revenda
+                </div>
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">Revenda <span className="form-label-optional">(opcional)</span></label>
+                <select className="form-input" value={form.revendaId} onChange={(e) => set("revendaId", e.target.value)}>
+                  <option value="">Seven Sistemas — cliente direto</option>
+                  {revendas.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="form-row">
               <div className="form-group">

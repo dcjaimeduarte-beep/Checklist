@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getCurrentUser } from "@/lib/api";
 import { Plus, Search, FileText, CheckCircle2, X, Eye, Check, Pencil, TrendingUp, AlertTriangle, Trash2, Link2, Copy, CheckCheck, RotateCcw } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import { useRouter } from "next/navigation";
@@ -46,10 +46,10 @@ type Contract = {
   endDate: string | null;
   durationMonths: number;
   createdAt: string;
-  client: { id: string; razaoSocial: string; cnpj: string | null };
+  client: { id: string; razaoSocial: string; cnpj: string | null; revenda: { id: string; name: string } | null };
 };
 
-type ClientOption = { id: string; razaoSocial: string; cnpj: string | null };
+type ClientOption = { id: string; razaoSocial: string; cnpj: string | null; revenda: { name: string } | null };
 
 type DueContract = {
   id: string;
@@ -733,18 +733,38 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#F7FAFB")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
-                      <span style={{ fontWeight: 500 }}>{c.razaoSocial}</span>
-                      {c.cnpj && <span style={{ fontSize: "0.75rem", color: "var(--gray)", marginLeft: "0.5rem" }}>{c.cnpj}</span>}
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 500 }}>{c.razaoSocial}</span>
+                        {c.revenda ? (
+                          <span style={{ fontSize: "0.625rem", fontWeight: 700, color: "#0F7A6B", background: "#0F7A6B15", borderRadius: 99, padding: "1px 6px" }}>
+                            {c.revenda.name}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "0.625rem", fontWeight: 600, color: "#1B7A8C", background: "#1B7A8C12", borderRadius: 99, padding: "1px 6px" }}>
+                            Matriz
+                          </span>
+                        )}
+                      </div>
+                      {c.cnpj && <div style={{ fontSize: "0.75rem", color: "var(--gray)", marginTop: "1px" }}>{c.cnpj}</div>}
                     </div>
                   ))}
                 </div>
               )}
               {selectedClient && (
-                <div style={{ marginTop: "0.375rem", display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                <div style={{ marginTop: "0.375rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                   <CheckCircle2 size={13} style={{ color: "#0F7A6B" }} />
                   <span style={{ fontSize: "0.75rem", color: "#0F7A6B", fontWeight: 500 }}>
                     {selectedClient.razaoSocial} selecionado
                   </span>
+                  {selectedClient.revenda ? (
+                    <span style={{ fontSize: "0.625rem", fontWeight: 700, color: "#0F7A6B", background: "#0F7A6B15", borderRadius: 99, padding: "1px 6px" }}>
+                      {selectedClient.revenda.name}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: "0.625rem", fontWeight: 600, color: "#1B7A8C", background: "#1B7A8C12", borderRadius: 99, padding: "1px 6px" }}>
+                      Matriz
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -950,6 +970,7 @@ export default function ContractsPage() {
   const [loading,     setLoading]     = useState(true);
   const [page,        setPage]        = useState(1);
   const [search,      setSearch]      = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status,      setStatus]      = useState("");
   const [showDrawer,    setShowDrawer]    = useState(false);
   const [editContract,  setEditContract]  = useState<{ id: string; data: Partial<ContractForm>; client: ClientOption } | null>(null);
@@ -958,20 +979,31 @@ export default function ContractsPage() {
   const [deleting,      setDeleting]      = useState<Contract | null>(null);
   const [signLinking,   setSignLinking]   = useState<Contract | null>(null);
   const [resetting,     setResetting]     = useState<Contract | null>(null);
+  const currentUser = getCurrentUser();
+
+  // Debounce de 300ms na busca para evitar disparo a cada tecla
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
+    const controller = new AbortController();
     try {
       const p = new URLSearchParams({ page: String(page), limit: "20" });
       if (status) p.set("status", status);
-      if (search) p.set("search", search);
-      const res = await apiFetch<ApiResponse>(`/contracts?${p}`);
+      if (debouncedSearch) p.set("search", debouncedSearch);
+      const res = await apiFetch<ApiResponse>(`/contracts?${p}`, { signal: controller.signal } as RequestInit);
       setData(res.data);
       setMeta(res.meta);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") throw e;
     } finally {
       setLoading(false);
     }
-  }, [page, search, status]);
+    return () => controller.abort();
+  }, [page, debouncedSearch, status]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -1120,6 +1152,15 @@ export default function ContractsPage() {
                 <td>
                   <span style={{ fontWeight: 500 }}>{c.client.razaoSocial}</span>
                   {c.client.cnpj && <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>{c.client.cnpj}</span>}
+                  {c.client.revenda ? (
+                    <span style={{ display: "inline-block", marginTop: 3, fontSize: "0.625rem", fontWeight: 700, color: "#0F7A6B", background: "#0F7A6B15", borderRadius: 99, padding: "1px 6px" }}>
+                      {c.client.revenda.name}
+                    </span>
+                  ) : (
+                    <span style={{ display: "inline-block", marginTop: 3, fontSize: "0.625rem", fontWeight: 600, color: "#1B7A8C", background: "#1B7A8C12", borderRadius: 99, padding: "1px 6px" }}>
+                      Matriz
+                    </span>
+                  )}
                 </td>
                 <td className="muted">{fmtDate(c.startDate)}</td>
                 <td className="muted">{c.durationMonths}m</td>
@@ -1133,52 +1174,62 @@ export default function ContractsPage() {
                   </span>
                 </td>
                 <td>
-                  <div style={{ display: "flex", gap: "0.375rem" }}>
-                    <button
-                      className="btn-ghost"
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-                      onClick={() => openEdit(c)}
-                      title="Editar contrato"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      className="btn-ghost"
-                      style={{ padding: "0.25rem 0.625rem", fontSize: "0.75rem" }}
-                      onClick={() => router.push(`/dashboard/contracts/${c.id}/preview`)}
-                      title="Ver contrato gerado"
-                    >
-                      <Eye size={13} /> Ver
-                    </button>
-                    {!c.isSigned && (
-                      <button
-                        className="btn-ghost"
-                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "#1B7A8C" }}
-                        onClick={() => setSignLinking(c)}
-                        title="Gerar link de assinatura online"
-                      >
-                        <Link2 size={13} />
-                      </button>
-                    )}
-                    {(c.signedByName || c.signedByNameContratante || c.isSigned) && (
-                      <button
-                        className="btn-ghost"
-                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "#B07A00" }}
-                        title="Resetar assinaturas"
-                        onClick={() => setResetting(c)}
-                      >
-                        <RotateCcw size={13} />
-                      </button>
-                    )}
-                    <button
-                      className="btn-ghost"
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "#C0392B" }}
-                      onClick={() => setDeleting(c)}
-                      title="Excluir contrato"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                  {(() => {
+                    const isRevenda = currentUser?.role === "revenda";
+                    const blockedBySign = isRevenda && c.isSigned;
+                    return (
+                      <div style={{ display: "flex", gap: "0.375rem" }}>
+                        {!blockedBySign && (
+                          <button
+                            className="btn-ghost"
+                            style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                            onClick={() => openEdit(c)}
+                            title="Editar contrato"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                        <button
+                          className="btn-ghost"
+                          style={{ padding: "0.25rem 0.625rem", fontSize: "0.75rem" }}
+                          onClick={() => router.push(`/dashboard/contracts/${c.id}/preview`)}
+                          title="Ver contrato gerado"
+                        >
+                          <Eye size={13} /> Ver
+                        </button>
+                        {!c.isSigned && (
+                          <button
+                            className="btn-ghost"
+                            style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "#1B7A8C" }}
+                            onClick={() => setSignLinking(c)}
+                            title="Gerar link de assinatura online"
+                          >
+                            <Link2 size={13} />
+                          </button>
+                        )}
+                        {(c.signedByName || c.signedByNameContratante || c.isSigned) && !isRevenda && (
+                          <button
+                            className="btn-ghost"
+                            style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "#B07A00" }}
+                            title="Resetar assinaturas"
+                            onClick={() => setResetting(c)}
+                          >
+                            <RotateCcw size={13} />
+                          </button>
+                        )}
+                        {!blockedBySign && (
+                          <button
+                            className="btn-ghost"
+                            style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", color: "#C0392B" }}
+                            onClick={() => setDeleting(c)}
+                            title="Excluir contrato"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </td>
               </tr>
             ))}

@@ -147,6 +147,7 @@ function UserDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
 
   async function handleSave() {
     if (!form.name.trim() || !form.email.trim() || !form.password) { setError("Preencha todos os campos obrigatórios."); return; }
+    if (form.password.length < 8) { setError("A senha deve ter pelo menos 8 caracteres."); return; }
     if (form.role === "revenda" && !form.revendaId) { setError("Selecione a revenda para este usuário."); return; }
     setSaving(true); setError("");
     try {

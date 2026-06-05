@@ -3,22 +3,33 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, Building2, FileText, Users, LogOut, LayoutTemplate, DollarSign, Layers, Store } from "lucide-react";
-import { clearToken } from "@/lib/api";
+import { clearToken, getCurrentUser } from "@/lib/api";
 
-const NAV = [
-  { href: "/dashboard",                                   label: "Dashboard",      icon: LayoutDashboard },
-  { href: "/dashboard/clients",                           label: "Clientes",       icon: Building2 },
-  { href: "/dashboard/contracts",                         label: "Contratos",      icon: FileText },
-  { href: "/dashboard/templates",                         label: "Templates",      icon: LayoutTemplate },
-  { href: "/dashboard/settings/contract-types",           label: "Tipos de Contr.",icon: Layers },
-  { href: "/dashboard/financeiro",                        label: "Financeiro",     icon: DollarSign },
-  { href: "/dashboard/revendas",                          label: "Revendas",       icon: Store },
-  { href: "/dashboard/users",                             label: "Usuários",       icon: Users },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  roles?: string[];
+};
+
+const NAV: NavItem[] = [
+  { href: "/dashboard",                                   label: "Dashboard",       icon: LayoutDashboard },
+  { href: "/dashboard/clients",                           label: "Clientes",        icon: Building2 },
+  { href: "/dashboard/contracts",                         label: "Contratos",       icon: FileText },
+  { href: "/dashboard/templates",                         label: "Templates",       icon: LayoutTemplate,  roles: ["admin", "juridico"] },
+  { href: "/dashboard/settings/contract-types",           label: "Tipos de Contr.", icon: Layers,          roles: ["admin", "juridico"] },
+  { href: "/dashboard/financeiro",                        label: "Financeiro",      icon: DollarSign,      roles: ["admin", "juridico", "comercial", "operador"] },
+  { href: "/dashboard/revendas",                          label: "Revendas",        icon: Store,           roles: ["admin"] },
+  { href: "/dashboard/users",                             label: "Usuários",        icon: Users,           roles: ["admin"] },
 ];
 
 export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
-  const pathname = usePathname();
-  const router   = useRouter();
+  const pathname    = usePathname();
+  const router      = useRouter();
+  const currentUser = getCurrentUser();
+  const visibleNav  = NAV.filter((item) =>
+    !item.roles || (currentUser?.role && item.roles.includes(currentUser.role))
+  );
 
   return (
     <aside className={`dashboard-sidebar${open ? " open" : ""}`}>
@@ -56,7 +67,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         <p style={{ color: "rgba(139,158,176,0.4)", fontSize: "0.6rem", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", padding: "0 0.5rem", marginBottom: "0.5rem" }}>
           Menu
         </p>
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {visibleNav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link

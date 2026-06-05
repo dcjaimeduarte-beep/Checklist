@@ -11,7 +11,7 @@ export class AuthService {
   constructor(private readonly app: FastifyInstance) {}
 
   async login(payload: LoginBody) {
-    const user = await this.userRepository.findByEmail(payload.email);
+    const user = await this.userRepository.findByEmailOrName(payload.email);
 
     if (!user) {
       throw this.app.httpErrors.unauthorized("Credenciais inválidas.");

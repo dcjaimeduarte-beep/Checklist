@@ -20,6 +20,25 @@ export function clearToken() {
   document.cookie = "token=; path=/; max-age=0";
 }
 
+export type CurrentUser = {
+  sub: string;
+  name: string;
+  email: string;
+  role: "admin" | "juridico" | "comercial" | "operador" | "revenda";
+  revendaId?: string | null;
+};
+
+export function getCurrentUser(): CurrentUser | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    return JSON.parse(atob(payload)) as CurrentUser;
+  } catch {
+    return null;
+  }
+}
+
 type FetchOptions = RequestInit & { auth?: boolean };
 
 export type ApiError = Error & { suggestions?: { path: string; name: string }[] };

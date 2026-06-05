@@ -16,8 +16,8 @@ export async function clientsRoutes(app: FastifyInstance) {
     return clientsController.list(req, reply);
   });
   app.get("/clients/:id", { preHandler: [requireAuth] }, clientsController.getById);
-  app.post("/clients", { preHandler: [requireRole(["admin", "comercial"])] }, clientsController.create);
-  app.patch("/clients/:id", { preHandler: [requireRole(["admin", "comercial"])] }, clientsController.update);
+  app.post("/clients", { preHandler: [requireRole(["admin", "comercial", "revenda"])] }, clientsController.create);
+  app.patch("/clients/:id", { preHandler: [requireRole(["admin", "comercial", "revenda"])] }, clientsController.update);
   app.patch("/clients/:id/status", { preHandler: [requireRole(["admin"])] }, clientsController.updateStatus);
 
   // ── Importar clientes do Firebird (manual) ───────────────────────────────

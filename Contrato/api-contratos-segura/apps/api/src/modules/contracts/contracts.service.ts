@@ -14,12 +14,13 @@ export class ContractsService {
   async list(query: ListContractsQuery) {
     const skip = (query.page - 1) * query.limit;
     const { data, total } = await this.contractsRepository.findAll({
-      clientId: query.clientId,
-      status: query.status as any,
-      isSigned: query.isSigned,
+      clientId:  query.clientId,
+      status:    query.status as any,
+      isSigned:  query.isSigned,
       revendaId: query.revendaId,
+      search:    query.search,
       skip,
-      take: query.limit
+      take: query.limit,
     });
 
     return {
