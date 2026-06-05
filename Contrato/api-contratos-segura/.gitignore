@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+.next/
+coverage/
+
+# env
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# turbo
+.turbo/
+
+# editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+*.db

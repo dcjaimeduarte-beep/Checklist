@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: api-contratos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: contratos_db
+      POSTGRES_USER: contratos_user
+      POSTGRES_PASSWORD: contratos_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_contratos_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_contratos_data:

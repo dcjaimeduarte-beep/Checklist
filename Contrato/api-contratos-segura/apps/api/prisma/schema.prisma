@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  admin
+  juridico
+  comercial
+  operador
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum ClientStatus {
+  active
+  inactive
+}
+
+enum ContractStatus {
+  draft
+  active
+  terminated
+  cancelled
+  expired
+}
+
+enum ContractType {
+  SOLUTIO_ERP
+  GCONCILIADOR
+  SOLUTIO_WEB
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole
+  status       UserStatus @default(active)
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  auditLogs    AuditLog[] @relation("AuditActor")
+
+  @@map("users")
+}
+
+model Client {
+  id                  String       @id @default(cuid())
+  externalCode        Int?         @unique @map("external_code")
+  razaoSocial         String       @map("razao_social")
+  nomeFantasia        String?      @map("nome_fantasia")
+  cnpj                String?      @unique
+  inscricaoEstadual   String?      @map("inscricao_estadual")
+  email               String?
+  phone               String?
+  contactName         String?      @map("contact_name")
+
+  street              String?
+  addressNumber       String?      @map("address_number")
+  addressComplement   String?      @map("address_complement")
+  neighborhood        String?
+  city                String?
+  state               String?
+  zipCode             String?      @map("zip_code")
+
+  status              ClientStatus @default(active)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  contracts           Contract[]
+
+  @@map("clients")
+}
+
+model Contract {
+  id                     String         @id @default(cuid())
+  clientId               String         @map("client_id")
+  identifier             String?        @unique
+  status                 ContractStatus @default(draft)
+
+  // Datas
+  startDate              DateTime       @map("start_date")
+  endDate                DateTime?      @map("end_date")
+  durationMonths         Int            @default(12) @map("duration_months")
+  signedAt               DateTime?      @map("signed_at")
+  isSigned               Boolean        @default(false) @map("is_signed")
+
+  // Financeiro
+  implementationFee      Float          @default(0) @map("implementation_fee")
+  implementationPayment  String         @default("avista") @map("implementation_payment")
+  monthlyFee             Float          @default(0) @map("monthly_fee")
+  discount               Float          @default(0)
+  paymentDayOfMonth      Int            @default(10) @map("payment_day_of_month")
+  firstPaymentDate       DateTime?      @map("first_payment_date")
+  adjustmentIndex        String         @default("IGPM") @map("adjustment_index")
+  adjustmentRate         Float?         @map("adjustment_rate")
+
+  // Módulos contratados
+  moduleCadastros        Boolean        @default(false) @map("module_cadastros")
+  moduleFaturamento      Boolean        @default(false) @map("module_faturamento")
+  moduleFiscal           Boolean        @default(false) @map("module_fiscal")
+
+  // Suporte
+  distanceFromProviderKm Int?           @map("distance_from_provider_km")
+
+  notes                  String?
+  lastAdjustmentDate     DateTime?      @map("last_adjustment_date")
+  contractType           ContractType   @default(SOLUTIO_ERP) @map("contract_type")
+
+  // Assinatura online
+  signToken                  String?   @unique @map("sign_token")
+  signTokenExpiresAt         DateTime? @map("sign_token_expires_at")
+  // Contratada (empresa)
+  signedByName               String?   @map("signed_by_name")
+  signedByIp                 String?   @map("signed_by_ip")
+  // Contratante (cliente)
+  signedByNameContratante    String?   @map("signed_by_name_contratante")
+  signedAtContratante        DateTime? @map("signed_at_contratante")
+  signedByIpContratante      String?   @map("signed_by_ip_contratante")
+
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
+
+  client                 Client         @relation(fields: [clientId], references: [id])
+
+  @@map("contracts")
+}
+
+model SystemConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_config")
+}
+
+model ContractTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  content     String
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("contract_templates")
+}
+
+model ContractTypeConfig {
+  id              String       @id @default(cuid())
+  type            ContractType @unique
+  displayName     String       @map("display_name")
+  clauseOverrides String?      @map("clause_overrides")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@map("contract_type_configs")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?  @map("actor_user_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  metadata    Json?    @map("metadata_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actorUser   User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@map("audit_logs")
+}

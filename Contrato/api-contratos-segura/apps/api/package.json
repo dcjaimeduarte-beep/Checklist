@@ -1,0 +1,42 @@
+{
+  "name": "@contratos/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "lint": "node -e \"console.log('lint do api será configurado na próxima etapa')\"",
+    "test": "node -e \"console.log('testes do api serão configurados na próxima etapa')\"",
+    "format": "node -e \"console.log('format do api será configurado na próxima etapa')\"",
+    "check": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "tsx --env-file=.env prisma/seed.ts",
+    "prisma:import-clients": "tsx --env-file=.env prisma/import-clients.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/jwt": "^9.1.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/sensible": "^6.0.3",
+    "@prisma/client": "^6.16.2",
+    "argon2": "^0.41.1",
+    "fastify": "^5.6.1",
+    "node-firebird": "^2.3.2",
+    "xlsx": "^0.18.5",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "prisma": "^6.16.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  },
+  "prisma": {
+    "seed": "tsx --env-file=.env prisma/seed.ts"
+  }
+}
