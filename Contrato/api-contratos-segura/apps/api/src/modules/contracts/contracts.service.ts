@@ -17,6 +17,7 @@ export class ContractsService {
       clientId: query.clientId,
       status: query.status as any,
       isSigned: query.isSigned,
+      revendaId: query.revendaId,
       skip,
       take: query.limit
     });

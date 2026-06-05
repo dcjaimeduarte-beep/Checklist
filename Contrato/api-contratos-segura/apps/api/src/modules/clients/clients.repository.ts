@@ -7,6 +7,7 @@ export class ClientsRepository {
   async findAll(params: {
     search?: string;
     status?: ClientStatus;
+    revendaId?: string;
     skip: number;
     take: number;
     sortBy?: string;
@@ -34,6 +35,7 @@ export class ClientsRepository {
 
     const where = {
       ...(params.status ? { status: params.status } : {}),
+      ...(params.revendaId !== undefined ? { revendaId: params.revendaId } : {}),
       ...searchCondition,
     };
 
@@ -60,8 +62,10 @@ export class ClientsRepository {
           city: true,
           state: true,
           status: true,
+          revendaId: true,
           createdAt: true,
-          _count: { select: { contracts: true } }
+          revenda: { select: { id: true, name: true } },
+          _count: { select: { contracts: true } },
         }
       }),
       this.prisma.client.count({ where })

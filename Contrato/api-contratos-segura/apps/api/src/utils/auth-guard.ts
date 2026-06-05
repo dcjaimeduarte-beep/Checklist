@@ -1,6 +1,12 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { UserRole } from "../modules/auth/auth.types.js";
 
+type JwtUser = { sub: string; role?: UserRole; revendaId?: string | null };
+
+export function getAuthUser(request: FastifyRequest): JwtUser {
+  return request.user as JwtUser;
+}
+
 export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
     await request.jwtVerify();
@@ -17,7 +23,7 @@ export function requireRole(allowedRoles: UserRole[]) {
     try {
       await request.jwtVerify();
 
-      const userRole = (request.user as { role?: UserRole }).role;
+      const userRole = (request.user as JwtUser).role;
 
       if (!userRole || !allowedRoles.includes(userRole)) {
         return reply.status(403).send({

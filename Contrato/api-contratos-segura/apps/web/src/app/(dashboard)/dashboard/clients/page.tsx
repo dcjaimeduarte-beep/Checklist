@@ -18,6 +18,8 @@ type Client = {
   city: string | null;
   state: string | null;
   status: "active" | "inactive";
+  revendaId: string | null;
+  revenda: { id: string; name: string } | null;
   _count: { contracts: number };
 };
 
@@ -41,12 +43,14 @@ type FormData = {
   neighborhood: string;
   city: string;
   state: string;
+  revendaId: string;
 };
 
 const EMPTY_FORM: FormData = {
   razaoSocial: "", nomeFantasia: "", cnpj: "", inscricaoEstadual: "",
   contactName: "", email: "", phone: "", zipCode: "", street: "",
   addressNumber: "", addressComplement: "", neighborhood: "", city: "", state: "",
+  revendaId: "",
 };
 
 // ─── Máscaras de formatação ───────────────────────────────────────────────────
@@ -100,6 +104,11 @@ function ClientDrawer({ onClose, onSaved, editId, initialData }: {
   const [errors, setErrors] = useState<Partial<FormData>>({});
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState("");
+  const [revendas, setRevendas] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    apiFetch<{ id: string; name: string }[]>("/revendas").then(setRevendas).catch(() => {});
+  }, []);
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState("");
 
@@ -192,6 +201,17 @@ function ClientDrawer({ onClose, onSaved, editId, initialData }: {
           {/* Dados principais */}
           <div className="form-section">
             <p className="form-section-title">Dados Principais</p>
+
+            {/* Vínculo com Revenda */}
+            <div className="form-group">
+              <label className="form-label">Revenda <span className="form-label-optional">(opcional)</span></label>
+              <select className="form-input" value={form.revendaId} onChange={(e) => set("revendaId", e.target.value)}>
+                <option value="">Seven Sistemas — cliente direto</option>
+                {revendas.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
 
             <div className="form-row">
               <div className="form-group">
@@ -494,7 +514,7 @@ export default function ClientsPage() {
       inscricaoEstadual?: string | null; email?: string | null; phone?: string | null;
       contactName?: string | null; street?: string | null; addressNumber?: string | null;
       addressComplement?: string | null; neighborhood?: string | null; city?: string | null;
-      state?: string | null; zipCode?: string | null;
+      state?: string | null; zipCode?: string | null; revendaId?: string | null;
     }>(`/clients/${c.id}`);
     setEditClient({
       id: c.id,
@@ -513,6 +533,7 @@ export default function ClientsPage() {
         city:              full.city                ?? "",
         state:             full.state               ?? "",
         zipCode:           full.zipCode             ?? "",
+        revendaId:         full.revendaId           ?? "",
       },
     });
   }
@@ -692,6 +713,11 @@ export default function ClientsPage() {
                     <span style={{ fontWeight: 500 }}>{c.razaoSocial}</span>
                     {c.nomeFantasia && c.nomeFantasia !== c.razaoSocial && (
                       <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>{c.nomeFantasia}</span>
+                    )}
+                    {c.revenda && (
+                      <span style={{ display: "inline-block", marginTop: 3, fontSize: "0.625rem", fontWeight: 700, color: "#0F7A6B", background: "#0F7A6B15", borderRadius: 99, padding: "1px 6px" }}>
+                        {c.revenda.name}
+                      </span>
                     )}
                   </td>
                   <td className="muted mono">{c.cnpj ?? "—"}</td>

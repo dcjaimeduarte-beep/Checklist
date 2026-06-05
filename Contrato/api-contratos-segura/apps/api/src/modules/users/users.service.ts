@@ -42,7 +42,8 @@ export class UsersService {
       name: payload.name,
       email: payload.email,
       passwordHash,
-      role: payload.role as UserRole
+      role: payload.role as UserRole,
+      revendaId: payload.revendaId ?? null,
     });
 
     await this.auditService.log({

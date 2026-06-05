@@ -39,6 +39,7 @@ export const listContractsQuerySchema = z.object({
   clientId: z.string().optional(),
   status: z.enum(["draft", "active", "terminated", "cancelled", "expired"]).optional(),
   isSigned: z.coerce.boolean().optional(),
+  revendaId: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20)
 });

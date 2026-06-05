@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { requireAuth, requireRole } from "../../utils/auth-guard.js";
+import { requireAuth, requireRole, getAuthUser } from "../../utils/auth-guard.js";
 import { ClientsController } from "./clients.controller.js";
 import { ClientsService } from "./clients.service.js";
 import { syncClientsFromFirebird, getLastSyncResult } from "../../lib/client-sync.js";
@@ -8,7 +8,13 @@ export async function clientsRoutes(app: FastifyInstance) {
   const clientsService = new ClientsService(app);
   const clientsController = new ClientsController(clientsService);
 
-  app.get("/clients", { preHandler: [requireAuth] }, clientsController.list);
+  app.get("/clients", { preHandler: [requireAuth] }, async (req, reply) => {
+    const authUser = getAuthUser(req);
+    if (authUser.revendaId) {
+      (req.query as Record<string, unknown>).revendaId = authUser.revendaId;
+    }
+    return clientsController.list(req, reply);
+  });
   app.get("/clients/:id", { preHandler: [requireAuth] }, clientsController.getById);
   app.post("/clients", { preHandler: [requireRole(["admin", "comercial"])] }, clientsController.create);
   app.patch("/clients/:id", { preHandler: [requireRole(["admin", "comercial"])] }, clientsController.update);

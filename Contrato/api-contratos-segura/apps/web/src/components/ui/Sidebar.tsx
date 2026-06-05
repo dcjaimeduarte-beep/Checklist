@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, FileText, Users, LogOut, LayoutTemplate, DollarSign, Layers } from "lucide-react";
+import { LayoutDashboard, Building2, FileText, Users, LogOut, LayoutTemplate, DollarSign, Layers, Store } from "lucide-react";
 import { clearToken } from "@/lib/api";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/dashboard/templates",                         label: "Templates",      icon: LayoutTemplate },
   { href: "/dashboard/settings/contract-types",           label: "Tipos de Contr.",icon: Layers },
   { href: "/dashboard/financeiro",                        label: "Financeiro",     icon: DollarSign },
+  { href: "/dashboard/revendas",                          label: "Revendas",       icon: Store },
   { href: "/dashboard/users",                             label: "Usuários",       icon: Users },
 ];
 

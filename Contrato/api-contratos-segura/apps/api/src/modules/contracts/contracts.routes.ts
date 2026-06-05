@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { requireAuth, requireRole } from "../../utils/auth-guard.js";
+import { requireAuth, requireRole, getAuthUser } from "../../utils/auth-guard.js";
 import { ContractsController } from "./contracts.controller.js";
 import { ContractsService } from "./contracts.service.js";
 import { prisma } from "../../lib/prisma.js";
@@ -10,7 +10,15 @@ export async function contractsRoutes(app: FastifyInstance) {
   const contractsController = new ContractsController(contractsService);
 
   app.get("/contracts/stats", { preHandler: [requireAuth] }, contractsController.stats);
-  app.get("/contracts", { preHandler: [requireAuth] }, contractsController.list);
+
+  // Filtra automaticamente por revenda quando o usuário tem role revenda
+  app.get("/contracts", { preHandler: [requireAuth] }, async (req, reply) => {
+    const authUser = getAuthUser(req);
+    if (authUser.revendaId) {
+      (req.query as Record<string, unknown>).revendaId = authUser.revendaId;
+    }
+    return contractsController.list(req, reply);
+  });
   app.get("/contracts/:id", { preHandler: [requireAuth] }, contractsController.getById);
   app.post("/contracts", { preHandler: [requireRole(["admin", "juridico", "comercial"])] }, contractsController.create);
   app.patch("/contracts/:id", { preHandler: [requireRole(["admin", "juridico"])] }, contractsController.update);

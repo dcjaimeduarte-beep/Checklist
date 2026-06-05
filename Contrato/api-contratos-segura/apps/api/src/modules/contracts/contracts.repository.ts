@@ -8,13 +8,15 @@ export class ContractsRepository {
     clientId?: string;
     status?: ContractStatus;
     isSigned?: boolean;
+    revendaId?: string;
     skip: number;
     take: number;
   }) {
     const where = {
       ...(params.clientId ? { clientId: params.clientId } : {}),
       ...(params.status ? { status: params.status } : {}),
-      ...(params.isSigned !== undefined ? { isSigned: params.isSigned } : {})
+      ...(params.isSigned !== undefined ? { isSigned: params.isSigned } : {}),
+      ...(params.revendaId ? { client: { revendaId: params.revendaId } } : {}),
     };
 
     const [data, total] = await Promise.all([

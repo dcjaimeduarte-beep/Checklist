@@ -6,6 +6,7 @@ import { clientsRoutes } from "./modules/clients/clients.routes.js";
 import { contractsRoutes } from "./modules/contracts/contracts.routes.js";
 import { templatesRoutes } from "./modules/templates/templates.routes.js";
 import { contractTypesRoutes } from "./modules/contract-types/contract-types.routes.js";
+import { revendasRoutes } from "./modules/revendas/revendas.routes.js";
 import { firebirdRoutes } from "./routes/firebird.routes.js";
 import { configRoutes } from "./routes/config.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
@@ -42,6 +43,7 @@ export async function buildApp() {
   await app.register(contractsRoutes);
   await app.register(templatesRoutes);
   await app.register(contractTypesRoutes);
+  await app.register(revendasRoutes);
   await app.register(firebirdRoutes);
   await app.register(configRoutes);
 

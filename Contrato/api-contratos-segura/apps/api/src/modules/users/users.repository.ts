@@ -5,19 +5,13 @@ export class UsersRepository {
 
   async findAll() {
     return this.prisma.user.findMany({
-      orderBy: {
-        createdAt: "desc"
-      },
+      orderBy: { createdAt: "desc" },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true
-      }
+        id: true, name: true, email: true, role: true,
+        status: true, revendaId: true, lastLoginAt: true,
+        createdAt: true, updatedAt: true,
+        revenda: { select: { id: true, name: true } },
+      },
     });
   }
 
@@ -25,15 +19,11 @@ export class UsersRepository {
     return this.prisma.user.findUnique({
       where: { id },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true
-      }
+        id: true, name: true, email: true, role: true,
+        status: true, revendaId: true, lastLoginAt: true,
+        createdAt: true, updatedAt: true,
+        revenda: { select: { id: true, name: true } },
+      },
     });
   }
 
@@ -50,6 +40,7 @@ export class UsersRepository {
     email: string;
     passwordHash: string;
     role: UserRole;
+    revendaId?: string | null;
   }) {
     return this.prisma.user.create({
       data: {
@@ -57,18 +48,15 @@ export class UsersRepository {
         email: data.email.toLowerCase(),
         passwordHash: data.passwordHash,
         role: data.role,
-        status: "active"
+        revendaId: data.revendaId ?? null,
+        status: "active",
       },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true
-      }
+        id: true, name: true, email: true, role: true,
+        status: true, revendaId: true, lastLoginAt: true,
+        createdAt: true, updatedAt: true,
+        revenda: { select: { id: true, name: true } },
+      },
     });
   }
 

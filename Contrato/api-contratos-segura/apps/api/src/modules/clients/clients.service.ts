@@ -13,12 +13,13 @@ export class ClientsService {
   async list(query: ListClientsQuery) {
     const skip = (query.page - 1) * query.limit;
     const { data, total } = await this.clientsRepository.findAll({
-      search:  query.search,
-      status:  query.status as "active" | "inactive" | undefined,
+      search:    query.search,
+      status:    query.status as "active" | "inactive" | undefined,
+      revendaId: query.revendaId,
       skip,
-      take:    query.limit,
-      sortBy:  query.sortBy,
-      sortDir: query.sortDir,
+      take:      query.limit,
+      sortBy:    query.sortBy,
+      sortDir:   query.sortDir,
     });
 
     return {

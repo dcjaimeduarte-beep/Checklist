@@ -4,7 +4,8 @@ export const createUserBodySchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.email(),
   password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres"),
-  role: z.enum(["admin", "juridico", "comercial", "operador"])
+  role: z.enum(["admin", "juridico", "comercial", "operador", "revenda"]),
+  revendaId: z.string().optional(),
 });
 
 export const updateUserStatusParamsSchema = z.object({
