@@ -42,14 +42,16 @@ type Contract = {
   moduleFiscal: boolean;
   distanceFromProviderKm: number | null;
   notes: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
   startDate: string;
   endDate: string | null;
   durationMonths: number;
   createdAt: string;
-  client: { id: string; razaoSocial: string; cnpj: string | null; revenda: { id: string; name: string } | null };
+  client: { id: string; razaoSocial: string; cnpj: string | null; contactName: string | null; revenda: { id: string; name: string } | null };
 };
 
-type ClientOption = { id: string; razaoSocial: string; cnpj: string | null; revenda: { name: string } | null };
+type ClientOption = { id: string; razaoSocial: string; cnpj: string | null; contactName: string | null; revenda: { name: string } | null };
 
 type DueContract = {
   id: string;
@@ -543,7 +545,23 @@ type ContractForm = {
   moduleFiscal: boolean;
   distanceFromProviderKm: string;
   notes: string;
+  contactName: string;
+  contactPhone: string;
+  monthlyFeeStr: string;
+  implementationFeeStr: string;
+  discountStr: string;
 };
+
+function maskCurrency(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  const num = parseInt(digits, 10) / 100;
+  return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseCurrency(masked: string): number {
+  return parseFloat(masked.replace(/\./g, "").replace(",", ".")) || 0;
+}
 
 const EMPTY: ContractForm = {
   clientId: "", identifier: "", contractType: "SOLUTIO_ERP", startDate: "", durationMonths: 12,
@@ -551,7 +569,8 @@ const EMPTY: ContractForm = {
   monthlyFee: 0, discount: 0, paymentDayOfMonth: 10, firstPaymentDate: "",
   adjustmentIndex: "IGPM", adjustmentRate: "", moduleCadastros: false,
   moduleFaturamento: false, moduleFiscal: false,
-  distanceFromProviderKm: "", notes: "",
+  distanceFromProviderKm: "", notes: "", contactName: "", contactPhone: "",
+  monthlyFeeStr: "", implementationFeeStr: "", discountStr: "",
 };
 
 function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }: {
@@ -605,7 +624,12 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
 
   function selectClient(c: ClientOption) {
     setSelectedClient(c);
-    setForm((f) => ({ ...f, clientId: c.id }));
+    setForm((f) => ({
+      ...f,
+      clientId: c.id,
+      contactName: f.contactName || (c.contactName ?? ""),
+      contactPhone: f.contactPhone || "",
+    }));
     setShowClientList(false);
     setClientSearch(c.razaoSocial);
     setFieldErrors((e) => ({ ...e, clientId: "" }));
@@ -615,7 +639,7 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
     const e: Partial<Record<keyof ContractForm, string>> = {};
     if (!form.clientId) e.clientId = "Selecione um cliente";
     if (!form.startDate) e.startDate = "Data de início é obrigatória";
-    if (form.monthlyFee <= 0) e.monthlyFee = "Informe a mensalidade";
+    if (parseCurrency(form.monthlyFeeStr) <= 0) e.monthlyFeeStr = "Informe a mensalidade";
     setFieldErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -625,15 +649,18 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
     setError("");
     setSaving(true);
     try {
+      const monthlyFee       = parseCurrency(form.monthlyFeeStr);
+      const implementationFee = parseCurrency(form.implementationFeeStr);
+      const discount         = parseCurrency(form.discountStr);
       const body: Record<string, unknown> = {
         clientId: form.clientId,
         contractType: form.contractType,
         startDate: toIso(form.startDate),
         durationMonths: form.durationMonths,
-        implementationFee: form.implementationFee,
+        implementationFee,
         implementationPayment: form.implementationPayment,
-        monthlyFee: form.monthlyFee,
-        discount: form.discount,
+        monthlyFee,
+        discount,
         paymentDayOfMonth: form.paymentDayOfMonth,
         ...(form.adjustmentRate ? { adjustmentRate: parseFloat(form.adjustmentRate) } : {}),
         adjustmentIndex: form.adjustmentIndex,
@@ -645,6 +672,8 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
       if (form.firstPaymentDate)         body.firstPaymentDate      = toIso(form.firstPaymentDate);
       if (form.distanceFromProviderKm)   body.distanceFromProviderKm = parseInt(form.distanceFromProviderKm);
       if (form.notes.trim())             body.notes                 = form.notes.trim();
+      if (form.contactName.trim())       body.contactName           = form.contactName.trim();
+      if (form.contactPhone.trim())      body.contactPhone          = form.contactPhone.trim();
 
       if (isEdit) {
         await apiFetch(`/contracts/${editId}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -854,28 +883,66 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
             </div>
           </div>
 
+          {/* Contato para o contrato */}
+          <div className="form-section">
+            <p className="form-section-title">Contato / Responsável</p>
+            <div className="form-row form-row-2">
+              <div className="form-group">
+                {label("Nome do responsável", true)}
+                <input className="form-input"
+                  value={form.contactName}
+                  onChange={(e) => setField("contactName", e.target.value)}
+                  placeholder="Nome do signatário" />
+                <span style={{ fontSize: "0.65rem", color: "var(--gray)", marginTop: 2, display: "block" }}>
+                  Pré-preenchido do cadastro do cliente
+                </span>
+              </div>
+              <div className="form-group">
+                {label("Celular / Telefone", true)}
+                <input className="form-input"
+                  value={form.contactPhone}
+                  onChange={(e) => setField("contactPhone", e.target.value)}
+                  placeholder="(00) 00000-0000"
+                  inputMode="numeric" />
+              </div>
+            </div>
+          </div>
+
           {/* Financeiro */}
           <div className="form-section">
             <p className="form-section-title">Financeiro</p>
             <div className="form-row form-row-2">
               <div className="form-group">
-                {label("Mensalidade (R$)")}
-                <input type="number" min="0" step="0.01"
-                  className={`form-input${fieldErrors.monthlyFee ? " error" : ""}`}
-                  value={form.monthlyFee || ""}
-                  onChange={(e) => setField("monthlyFee", parseFloat(e.target.value) || 0)}
-                  placeholder="0,00" />
-                {fieldErrors.monthlyFee && <span className="form-error">{fieldErrors.monthlyFee}</span>}
+                {label("Mensalidade")}
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", fontSize: "0.875rem", color: "var(--gray)", pointerEvents: "none", fontWeight: 600 }}>R$</span>
+                  <input
+                    className={`form-input${fieldErrors.monthlyFeeStr ? " error" : ""}`}
+                    value={form.monthlyFeeStr}
+                    onChange={(e) => setField("monthlyFeeStr", maskCurrency(e.target.value))}
+                    placeholder="0,00"
+                    inputMode="numeric"
+                    style={{ paddingLeft: "2.25rem" }}
+                  />
+                </div>
+                {fieldErrors.monthlyFeeStr && <span className="form-error">{fieldErrors.monthlyFeeStr}</span>}
               </div>
               <div className="form-group">
-                {label("Desconto (R$)", true)}
-                <input type="number" min="0" step="0.01" className="form-input"
-                  value={form.discount || ""}
-                  onChange={(e) => setField("discount", parseFloat(e.target.value) || 0)}
-                  placeholder="0,00" />
-                {form.discount > 0 && form.monthlyFee > 0 && (
+                {label("Desconto", true)}
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", fontSize: "0.875rem", color: "var(--gray)", pointerEvents: "none", fontWeight: 600 }}>R$</span>
+                  <input
+                    className="form-input"
+                    value={form.discountStr}
+                    onChange={(e) => setField("discountStr", maskCurrency(e.target.value))}
+                    placeholder="0,00"
+                    inputMode="numeric"
+                    style={{ paddingLeft: "2.25rem" }}
+                  />
+                </div>
+                {parseCurrency(form.discountStr) > 0 && parseCurrency(form.monthlyFeeStr) > 0 && (
                   <span style={{ fontSize: "0.7rem", color: "#0F7A6B", marginTop: 2, display: "block" }}>
-                    Valor líquido: R$ {(form.monthlyFee - form.discount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    Valor líquido: R$ {(parseCurrency(form.monthlyFeeStr) - parseCurrency(form.discountStr)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </span>
                 )}
               </div>
@@ -895,11 +962,18 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
             </div>
             <div className="form-row form-row-2">
               <div className="form-group">
-                {label("Implantação (R$)", true)}
-                <input type="number" min="0" step="0.01" className="form-input"
-                  value={form.implementationFee || ""}
-                  onChange={(e) => setField("implementationFee", parseFloat(e.target.value) || 0)}
-                  placeholder="0,00" />
+                {label("Implantação", true)}
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", fontSize: "0.875rem", color: "var(--gray)", pointerEvents: "none", fontWeight: 600 }}>R$</span>
+                  <input
+                    className="form-input"
+                    value={form.implementationFeeStr}
+                    onChange={(e) => setField("implementationFeeStr", maskCurrency(e.target.value))}
+                    placeholder="0,00"
+                    inputMode="numeric"
+                    style={{ paddingLeft: "2.25rem" }}
+                  />
+                </div>
               </div>
               <div className="form-group">
                 {label("Pagto. Implantação")}
@@ -1041,6 +1115,11 @@ export default function ContractsPage() {
         moduleFiscal:          full.moduleFiscal,
         distanceFromProviderKm: full.distanceFromProviderKm != null ? String(full.distanceFromProviderKm) : "",
         notes:                 full.notes ?? "",
+        contactName:           full.contactName ?? "",
+        contactPhone:          full.contactPhone ?? "",
+        monthlyFeeStr:         full.monthlyFee ? full.monthlyFee.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "",
+        implementationFeeStr:  full.implementationFee ? full.implementationFee.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "",
+        discountStr:           full.discount ? full.discount.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "",
       },
     });
   }

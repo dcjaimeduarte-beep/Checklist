@@ -101,6 +101,8 @@ type MergeContext = {
     distanceFromProviderKm?: number | null;
     adjustmentRate?: number | null;
     notes?: string | null;
+    contactName?: string | null;
+    contactPhone?: string | null;
   };
 };
 
@@ -173,7 +175,8 @@ export function mergeTemplate(templateContent: string, ctx: MergeContext): strin
     "{{CONTRATANTE_CNPJ}}":            client.cnpj ?? "—",
     "{{CONTRATANTE_EMAIL}}":           client.email ?? "—",
     "{{CONTRATANTE_TELEFONE}}":        client.phone ?? "",
-    "{{CONTRATANTE_CONTATO}}":         client.contactName ?? "—",
+    "{{CONTRATANTE_CONTATO}}":         contract.contactName ?? client.contactName ?? "—",
+    "{{CONTRATANTE_CELULAR}}":         contract.contactPhone ?? client.phone ?? "—",
     "{{CONTRATANTE_ENDERECO}}":        enderecoCompleto,
     "{{CONTRATANTE_BAIRRO}}":          client.neighborhood ?? "—",
     "{{CONTRATANTE_CIDADE_UF}}":       cidadeUf,

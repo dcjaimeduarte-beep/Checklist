@@ -138,6 +138,8 @@ model Contract {
   distanceFromProviderKm Int?           @map("distance_from_provider_km")
 
   notes                  String?
+  contactName            String?        @map("contact_name")
+  contactPhone           String?        @map("contact_phone")
   lastAdjustmentDate     DateTime?      @map("last_adjustment_date")
   contractType           ContractType   @default(SOLUTIO_ERP) @map("contract_type")
 

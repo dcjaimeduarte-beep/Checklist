@@ -61,6 +61,7 @@ export class ContractsRepository {
           client: {
             select: {
               id: true, razaoSocial: true, nomeFantasia: true, cnpj: true,
+              contactName: true,
               revenda: { select: { id: true, name: true } },
             }
           }
@@ -99,6 +100,8 @@ export class ContractsRepository {
         moduleFiscal: data.moduleFiscal,
         distanceFromProviderKm: data.distanceFromProviderKm,
         notes: data.notes,
+        contactName: data.contactName,
+        contactPhone: data.contactPhone,
         contractType: data.contractType as any,
       },
       include: { client: { select: { id: true, razaoSocial: true } } }

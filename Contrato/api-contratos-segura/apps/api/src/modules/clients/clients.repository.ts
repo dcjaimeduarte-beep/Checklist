@@ -59,6 +59,7 @@ export class ClientsRepository {
           cnpj: true,
           email: true,
           phone: true,
+          contactName: true,
           city: true,
           state: true,
           status: true,

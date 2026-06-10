@@ -18,6 +18,8 @@ export const createContractSchema = z.object({
   moduleFiscal: z.boolean().default(false),
   distanceFromProviderKm: z.number().int().min(0).optional(),
   notes: z.string().optional(),
+  contactName: z.string().optional(),
+  contactPhone: z.string().optional(),
   contractType: z.enum(["SOLUTIO_ERP", "GCONCILIADOR", "SOLUTIO_WEB"]).default("SOLUTIO_ERP"),
 });
 
