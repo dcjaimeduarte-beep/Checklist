@@ -174,7 +174,7 @@ export function mergeTemplate(templateContent: string, ctx: MergeContext): strin
     "{{CONTRATANTE_RAZAO_SOCIAL}}":    client.razaoSocial,
     "{{CONTRATANTE_CNPJ}}":            client.cnpj ?? "—",
     "{{CONTRATANTE_EMAIL}}":           client.email ?? "—",
-    "{{CONTRATANTE_TELEFONE}}":        client.phone ?? "",
+    "{{CONTRATANTE_TELEFONE}}":        contract.contactPhone ?? client.phone ?? "",
     "{{CONTRATANTE_CONTATO}}":         contract.contactName ?? client.contactName ?? "—",
     "{{CONTRATANTE_CELULAR}}":         contract.contactPhone ?? client.phone ?? "—",
     "{{CONTRATANTE_ENDERECO}}":        enderecoCompleto,
