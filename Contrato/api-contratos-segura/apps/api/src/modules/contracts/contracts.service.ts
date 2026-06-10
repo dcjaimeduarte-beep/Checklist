@@ -43,6 +43,9 @@ export class ContractsService {
   async create(actorUserId: string | undefined, data: CreateContractInput) {
     const contract = await this.contractsRepository.create(data);
 
+    // Sincroniza contato/celular de volta ao cadastro do cliente
+    await this.syncContactToClient(data.clientId, data.contactName, data.contactPhone);
+
     await this.auditService.log({
       actorUserId,
       action: "contract.created",
@@ -54,9 +57,25 @@ export class ContractsService {
     return contract;
   }
 
+  private async syncContactToClient(
+    clientId: string,
+    contactName?: string | null,
+    contactPhone?: string | null,
+  ) {
+    const patch: Record<string, string> = {};
+    if (contactName?.trim())  patch.contactName = contactName.trim();
+    if (contactPhone?.trim()) patch.phone        = contactPhone.trim();
+    if (Object.keys(patch).length > 0) {
+      await prisma.client.update({ where: { id: clientId }, data: patch });
+    }
+  }
+
   async update(actorUserId: string | undefined, id: string, data: UpdateContractInput) {
-    await this.getById(id);
+    const existing = await this.getById(id);
     const updated = await this.contractsRepository.update(id, data);
+
+    // Sincroniza contato/celular de volta ao cadastro do cliente
+    await this.syncContactToClient(existing.clientId, data.contactName, data.contactPhone);
 
     await this.auditService.log({
       actorUserId,
