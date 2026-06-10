@@ -5,6 +5,7 @@ import { apiFetch, getCurrentUser } from "@/lib/api";
 import { Plus, Search, FileText, CheckCircle2, X, Eye, Check, Pencil, TrendingUp, AlertTriangle, Trash2, Link2, Copy, CheckCheck, RotateCcw } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import { useRouter } from "next/navigation";
+import { formatCnpjCpf } from "@/lib/format";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -777,7 +778,7 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
                           </span>
                         )}
                       </div>
-                      {c.cnpj && <div style={{ fontSize: "0.75rem", color: "var(--gray)", marginTop: "1px" }}>{c.cnpj}</div>}
+                      {c.cnpj && <div style={{ fontSize: "0.75rem", color: "var(--gray)", marginTop: "1px" }}>{formatCnpjCpf(c.cnpj)}</div>}
                     </div>
                   ))}
                 </div>
@@ -1246,7 +1247,7 @@ export default function ContractsPage() {
                 </td>
                 <td>
                   <span style={{ fontWeight: 500 }}>{c.client.razaoSocial}</span>
-                  {c.client.cnpj && <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>{c.client.cnpj}</span>}
+                  {c.client.cnpj && <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>{formatCnpjCpf(c.client.cnpj)}</span>}
                   {c.client.revenda ? (
                     <span style={{ display: "inline-block", marginTop: 3, fontSize: "0.625rem", fontWeight: 700, color: "#0F7A6B", background: "#0F7A6B15", borderRadius: 99, padding: "1px 6px" }}>
                       {c.client.revenda.name}

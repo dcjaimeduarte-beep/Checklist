@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { apiFetch, getCurrentUser } from "@/lib/api";
+import { formatCnpjCpf } from "@/lib/format";
 import { Plus, Search, Building2, X, Download, CheckCircle2, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown, Pencil } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 
@@ -769,7 +770,7 @@ export default function ClientsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="muted mono">{c.cnpj ?? "—"}</td>
+                  <td className="muted mono">{formatCnpjCpf(c.cnpj)}</td>
                   <td className="muted">
                     {c.city && c.state ? `${c.city} / ${c.state}` : "—"}
                   </td>

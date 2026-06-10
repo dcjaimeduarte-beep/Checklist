@@ -1,3 +1,11 @@
+function formatCnpjCpf(raw: string | null | undefined): string {
+  if (!raw) return "—";
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 11) return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  if (digits.length === 14) return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  return raw;
+}
+
 // Converte número para extenso em português (simplificado para valores de contratos)
 function numToExtenso(value: number): string {
   if (value === 0) return "zero reais";
@@ -173,7 +181,7 @@ export function mergeTemplate(templateContent: string, ctx: MergeContext): strin
   const vars: Record<string, string> = {
     // Contratante (cliente)
     "{{CONTRATANTE_RAZAO_SOCIAL}}":    client.razaoSocial,
-    "{{CONTRATANTE_CNPJ}}":            client.cnpj ?? "—",
+    "{{CONTRATANTE_CNPJ}}":            formatCnpjCpf(client.cnpj),
     "{{CONTRATANTE_EMAIL}}":           client.email ?? "—",
     "{{CONTRATANTE_TELEFONE}}":        contract.contactPhone ?? client.phone ?? "",
     "{{CONTRATANTE_CONTATO}}":         contract.contactName ?? client.contactName ?? "—",
