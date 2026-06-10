@@ -87,15 +87,21 @@ export default function BackupPage() {
   }
 
   async function handleExport() {
-    const token = localStorage.getItem("token");
-    const url   = `${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3333"}/backup/exportar`;
-    const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) { setMessage({ type: "error", text: "Erro ao exportar backup." }); return; }
-    const blob = await res.blob();
-    const a    = document.createElement("a");
-    a.href     = URL.createObjectURL(blob);
-    a.download = `backup-contratos-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
+    try {
+      const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/);
+      const token = match?.[1] ?? null;
+      const res   = await fetch("/api-backend/backup/exportar", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { setMessage({ type: "error", text: "Erro ao exportar backup." }); return; }
+      const blob     = await res.blob();
+      const a        = document.createElement("a");
+      a.href         = URL.createObjectURL(blob);
+      a.download     = `backup-contratos-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+    } catch {
+      setMessage({ type: "error", text: "Erro ao exportar backup." });
+    }
   }
 
   function setField<K extends keyof BackupConfig>(key: K, value: BackupConfig[K]) {
