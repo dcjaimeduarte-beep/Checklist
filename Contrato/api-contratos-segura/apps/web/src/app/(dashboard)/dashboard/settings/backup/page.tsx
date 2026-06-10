@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Download, Mail, Play, Save, Clock, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Download, Mail, Play, Save, Clock, CheckCircle2, AlertTriangle, RefreshCw, Upload } from "lucide-react";
 
 interface BackupConfig {
   ativo: boolean;
@@ -15,12 +15,14 @@ interface BackupConfig {
 }
 
 export default function BackupPage() {
-  const [config, setConfig]     = useState<BackupConfig | null>(null);
-  const [form, setForm]         = useState<BackupConfig | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [running, setRunning]   = useState(false);
-  const [message, setMessage]   = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [config, setConfig]       = useState<BackupConfig | null>(null);
+  const [form, setForm]           = useState<BackupConfig | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [running, setRunning]     = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [message, setMessage]     = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => { void load(); }, []);
 
@@ -61,6 +63,26 @@ export default function BackupPage() {
       setMessage({ type: "error", text: "Erro ao executar backup." });
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (!restoreFile) return;
+    if (!confirm("Tem certeza? Os dados existentes serão sobrescritos pelos dados do backup.")) return;
+    setRestoring(true);
+    setMessage(null);
+    try {
+      const text = await restoreFile.text();
+      const res = await apiFetch<{ ok: boolean; message: string }>("/backup/restaurar", {
+        method: "POST",
+        body: JSON.stringify({ jsonData: text }),
+      });
+      setMessage({ type: res.ok ? "ok" : "error", text: res.message });
+      setRestoreFile(null);
+    } catch {
+      setMessage({ type: "error", text: "Erro ao restaurar backup." });
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -179,6 +201,41 @@ export default function BackupPage() {
                     style={{ width: "100%" }}
                   />
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Restaurar backup */}
+          <div className="card" style={{ padding: "1.25rem" }}>
+            <h2 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text)", marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Upload size={15} /> Restaurar backup
+            </h2>
+            <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
+              Selecione um arquivo JSON gerado por este sistema. Clientes, contratos e templates serão restaurados. Usuários não são alterados.
+            </p>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+              <label style={{
+                display: "inline-flex", alignItems: "center", gap: "0.5rem",
+                padding: "0.45rem 1rem", borderRadius: 8, cursor: "pointer",
+                border: "1px dashed rgba(139,158,176,0.35)", fontSize: "0.8rem",
+                color: restoreFile ? "var(--primary)" : "var(--muted)",
+                background: restoreFile ? "rgba(27,122,140,0.08)" : "transparent",
+              }}>
+                <Upload size={13} />
+                {restoreFile ? restoreFile.name : "Escolher arquivo .json"}
+                <input type="file" accept=".json" style={{ display: "none" }}
+                  onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} />
+              </label>
+              {restoreFile && (
+                <button
+                  onClick={handleRestore}
+                  disabled={restoring}
+                  className="btn"
+                  style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "#dc2626", color: "#fff", border: "none" }}
+                >
+                  {restoring ? <RefreshCw size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={13} />}
+                  {restoring ? "Restaurando..." : "Restaurar agora"}
+                </button>
               )}
             </div>
           </div>

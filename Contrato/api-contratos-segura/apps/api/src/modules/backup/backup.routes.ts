@@ -5,6 +5,7 @@ import {
   saveBackupConfig,
   exportAllData,
   runBackupNow,
+  restoreFromBackup,
   restartScheduler,
   type BackupConfig,
 } from "./backup.service.js";
@@ -31,8 +32,19 @@ export async function backupRoutes(app: FastifyInstance) {
   // POST /backup/agora — executa backup imediatamente
   app.post("/backup/agora", { preHandler: [requireRole(["admin"])] }, async (_req, reply) => {
     const result = await runBackupNow((msg) => app.log.info(msg));
-    return reply.code(result.ok ? 200 : 500).send(result);
+    return reply.code(200).send(result);
   });
+
+  // POST /backup/restaurar — restaura dados a partir de JSON de backup
+  app.post<{ Body: { jsonData: string } }>(
+    "/backup/restaurar",
+    { preHandler: [requireRole(["admin"])] },
+    async (req, reply) => {
+      if (!req.body?.jsonData) return reply.code(400).send({ ok: false, message: "Campo jsonData obrigatório." });
+      const result = await restoreFromBackup(req.body.jsonData);
+      return reply.code(200).send(result);
+    }
+  );
 
   // GET /backup/exportar — download do JSON de backup
   app.get("/backup/exportar", { preHandler: [requireRole(["admin"])] }, async (_req, reply) => {

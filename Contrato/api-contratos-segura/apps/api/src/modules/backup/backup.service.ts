@@ -77,7 +77,7 @@ export async function sendBackupEmail(jsonData: string, config: BackupConfig): P
 
   const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
 
-  const dataHora = new Date().toLocaleString("pt-BR", { timeZone: "America/Maceio" });
+  const dataHora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const nomeArquivo = `backup-contratos-${new Date().toISOString().slice(0, 10)}.json`;
 
   await transporter.sendMail({
@@ -113,6 +113,99 @@ export async function runBackupNow(log?: (msg: string) => void): Promise<{ ok: b
   }
 }
 
+type BackupData = {
+  tabelas: {
+    revendas?: Record<string, unknown>[];
+    clients?: Record<string, unknown>[];
+    contracts?: Record<string, unknown>[];
+    templates?: Record<string, unknown>[];
+    contractTypes?: Record<string, unknown>[];
+  };
+};
+
+export async function restoreFromBackup(jsonString: string): Promise<{ ok: boolean; message: string; totais: Record<string, number> }> {
+  let parsed: BackupData;
+  try {
+    parsed = JSON.parse(jsonString) as BackupData;
+  } catch {
+    return { ok: false, message: "JSON inválido.", totais: {} };
+  }
+
+  const { tabelas } = parsed;
+  if (!tabelas) return { ok: false, message: "Arquivo de backup inválido — campo 'tabelas' não encontrado.", totais: {} };
+
+  // Remove campos undefined para compatibilidade com exactOptionalPropertyTypes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function strip(obj: Record<string, unknown>): any {
+    return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+  }
+
+  const totais: Record<string, number> = {};
+
+  // Ordem: revendas → clients → contracts → templates → contractTypes
+  if (tabelas.revendas?.length) {
+    for (const r of tabelas.revendas) {
+      await prisma.revenda.upsert({
+        where: { id: r["id"] as string },
+        create: strip({ id: r["id"], name: r["name"], contactName: r["contactName"], email: r["email"], phone: r["phone"], createdAt: new Date(r["createdAt"] as string) }),
+        update: strip({ name: r["name"], contactName: r["contactName"], email: r["email"], phone: r["phone"] }),
+      });
+    }
+    totais["revendas"] = tabelas.revendas.length;
+  }
+
+  if (tabelas.clients?.length) {
+    for (const c of tabelas.clients) {
+      await prisma.client.upsert({
+        where: { id: c["id"] as string },
+        create: strip({ id: c["id"], externalCode: c["externalCode"], razaoSocial: c["razaoSocial"], nomeFantasia: c["nomeFantasia"], cnpj: c["cnpj"], inscricaoEstadual: c["inscricaoEstadual"], email: c["email"], phone: c["phone"], contactName: c["contactName"], street: c["street"], addressNumber: c["addressNumber"], addressComplement: c["addressComplement"], neighborhood: c["neighborhood"], city: c["city"], state: c["state"], zipCode: c["zipCode"], revendaId: c["revendaId"], createdAt: new Date(c["createdAt"] as string) }),
+        update: strip({ razaoSocial: c["razaoSocial"], nomeFantasia: c["nomeFantasia"], email: c["email"], phone: c["phone"], contactName: c["contactName"] }),
+      });
+    }
+    totais["clientes"] = tabelas.clients.length;
+  }
+
+  if (tabelas.contracts?.length) {
+    for (const ct of tabelas.contracts) {
+      const { client: _c, ...f } = ct as Record<string, unknown> & { client?: unknown };
+      void _c;
+      const clientExists = await prisma.client.findUnique({ where: { id: f["clientId"] as string }, select: { id: true } });
+      if (!clientExists) continue;
+      await prisma.contract.upsert({
+        where: { id: f["id"] as string },
+        create: strip({ id: f["id"], clientId: f["clientId"], identifier: f["identifier"], status: f["status"], contractType: f["contractType"], startDate: new Date(f["startDate"] as string), endDate: f["endDate"] ? new Date(f["endDate"] as string) : undefined, durationMonths: f["durationMonths"], implementationFee: f["implementationFee"], implementationPayment: f["implementationPayment"], monthlyFee: f["monthlyFee"], discount: f["discount"], paymentDayOfMonth: f["paymentDayOfMonth"], adjustmentIndex: f["adjustmentIndex"], moduleCadastros: f["moduleCadastros"], moduleFaturamento: f["moduleFaturamento"], moduleFiscal: f["moduleFiscal"], notes: f["notes"], contactName: f["contactName"], contactPhone: f["contactPhone"], implementationNote: f["implementationNote"], createdAt: new Date(f["createdAt"] as string) }),
+        update: strip({ status: f["status"], monthlyFee: f["monthlyFee"], notes: f["notes"] }),
+      });
+    }
+    totais["contratos"] = tabelas.contracts.length;
+  }
+
+  if (tabelas.templates?.length) {
+    for (const t of tabelas.templates) {
+      await prisma.contractTemplate.upsert({
+        where: { id: t["id"] as string },
+        create: strip({ id: t["id"], name: t["name"], content: t["content"], isDefault: t["isDefault"], createdAt: new Date(t["createdAt"] as string) }),
+        update: strip({ name: t["name"], content: t["content"] }),
+      });
+    }
+    totais["templates"] = tabelas.templates.length;
+  }
+
+  if (tabelas.contractTypes?.length) {
+    for (const ct of tabelas.contractTypes) {
+      await prisma.contractTypeConfig.upsert({
+        where: { id: ct["id"] as string },
+        create: strip({ id: ct["id"], type: ct["type"], displayName: ct["displayName"], clauseOverrides: ct["clauseOverrides"], createdAt: new Date(ct["createdAt"] as string) }),
+        update: strip({ displayName: ct["displayName"], clauseOverrides: ct["clauseOverrides"] }),
+      });
+    }
+    totais["tiposContrato"] = tabelas.contractTypes.length;
+  }
+
+  const resumo = Object.entries(totais).map(([k, v]) => `${v} ${k}`).join(", ");
+  return { ok: true, message: `Restauração concluída: ${resumo}.`, totais };
+}
+
 let cronJob: ReturnType<typeof cron.schedule> | null = null;
 
 export function startBackupScheduler(log?: (msg: string) => void): void {
@@ -127,8 +220,8 @@ export function startBackupScheduler(log?: (msg: string) => void): void {
   const [hora, minuto] = config.hora.split(":").map(Number);
   const expr = `${minuto ?? 0} ${hora ?? 2} * * *`;
 
-  cronJob = cron.schedule(expr, () => { void runBackupNow(log); }, { timezone: "America/Maceio" });
-  log?.(`[backup] Agendado para ${config.hora} (America/Maceio)`);
+  cronJob = cron.schedule(expr, () => { void runBackupNow(log); }, { timezone: "America/Sao_Paulo" });
+  log?.(`[backup] Agendado para ${config.hora} (America/Sao_Paulo)`);
 }
 
 export function restartScheduler(log?: (msg: string) => void): void {
