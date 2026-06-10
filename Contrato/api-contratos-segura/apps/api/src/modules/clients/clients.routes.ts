@@ -21,8 +21,9 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.patch("/clients/:id/status", { preHandler: [requireRole(["admin"])] }, clientsController.updateStatus);
 
   // ── Importar clientes do Firebird (manual) ───────────────────────────────
-  app.post("/clients/import-from-firebird", { preHandler: [requireRole(["admin"])] }, async (_req, reply) => {
-    const result = await syncClientsFromFirebird();
+  app.post("/clients/import-from-firebird", { preHandler: [requireRole(["admin"])] }, async (req, reply) => {
+    const { updateExisting } = (req.query ?? {}) as { updateExisting?: string };
+    const result = await syncClientsFromFirebird({ updateExisting: updateExisting === "true" });
     if (result.error) {
       return reply.status(503).send({ message: result.error });
     }

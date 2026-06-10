@@ -44,7 +44,8 @@ function formatCep(v: unknown): string | undefined {
   return raw;
 }
 
-export async function syncClientsFromFirebird(): Promise<SyncResult> {
+export async function syncClientsFromFirebird(options?: { updateExisting?: boolean }): Promise<SyncResult> {
+  const updateExisting = options?.updateExisting ?? false;
   const ranAt = new Date().toISOString();
   const start = Date.now();
 
@@ -151,8 +152,12 @@ export async function syncClientsFromFirebird(): Promise<SyncResult> {
     try {
       const existing = await prisma.client.findUnique({ where: { externalCode } });
       if (existing) {
-        await prisma.client.update({ where: { externalCode }, data });
-        updated++;
+        if (updateExisting) {
+          await prisma.client.update({ where: { externalCode }, data });
+          updated++;
+        } else {
+          skipped++;
+        }
       } else {
         await prisma.client.create({ data: { ...data, externalCode } });
         created++;

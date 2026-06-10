@@ -478,11 +478,11 @@ export default function ClientsPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   type SyncStatus = { ranAt: string | null; total?: number; created?: number; updated?: number; error?: string; durationMs?: number };
 
-  const [showDrawer,   setShowDrawer]   = useState(false);
-  const [editClient,   setEditClient]   = useState<{ id: string; data: Partial<FormData> } | null>(null);
-  const [importing,    setImporting]    = useState(false);
-  const [importResult, setImportResult] = useState<{ total: number; created: number; updated: number; skipped: number } | null>(null);
-  const [importError,  setImportError]  = useState("");
+  const [showDrawer,    setShowDrawer]    = useState(false);
+  const [editClient,    setEditClient]    = useState<{ id: string; data: Partial<FormData> } | null>(null);
+  const [importing,     setImporting]     = useState<"new" | "update" | false>(false);
+  const [importResult,  setImportResult]  = useState<{ total: number; created: number; updated: number; skipped: number; mode: "new" | "update" } | null>(null);
+  const [importError,   setImportError]   = useState("");
   const [syncStatus,   setSyncStatus]   = useState<SyncStatus | null>(null);
 
   useEffect(() => {
@@ -599,9 +599,9 @@ export default function ClientsPage() {
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <button
             className="btn-ghost"
-            disabled={importing}
+            disabled={!!importing}
             onClick={async () => {
-              setImporting(true);
+              setImporting("new");
               setImportResult(null);
               setImportError("");
               try {
@@ -609,7 +609,7 @@ export default function ClientsPage() {
                   "/clients/import-from-firebird",
                   { method: "POST" }
                 );
-                setImportResult(r);
+                setImportResult({ ...r, mode: "new" });
                 if (r.ranAt) setSyncStatus({ ranAt: r.ranAt, total: r.total, created: r.created, updated: r.updated });
                 void load();
               } catch (e) {
@@ -620,7 +620,32 @@ export default function ClientsPage() {
             }}
           >
             <Download size={14} />
-            {importing ? "Importando..." : "Importar do Firebird"}
+            {importing === "new" ? "Importando..." : "Importar novos"}
+          </button>
+          <button
+            className="btn-ghost"
+            disabled={!!importing}
+            onClick={async () => {
+              setImporting("update");
+              setImportResult(null);
+              setImportError("");
+              try {
+                const r = await apiFetch<{ total: number; created: number; updated: number; skipped: number; ranAt?: string }>(
+                  "/clients/import-from-firebird?updateExisting=true",
+                  { method: "POST" }
+                );
+                setImportResult({ ...r, mode: "update" });
+                if (r.ranAt) setSyncStatus({ ranAt: r.ranAt, total: r.total, created: r.created, updated: r.updated });
+                void load();
+              } catch (e) {
+                setImportError(e instanceof Error ? e.message : "Erro na importação.");
+              } finally {
+                setImporting(false);
+              }
+            }}
+          >
+            <Download size={14} />
+            {importing === "update" ? "Atualizando..." : "Atualizar existentes"}
           </button>
           <button className="btn-primary" onClick={() => setShowDrawer(true)}>
             <Plus size={15} />
@@ -634,7 +659,10 @@ export default function ClientsPage() {
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", background: "#E6F5F3", border: "1px solid #A3D9C9", borderRadius: 8, marginBottom: "1rem" }}>
           <CheckCircle2 size={16} style={{ color: "#0F7A6B", flexShrink: 0 }} />
           <p style={{ margin: 0, fontSize: "0.875rem", color: "#0F7A6B", flex: 1 }}>
-            Importação concluída — {importResult.total} lidos: <strong>{importResult.created} criados</strong>, {importResult.updated} atualizados, {importResult.skipped} ignorados.
+            {importResult.mode === "update"
+              ? <>Atualização concluída — {importResult.total} lidos: <strong>{importResult.updated} atualizados</strong>, {importResult.created} criados, {importResult.skipped} ignorados.</>
+              : <>Importação concluída — {importResult.total} lidos: <strong>{importResult.created} novos cadastrados</strong>, {importResult.skipped} já existentes (ignorados).</>
+            }
           </p>
           <button className="btn-ghost" style={{ padding: "0.2rem 0.5rem" }} onClick={() => setImportResult(null)}>×</button>
         </div>

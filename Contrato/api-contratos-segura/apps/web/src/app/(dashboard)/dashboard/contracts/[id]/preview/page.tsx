@@ -37,6 +37,7 @@ type DocumentResponse = {
 function parseContractHTML(text: string): string {
   const lines = text.split("\n");
   const out: string[] = [];
+  let afterPartyLabel = false;
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -44,17 +45,25 @@ function parseContractHTML(text: string): string {
     if (!line) { out.push('<div style="margin-bottom:0.4rem"></div>'); continue; }
 
     if (line.startsWith("CONTRATO DE PRESTAÇÃO")) {
-      out.push(`<h1 class="ct-title">${line}</h1>`); continue;
+      out.push(`<h1 class="ct-title">${line}</h1>`); afterPartyLabel = false; continue;
     }
     if (line.startsWith("Contrato de Sistema de Gestão")) {
-      out.push(`<p class="ct-subtitle">${line}</p>`); continue;
+      out.push(`<p class="ct-subtitle">${line}</p>`); afterPartyLabel = false; continue;
     }
-    if (line === "Contratante" || line === "Contratada") {
-      out.push(`<p class="ct-party-label">${line}</p>`); continue;
+    if (/^contratante$|^contratada$/i.test(line)) {
+      out.push(`<p class="ct-party-label">${line}</p>`); afterPartyLabel = true; continue;
     }
-    if (/^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ\s,\/]+$/.test(line) && line.length > 2 && !line.includes("R$")) {
-      out.push(`<h2 class="ct-section">${line}</h2>`); continue;
+    if (/^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ\s,\/\-\.]+$/.test(line) && line.length > 2 && !line.includes("R$")) {
+      if (afterPartyLabel) {
+        // Nome da empresa contratante/contratada — negrito sem fundo colorido
+        out.push(`<p class="ct-party-name">${line}</p>`);
+      } else {
+        out.push(`<h2 class="ct-section">${line}</h2>`);
+      }
+      afterPartyLabel = false;
+      continue;
     }
+    afterPartyLabel = false;
     if (/^Cláusula\s+\d/.test(line)) {
       out.push(`<p class="ct-clause-label">${line}</p>`); continue;
     }
@@ -344,6 +353,12 @@ export default function ContractPreviewPage() {
           margin: 1rem 0 0.15rem;
           text-transform: uppercase;
           letter-spacing: 0.04em;
+        }
+        .ct-party-name {
+          font-weight: 700;
+          font-size: 11pt;
+          color: #0D2235;
+          margin: 0.1rem 0 0.2rem;
         }
         .ct-field { margin: 0.15rem 0; font-size: 11pt; }
         .ct-field-label { color: #0D2235; font-weight: 700; }
