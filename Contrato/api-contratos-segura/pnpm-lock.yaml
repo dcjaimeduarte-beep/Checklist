@@ -38,9 +38,15 @@ importers:
       fastify:
         specifier: ^5.6.1
         version: 5.8.4
+      node-cron:
+        specifier: ^4.2.1
+        version: 4.2.1
       node-firebird:
         specifier: ^2.3.2
         version: 2.3.2
+      nodemailer:
+        specifier: ^8.0.11
+        version: 8.0.11
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
@@ -51,6 +57,12 @@ importers:
       '@types/node':
         specifier: ^24.3.0
         version: 24.12.2
+      '@types/node-cron':
+        specifier: ^3.0.11
+        version: 3.0.11
+      '@types/nodemailer':
+        specifier: ^8.0.0
+        version: 8.0.0
       prisma:
         specifier: ^6.16.2
         version: 6.19.3(typescript@5.9.3)
@@ -786,8 +798,14 @@ packages:
   '@types/json5@0.0.29':
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
 
+  '@types/node-cron@3.0.11':
+    resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}
+
   '@types/node@24.12.2':
     resolution: {integrity: sha512-A1sre26ke7HDIuY/M23nd9gfB+nrmhtYyMINbjI1zHJxYteKR6qSMX56FsmjMcDb3SMcjJg5BiRRgOCC/yBD0g==}
+
+  '@types/nodemailer@8.0.0':
+    resolution: {integrity: sha512-fyf8jWULsCo0d0BuoQ75i6IeoHs47qcqxWc7yUdUcV0pOZGjUTTOvwdG1PRXUDqN/8A64yQdQdnA2pZgcdi+cA==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -1987,6 +2005,10 @@ packages:
     resolution: {integrity: sha512-9MdFxmkKaOYVTV+XVRG8ArDwwQ77XIgIPyKASB1k3JPq3M8fGQQQE3YpMOrKm6g//Ktx8ivZr8xo1Qmtqub+GA==}
     engines: {node: ^18 || ^20 || >= 21}
 
+  node-cron@4.2.1:
+    resolution: {integrity: sha512-lgimEHPE/QDgFlywTd8yTR61ptugX3Qer29efeyWw2rv259HtGBNn1vZVmp8lB9uo9wC0t/AT4iGqXxia+CJFg==}
+    engines: {node: '>=6.0.0'}
+
   node-exports-info@1.6.0:
     resolution: {integrity: sha512-pyFS63ptit/P5WqUkt+UUfe+4oevH+bFeIiPPdfb0pFeYEu/1ELnJu5l+5EcTKYL5M7zaAa7S8ddywgXypqKCw==}
     engines: {node: '>= 0.4'}
@@ -2000,6 +2022,10 @@ packages:
   node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
+
+  nodemailer@8.0.11:
+    resolution: {integrity: sha512-nrO/pDAUKl+wXX+lx16tDLbnm0fW6sK/x8mgohaCpg+CdCEl482bD4tCuAZk2DyliruiNTIZxRCoWkDqJEnAiA==}
+    engines: {node: '>=6.0.0'}
 
   nypm@0.6.5:
     resolution: {integrity: sha512-K6AJy1GMVyfyMXRVB88700BJqNUkByijGJM8kEHpLdcAt+vSQAVfkWWHYzuRXHSY6xA2sNc5RjTj0p9rE2izVQ==}
@@ -3066,9 +3092,15 @@ snapshots:
 
   '@types/json5@0.0.29': {}
 
+  '@types/node-cron@3.0.11': {}
+
   '@types/node@24.12.2':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/nodemailer@8.0.0':
+    dependencies:
+      '@types/node': 24.12.2
 
   '@types/react-dom@19.2.3(@types/react@19.2.14)':
     dependencies:
@@ -4444,6 +4476,8 @@ snapshots:
 
   node-addon-api@8.7.0: {}
 
+  node-cron@4.2.1: {}
+
   node-exports-info@1.6.0:
     dependencies:
       array.prototype.flatmap: 1.3.3
@@ -4456,6 +4490,8 @@ snapshots:
   node-firebird@2.3.2: {}
 
   node-gyp-build@4.8.4: {}
+
+  nodemailer@8.0.11: {}
 
   nypm@0.6.5:
     dependencies:

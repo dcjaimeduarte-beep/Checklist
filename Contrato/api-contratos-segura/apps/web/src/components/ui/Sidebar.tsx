@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Building2, FileText, Users, LogOut, LayoutTemplate, DollarSign, Layers, Store } from "lucide-react";
+import { LayoutDashboard, Building2, FileText, Users, LogOut, LayoutTemplate, DollarSign, Layers, Store, DatabaseBackup } from "lucide-react";
 import { clearToken, getCurrentUser } from "@/lib/api";
 
 type NavItem = {
@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard/financeiro",                        label: "Financeiro",      icon: DollarSign,      roles: ["admin", "juridico", "comercial", "operador"] },
   { href: "/dashboard/revendas",                          label: "Revendas",        icon: Store,           roles: ["admin"] },
   { href: "/dashboard/users",                             label: "Usuários",        icon: Users,           roles: ["admin"] },
+  { href: "/dashboard/settings/backup",                  label: "Backup",          icon: DatabaseBackup,  roles: ["admin"] },
 ];
 
 export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {

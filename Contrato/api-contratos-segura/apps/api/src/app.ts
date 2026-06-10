@@ -9,6 +9,7 @@ import { contractTypesRoutes } from "./modules/contract-types/contract-types.rou
 import { revendasRoutes } from "./modules/revendas/revendas.routes.js";
 import { firebirdRoutes } from "./routes/firebird.routes.js";
 import { configRoutes } from "./routes/config.routes.js";
+import { backupRoutes } from "./modules/backup/backup.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { env } from "./env.js";
 import { registerHelmet } from "./plugins/helmet.js";
@@ -46,6 +47,7 @@ export async function buildApp() {
   await app.register(revendasRoutes);
   await app.register(firebirdRoutes);
   await app.register(configRoutes);
+  await app.register(backupRoutes);
 
   return app;
 }

@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { env } from "./env.js";
 import { syncClientsFromFirebird } from "./lib/client-sync.js";
+import { startBackupScheduler } from "./modules/backup/backup.service.js";
 
 async function runSync(label: string, log: (msg: string) => void) {
   try {
@@ -25,6 +26,8 @@ async function start() {
     });
 
     app.log.info(`API rodando em http://${env.APP_HOST}:${env.APP_PORT}`);
+
+    startBackupScheduler((msg) => app.log.info(msg));
 
     // Sync inicial (aguarda 8s para a conexão Firebird estabilizar)
     setTimeout(() => void runSync("startup", (m) => app.log.info(m)), 8_000);
