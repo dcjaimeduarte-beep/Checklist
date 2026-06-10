@@ -138,6 +138,7 @@ model Contract {
   distanceFromProviderKm Int?           @map("distance_from_provider_km")
 
   notes                  String?
+  implementationNote     String?        @map("implementation_note")
   contactName            String?        @map("contact_name")
   contactPhone           String?        @map("contact_phone")
   lastAdjustmentDate     DateTime?      @map("last_adjustment_date")

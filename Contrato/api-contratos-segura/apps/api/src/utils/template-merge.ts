@@ -101,6 +101,7 @@ type MergeContext = {
     distanceFromProviderKm?: number | null;
     adjustmentRate?: number | null;
     notes?: string | null;
+    implementationNote?: string | null;
     contactName?: string | null;
     contactPhone?: string | null;
   };
@@ -185,8 +186,11 @@ export function mergeTemplate(templateContent: string, ctx: MergeContext): strin
     // Contrato
     "{{NUMERO_CONTRATO}}":             contract.identifier ?? "—",
     "{{MODULOS}}":                     modulos,
-    "{{VALOR_IMPLANTACAO}}":           `R$ ${fmtCurrency(contract.implementationFee)}`,
+    "{{VALOR_IMPLANTACAO}}":            `R$ ${fmtCurrency(contract.implementationFee)}`,
     "{{VALOR_IMPLANTACAO_EXTENSO}}":   numToExtenso(contract.implementationFee),
+    "{{TEXTO_IMPLANTACAO}}":           contract.implementationNote?.trim()
+                                         ? contract.implementationNote.trim()
+                                         : `R$ ${fmtCurrency(contract.implementationFee)} (${numToExtenso(contract.implementationFee)})`,
     "{{FORMA_PAGAMENTO_IMPLANTACAO}}": formaImplantacao,
     "{{VALOR_MENSALIDADE}}":           `R$ ${fmtCurrency(effectiveMonthly)}`,
     "{{VALOR_MENSALIDADE_EXTENSO}}":   numToExtenso(effectiveMonthly),
@@ -206,7 +210,7 @@ export function mergeTemplate(templateContent: string, ctx: MergeContext): strin
 
   // Blocos condicionais: {{#SE_IMPLANTACAO}}...{{/SE_IMPLANTACAO}}
   const condBlocks: { tag: string; show: boolean }[] = [
-    { tag: "SE_IMPLANTACAO",  show: contract.implementationFee > 0 },
+    { tag: "SE_IMPLANTACAO",  show: contract.implementationFee > 0 || !!contract.implementationNote?.trim() },
     { tag: "SE_DESCONTO",     show: (contract.discount ?? 0) > 0 },
     { tag: "SE_DISTANCIA",    show: !!contract.distanceFromProviderKm },
     { tag: "SE_OBSERVACOES",  show: !!contract.notes },

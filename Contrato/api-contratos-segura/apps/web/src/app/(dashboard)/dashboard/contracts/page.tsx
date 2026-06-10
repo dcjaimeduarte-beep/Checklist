@@ -42,6 +42,7 @@ type Contract = {
   moduleFiscal: boolean;
   distanceFromProviderKm: number | null;
   notes: string | null;
+  implementationNote: string | null;
   contactName: string | null;
   contactPhone: string | null;
   startDate: string;
@@ -545,6 +546,7 @@ type ContractForm = {
   moduleFiscal: boolean;
   distanceFromProviderKm: string;
   notes: string;
+  implementationNote: string;
   contactName: string;
   contactPhone: string;
   monthlyFeeStr: string;
@@ -569,7 +571,7 @@ const EMPTY: ContractForm = {
   monthlyFee: 0, discount: 0, paymentDayOfMonth: 10, firstPaymentDate: "",
   adjustmentIndex: "IGPM", adjustmentRate: "", moduleCadastros: false,
   moduleFaturamento: false, moduleFiscal: false,
-  distanceFromProviderKm: "", notes: "", contactName: "", contactPhone: "",
+  distanceFromProviderKm: "", notes: "", implementationNote: "", contactName: "", contactPhone: "",
   monthlyFeeStr: "", implementationFeeStr: "", discountStr: "",
 };
 
@@ -671,9 +673,10 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
       if (form.identifier.trim())        body.identifier            = form.identifier.trim();
       if (form.firstPaymentDate)         body.firstPaymentDate      = toIso(form.firstPaymentDate);
       if (form.distanceFromProviderKm)   body.distanceFromProviderKm = parseInt(form.distanceFromProviderKm);
-      if (form.notes.trim())             body.notes                 = form.notes.trim();
-      if (form.contactName.trim())       body.contactName           = form.contactName.trim();
-      if (form.contactPhone.trim())      body.contactPhone          = form.contactPhone.trim();
+      if (form.notes.trim())               body.notes               = form.notes.trim();
+      if (form.implementationNote.trim()) body.implementationNote  = form.implementationNote.trim();
+      if (form.contactName.trim())         body.contactName         = form.contactName.trim();
+      if (form.contactPhone.trim())        body.contactPhone        = form.contactPhone.trim();
 
       if (isEdit) {
         await apiFetch(`/contracts/${editId}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -983,6 +986,18 @@ function ContractDrawer({ onClose, onSaved, editId, initialData, initialClient }
                   <option value="parcelado">Parcelado</option>
                 </select>
               </div>
+              <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+                {label("Observação da implantação", true)}
+                <input
+                  className="form-input"
+                  value={form.implementationNote}
+                  onChange={(e) => setField("implementationNote", e.target.value)}
+                  placeholder='Ex: cortesia — substitui o valor R$ no contrato. Deixe em branco para ocultar o parágrafo.'
+                />
+                <span style={{ fontSize: "0.65rem", color: "var(--gray)", marginTop: 2, display: "block" }}>
+                  Se preenchido, aparece no lugar do valor. Se vazio e R$ = 0, o parágrafo de implantação some.
+                </span>
+              </div>
             </div>
             <div className="form-row form-row-2">
               <div className="form-group">
@@ -1115,6 +1130,7 @@ export default function ContractsPage() {
         moduleFiscal:          full.moduleFiscal,
         distanceFromProviderKm: full.distanceFromProviderKm != null ? String(full.distanceFromProviderKm) : "",
         notes:                 full.notes ?? "",
+        implementationNote:    full.implementationNote ?? "",
         contactName:           full.contactName ?? "",
         contactPhone:          full.contactPhone ?? "",
         monthlyFeeStr:         full.monthlyFee ? full.monthlyFee.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "",

@@ -47,7 +47,8 @@ Cláusula 4ª:
 DO PREÇO E DAS CONDIÇÕES DE PAGAMENTO
 Cláusula 5ª:
 O presente serviço será remunerado:
-Pela quantia de {{VALOR_IMPLANTACAO}} ({{VALOR_IMPLANTACAO_EXTENSO}}) referente à implantação e treinamento, sendo pago {{FORMA_PAGAMENTO_IMPLANTACAO}}.
+{{#SE_IMPLANTACAO}}Pela quantia de {{TEXTO_IMPLANTACAO}} referente à implantação e treinamento, sendo pago {{FORMA_PAGAMENTO_IMPLANTACAO}}.
+{{/SE_IMPLANTACAO}}
 Pela quantia de {{VALOR_MENSALIDADE}} ({{VALOR_MENSALIDADE_EXTENSO}}) referente aos serviços prestados/suporte, devendo ser pago no boleto, ou outra forma de pagamento em que ocorra a prévia concordância de ambas as partes, a contar a primeira parcela a partir do mês de {{MES_INICIO_PAGAMENTO}}. Vencimento {{DIA_VENCIMENTO}}
 
 DA DURAÇÃO

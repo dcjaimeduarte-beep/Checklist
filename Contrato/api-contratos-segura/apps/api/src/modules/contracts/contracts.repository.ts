@@ -100,6 +100,7 @@ export class ContractsRepository {
         moduleFiscal: data.moduleFiscal,
         distanceFromProviderKm: data.distanceFromProviderKm,
         notes: data.notes,
+        implementationNote: data.implementationNote,
         contactName: data.contactName,
         contactPhone: data.contactPhone,
         contractType: data.contractType as any,
