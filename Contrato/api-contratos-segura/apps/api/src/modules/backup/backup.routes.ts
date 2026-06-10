@@ -13,7 +13,7 @@ import {
 export async function backupRoutes(app: FastifyInstance) {
   // GET /backup/config — retorna configuração atual
   app.get("/backup/config", { preHandler: [requireRole(["admin"])] }, async (_req, reply) => {
-    return reply.send(getBackupConfig());
+    return reply.send(await getBackupConfig());
   });
 
   // PUT /backup/config — salva configuração e reinicia scheduler
@@ -21,10 +21,10 @@ export async function backupRoutes(app: FastifyInstance) {
     "/backup/config",
     { preHandler: [requireRole(["admin"])] },
     async (req, reply) => {
-      const current = getBackupConfig();
+      const current = await getBackupConfig();
       const updated: BackupConfig = { ...current, ...req.body };
-      saveBackupConfig(updated);
-      restartScheduler((msg) => app.log.info(msg));
+      await saveBackupConfig(updated);
+      await restartScheduler((msg) => app.log.info(msg));
       return reply.send({ ok: true, config: updated });
     }
   );

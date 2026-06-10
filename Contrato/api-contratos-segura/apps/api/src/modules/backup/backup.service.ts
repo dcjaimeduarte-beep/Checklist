@@ -1,14 +1,12 @@
-import fs from "node:fs";
-import path from "node:path";
 import nodemailer from "nodemailer";
 import cron from "node-cron";
 import { prisma } from "../../lib/prisma.js";
 
-const CONFIG_PATH = path.resolve(process.cwd(), "data", "backup-config.json");
+const SYSTEM_CONFIG_KEY = "backup_config";
 
 export interface BackupConfig {
   ativo: boolean;
-  hora: string;         // ex: "02:00"
+  hora: string;
   enviar_email: boolean;
   email_destino: string;
   manter_dias: number;
@@ -26,19 +24,22 @@ const DEFAULT_CONFIG: BackupConfig = {
   ultimo_status: null,
 };
 
-export function getBackupConfig(): BackupConfig {
+export async function getBackupConfig(): Promise<BackupConfig> {
   try {
-    if (!fs.existsSync(CONFIG_PATH)) return { ...DEFAULT_CONFIG };
-    return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8")) };
+    const row = await prisma.systemConfig.findUnique({ where: { key: SYSTEM_CONFIG_KEY } });
+    if (!row) return { ...DEFAULT_CONFIG };
+    return { ...DEFAULT_CONFIG, ...JSON.parse(row.value) };
   } catch {
     return { ...DEFAULT_CONFIG };
   }
 }
 
-export function saveBackupConfig(config: BackupConfig): void {
-  const dir = path.dirname(CONFIG_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+export async function saveBackupConfig(config: BackupConfig): Promise<void> {
+  await prisma.systemConfig.upsert({
+    where: { key: SYSTEM_CONFIG_KEY },
+    create: { key: SYSTEM_CONFIG_KEY, value: JSON.stringify(config) },
+    update: { value: JSON.stringify(config) },
+  });
 }
 
 export async function exportAllData(): Promise<string> {
@@ -90,7 +91,7 @@ export async function sendBackupEmail(jsonData: string, config: BackupConfig): P
 }
 
 export async function runBackupNow(log?: (msg: string) => void): Promise<{ ok: boolean; message: string }> {
-  const config = getBackupConfig();
+  const config = await getBackupConfig();
   const agora = new Date().toISOString();
 
   try {
@@ -102,12 +103,12 @@ export async function runBackupNow(log?: (msg: string) => void): Promise<{ ok: b
       await sendBackupEmail(jsonData, config);
     }
 
-    saveBackupConfig({ ...config, ultimo_backup: agora, ultimo_status: "ok" });
+    await saveBackupConfig({ ...config, ultimo_backup: agora, ultimo_status: "ok" });
     log?.("[backup] Concluído com sucesso.");
     return { ok: true, message: `Backup realizado em ${new Date(agora).toLocaleString("pt-BR")}` };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    saveBackupConfig({ ...config, ultimo_backup: agora, ultimo_status: `erro: ${msg}` });
+    await saveBackupConfig({ ...config, ultimo_backup: agora, ultimo_status: `erro: ${msg}` });
     log?.(`[backup] Erro: ${msg}`);
     return { ok: false, message: msg };
   }
@@ -208,10 +209,10 @@ export async function restoreFromBackup(jsonString: string): Promise<{ ok: boole
 
 let cronJob: ReturnType<typeof cron.schedule> | null = null;
 
-export function startBackupScheduler(log?: (msg: string) => void): void {
+export async function startBackupScheduler(log?: (msg: string) => void): Promise<void> {
   if (cronJob) { cronJob.stop(); cronJob = null; }
 
-  const config = getBackupConfig();
+  const config = await getBackupConfig();
   if (!config.ativo) {
     log?.("[backup] Agendamento desativado.");
     return;
@@ -224,6 +225,6 @@ export function startBackupScheduler(log?: (msg: string) => void): void {
   log?.(`[backup] Agendado para ${config.hora} (America/Sao_Paulo)`);
 }
 
-export function restartScheduler(log?: (msg: string) => void): void {
-  startBackupScheduler(log);
+export async function restartScheduler(log?: (msg: string) => void): Promise<void> {
+  await startBackupScheduler(log);
 }
