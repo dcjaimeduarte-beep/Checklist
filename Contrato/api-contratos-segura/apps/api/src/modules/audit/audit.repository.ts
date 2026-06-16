@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { AuditLogInput } from "./audit.types.js";
 
 export class AuditRepository {
@@ -18,7 +18,7 @@ export class AuditRepository {
         action: data.action,
         entityType: data.entityType,
         entityId: data.entityId,
-        metadata: data.metadata
+        metadata: data.metadata as Prisma.InputJsonValue | undefined
       }
     });
   }

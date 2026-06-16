@@ -45,7 +45,7 @@ function formatPathError(trimmed: string, similar: string[]): string {
   if (similar.length === 1) {
     return (
       `Arquivo não encontrado: "${path.basename(trimmed)}". ` +
-      `O mais parecido é: ${path.basename(similar[0])}. Selecione-o em Procurar.`
+      `O mais parecido é: ${path.basename(similar[0] ?? "")}. Selecione-o em Procurar.`
     );
   }
   if (similar.length > 1) {
@@ -88,7 +88,7 @@ export function resolveDatabasePath(input: string): ResolvedDatabasePath {
   const base = path.basename(trimmed).replace(/\.(fdb|gdb)$/i, "");
   const similar = listSimilarFdbFiles(dir, base);
 
-  if (similar.length === 1) {
+  if (similar.length === 1 && similar[0]) {
     return { path: similar[0], corrected: true };
   }
 
@@ -173,17 +173,16 @@ export function fbQueryWithConfig<T = Record<string, unknown>>(
   sql: string,
   params: unknown[] = [],
 ): Promise<T[]> {
-  const options: Firebird.Options = {
+  const options = {
     host:           cfg.host,
     port:           cfg.port,
     database:       cfg.database,
     user:           cfg.user,
     password:       cfg.password,
     lowercase_keys: false,
-    role:           null,
     pageSize:       4096,
     charset:        "ISO8859_1", // Latin-1 — evita substituição de acentos por ?
-  };
+  } as Firebird.Options;
 
   return new Promise((resolve, reject) => {
     Firebird.attach(options, (err, db) => {

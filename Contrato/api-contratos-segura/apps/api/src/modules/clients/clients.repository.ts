@@ -30,7 +30,7 @@ export class ClientsRepository {
     const searchCondition = words.length === 0
       ? {}
       : words.length === 1
-        ? wordOR(words[0])
+        ? wordOR(words[0] ?? "")
         : { AND: words.map(wordOR) };
 
     const where = {

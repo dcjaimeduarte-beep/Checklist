@@ -39,13 +39,13 @@ function hasColumn(campos: string[], name: string) {
 
 function pickClienteColumn(campos: string[], preferred?: string): string | null {
   const clienteCols = campos.filter((c) => /CLIENTE/i.test(c) && !/FORNEC/i.test(c));
-  if (clienteCols.length === 1) return clienteCols[0];
+  if (clienteCols.length === 1) return clienteCols[0] ?? null;
   if (clienteCols.length > 1) {
     for (const c of CANDIDATE_CLIENTE) {
       const hit = clienteCols.find((x) => norm(x) === c);
       if (hit) return hit;
     }
-    return clienteCols[0];
+    return clienteCols[0] ?? null;
   }
   return pickColumn(campos, preferred, CANDIDATE_CLIENTE, /CLIENTE|PESSOA|FORNEC|EMITENT/i);
 }
@@ -152,7 +152,7 @@ export function resolveFinanceiroFields(
 
 export async function loadFinanceiroFields(
   cfg: FbConfig,
-  map: Record<string, string>,
+  map: Record<string, string | undefined>,
 ): Promise<FinanceiroFieldMap> {
   const tabela = map["firebird.tabelaFinanceiro"] ?? "CONTAS_PAGAR_RECEBER";
   const campos = await listTableColumns(cfg, tabela);
