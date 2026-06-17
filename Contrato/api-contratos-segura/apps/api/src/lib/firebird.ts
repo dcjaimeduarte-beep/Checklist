@@ -140,6 +140,17 @@ export async function getFbConfig(): Promise<FbConfig | null> {
   };
 }
 
+/** Resolve o caminho do banco apenas quando o host é local. Para hosts remotos retorna a config sem alteração. */
+export function resolveDbPathIfLocal(cfg: FbConfig): { cfg: FbConfig; corrected: boolean } {
+  if (!isLocalHost(cfg.host)) return { cfg, corrected: false };
+  try {
+    const resolved = resolveDatabasePath(cfg.database);
+    return { cfg: { ...cfg, database: resolved.path }, corrected: resolved.corrected };
+  } catch (e) {
+    throw e;
+  }
+}
+
 export function fbConfigSource(map: Record<string, string>): "saved" | "env" | "none" {
   if (map["firebird.database"]) return "saved";
   if (env.FB_DATABASE) return "env";

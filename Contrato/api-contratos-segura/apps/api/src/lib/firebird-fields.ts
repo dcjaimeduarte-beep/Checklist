@@ -1,5 +1,5 @@
 import type { FbConfig } from "./firebird.js";
-import { fbQueryWithConfig, resolveDatabasePath, isLocalHost } from "./firebird.js";
+import { fbQueryWithConfig, resolveDbPathIfLocal } from "./firebird.js";
 
 export type FinanceiroFieldMap = {
   tabelaFinanceiro: string;
@@ -78,11 +78,7 @@ function pickColumn(
 }
 
 export async function listTableColumns(cfg: FbConfig, tabela: string): Promise<string[]> {
-  let activeCfg = cfg;
-  if (isLocalHost(cfg.host)) {
-    const resolved = resolveDatabasePath(cfg.database);
-    activeCfg = { ...cfg, database: resolved.path };
-  }
+  const { cfg: activeCfg } = resolveDbPathIfLocal(cfg);
   const sql = `
     SELECT TRIM(r.RDB$FIELD_NAME) AS CAMPO
     FROM RDB$RELATION_FIELDS r

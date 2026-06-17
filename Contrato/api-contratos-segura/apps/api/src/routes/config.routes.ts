@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../utils/auth-guard.js";
 import {
   getFbConfig, saveFbConfig, fbQueryWithConfig, fbConfigSource,
-  resolveDatabasePath, FbPathError, findSimilarFdbFiles,
+  resolveDbPathIfLocal, FbPathError, findSimilarFdbFiles,
 } from "../lib/firebird.js";
 import { loadFinanceiroFields } from "../lib/firebird-fields.js";
 import { prisma } from "../lib/prisma.js";
@@ -51,8 +51,7 @@ async function queryClientesPreview(
   cfg: Awaited<ReturnType<typeof resolveFbConfigFromBody>>,
   search?: string,
 ) {
-  const resolved = resolveDatabasePath(cfg.database);
-  const activeCfg = { ...cfg, database: resolved.path };
+  const { cfg: activeCfg } = resolveDbPathIfLocal(cfg);
   const term = search?.trim().toUpperCase();
   const sql = term
     ? `
@@ -235,13 +234,12 @@ export async function configRoutes(app: FastifyInstance) {
         return reply.status(400).send({ ok: false, message: "Caminho do banco não informado." });
       }
 
-      const resolved = resolveDatabasePath(testCfg.database);
-      testCfg.database = resolved.path;
-      await fbQueryWithConfig(testCfg, "SELECT 1 FROM RDB$DATABASE");
-      const message = resolved.corrected
-        ? `Conexão OK. Caminho ajustado para: ${resolved.path}`
+      const { cfg: resolvedCfg, corrected } = resolveDbPathIfLocal(testCfg);
+      await fbQueryWithConfig(resolvedCfg, "SELECT 1 FROM RDB$DATABASE");
+      const message = corrected
+        ? `Conexão OK. Caminho ajustado para: ${resolvedCfg.database}`
         : "Conexão estabelecida com sucesso!";
-      return reply.send({ ok: true, message, database: resolved.path, corrected: resolved.corrected });
+      return reply.send({ ok: true, message, database: resolvedCfg.database, corrected });
     } catch (e: unknown) {
       return replyPathError(reply, e);
     }
@@ -274,9 +272,8 @@ export async function configRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: "Caminho do banco não informado." });
       }
 
-      const resolved = resolveDatabasePath(testCfg.database);
-      testCfg.database = resolved.path;
-      return reply.send(await queryClientesPreview(testCfg, body.search));
+      const { cfg: resolvedCfg } = resolveDbPathIfLocal(testCfg);
+      return reply.send(await queryClientesPreview(resolvedCfg, body.search));
     } catch (e: unknown) {
       return replyPathError(reply, e);
     }
@@ -341,8 +338,7 @@ export async function configRoutes(app: FastifyInstance) {
     cfg: NonNullable<Awaited<ReturnType<typeof getFbConfig>>>,
     tabela: string,
   ) {
-    const resolved = resolveDatabasePath(cfg.database);
-    const activeCfg = { ...cfg, database: resolved.path };
+    const { cfg: activeCfg } = resolveDbPathIfLocal(cfg);
     const sql = `
       SELECT TRIM(r.RDB$FIELD_NAME) AS CAMPO
       FROM RDB$RELATION_FIELDS r
