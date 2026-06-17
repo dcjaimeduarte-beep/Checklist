@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Plus, Users, X, Save, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Users, X, Save, CheckCircle2, XCircle, Pencil } from "lucide-react";
 
 type Revenda = { id: string; name: string };
 
@@ -41,6 +41,7 @@ export default function UsersPage() {
   const [users,    setUsers]    = useState<User[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [creating, setCreating] = useState(false);
+  const [editing,  setEditing]  = useState<User | null>(null);
 
   async function load() {
     setLoading(true);
@@ -71,6 +72,9 @@ export default function UsersPage() {
       {creating && (
         <UserDrawer onClose={() => setCreating(false)} onSaved={() => { setCreating(false); void load(); }} />
       )}
+      {editing && (
+        <UserDrawer user={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} />
+      )}
 
       <div className="card" style={{ overflowX: "auto" }}>
         <table className="data-table">
@@ -82,13 +86,14 @@ export default function UsersPage() {
               <th>Revenda</th>
               <th>Último acesso</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr><td colSpan={6}><div className="empty-state"><p>Carregando...</p></div></td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={6}>
+              <tr><td colSpan={7}>
                 <div className="empty-state"><Users size={36} /><p>Nenhum usuário cadastrado</p></div>
               </td></tr>
             ) : users.map((u) => (
@@ -126,6 +131,15 @@ export default function UsersPage() {
                       : <><XCircle size={14} /> Inativo</>}
                   </button>
                 </td>
+                <td>
+                  <button
+                    onClick={() => setEditing(u)}
+                    title="Editar usuário"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#4A6072", padding: "4px" }}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -135,8 +149,15 @@ export default function UsersPage() {
   );
 }
 
-function UserDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "operador", revendaId: "" });
+function UserDrawer({ user, onClose, onSaved }: { user?: User; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!user;
+  const [form, setForm] = useState({
+    name:      user?.name      ?? "",
+    email:     user?.email     ?? "",
+    password:  "",
+    role:      user?.role      ?? "operador",
+    revendaId: user?.revendaId ?? "",
+  });
   const [revendas, setRevendas] = useState<Revenda[]>([]);
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
@@ -146,24 +167,36 @@ function UserDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
   }, []);
 
   async function handleSave() {
-    if (!form.name.trim() || !form.email.trim() || !form.password) { setError("Preencha todos os campos obrigatórios."); return; }
-    if (form.password.length < 8) { setError("A senha deve ter pelo menos 8 caracteres."); return; }
+    if (!form.name.trim() || !form.email.trim()) { setError("Nome e e-mail são obrigatórios."); return; }
+    if (!isEdit && !form.password) { setError("Informe uma senha."); return; }
+    if (form.password && form.password.length < 8) { setError("A senha deve ter pelo menos 8 caracteres."); return; }
     if (form.role === "revenda" && !form.revendaId) { setError("Selecione a revenda para este usuário."); return; }
     setSaving(true); setError("");
     try {
-      await apiFetch("/users", {
-        method: "POST",
-        body: JSON.stringify({
-          name: form.name.trim(),
-          email: form.email.trim(),
-          password: form.password,
-          role: form.role,
-          revendaId: form.revendaId || undefined,
-        }),
-      });
+      if (isEdit) {
+        const body: Record<string, unknown> = {
+          name:      form.name.trim(),
+          email:     form.email.trim(),
+          role:      form.role,
+          revendaId: form.revendaId || null,
+        };
+        if (form.password) body.password = form.password;
+        await apiFetch(`/users/${user.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      } else {
+        await apiFetch("/users", {
+          method: "POST",
+          body: JSON.stringify({
+            name:      form.name.trim(),
+            email:     form.email.trim(),
+            password:  form.password,
+            role:      form.role,
+            revendaId: form.revendaId || undefined,
+          }),
+        });
+      }
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao criar usuário.");
+      setError(e instanceof Error ? e.message : "Erro ao salvar usuário.");
     } finally { setSaving(false); }
   }
 
@@ -173,8 +206,8 @@ function UserDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
       <div className="drawer" style={{ width: 480 }}>
         <div className="drawer-header">
           <div>
-            <p className="drawer-title">Novo Usuário</p>
-            <p className="drawer-subtitle">Preencha os dados de acesso</p>
+            <p className="drawer-title">{isEdit ? "Editar Usuário" : "Novo Usuário"}</p>
+            <p className="drawer-subtitle">{isEdit ? `Editando ${user.name}` : "Preencha os dados de acesso"}</p>
           </div>
           <button className="drawer-close" onClick={onClose}><X size={18} /></button>
         </div>
@@ -188,7 +221,7 @@ function UserDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
             <input className="form-input" type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
           </div>
           <div className="form-group">
-            <label className="form-label">Senha *</label>
+            <label className="form-label">{isEdit ? "Nova senha (deixe em branco para não alterar)" : "Senha *"}</label>
             <input className="form-input" type="password" value={form.password} onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Mínimo 8 caracteres" />
           </div>
           <div className="form-group">
@@ -222,7 +255,7 @@ function UserDrawer({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
         <div className="drawer-footer">
           <button className="btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
           <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            <Save size={15} /> {saving ? "Criando..." : "Criar usuário"}
+            <Save size={15} /> {saving ? "Salvando..." : isEdit ? "Salvar alterações" : "Criar usuário"}
           </button>
         </div>
       </div>

@@ -70,8 +70,9 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  revenda      Revenda?   @relation(fields: [revendaId], references: [id], onDelete: SetNull)
-  auditLogs    AuditLog[] @relation("AuditActor")
+  revenda      Revenda?              @relation(fields: [revendaId], references: [id], onDelete: SetNull)
+  auditLogs    AuditLog[]            @relation("AuditActor")
+  resetTokens  PasswordResetToken[]
 
   @@map("users")
 }
@@ -191,6 +192,19 @@ model ContractTypeConfig {
   updatedAt       DateTime     @updatedAt @map("updated_at")
 
   @@map("contract_type_configs")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
 }
 
 model AuditLog {

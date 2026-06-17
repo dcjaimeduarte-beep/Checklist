@@ -32,10 +32,14 @@ export async function usersRoutes(app: FastifyInstance) {
   );
 
   app.patch(
+    "/users/:id",
+    { preHandler: [requireRole(["admin"])] },
+    usersController.update
+  );
+
+  app.patch(
     "/users/:id/status",
-    {
-      preHandler: [requireRole(["admin"])]
-    },
+    { preHandler: [requireRole(["admin"])] },
     usersController.updateStatus
   );
 }

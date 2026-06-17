@@ -20,7 +20,16 @@ export const getUserByIdParamsSchema = z.object({
   id: z.string().min(1, "ID é obrigatório")
 });
 
+export const updateUserBodySchema = z.object({
+  name:      z.string().min(2).optional(),
+  email:     z.email().optional(),
+  password:  z.string().min(8).optional(),
+  role:      z.enum(["admin", "juridico", "comercial", "operador", "revenda"]).optional(),
+  revendaId: z.string().nullable().optional(),
+});
+
 export type CreateUserBody = z.infer<typeof createUserBodySchema>;
+export type UpdateUserBody = z.infer<typeof updateUserBodySchema>;
 export type UpdateUserStatusBody = z.infer<typeof updateUserStatusBodySchema>;
 export type UpdateUserStatusParams = z.infer<typeof updateUserStatusParamsSchema>;
 export type GetUserByIdParams = z.infer<typeof getUserByIdParamsSchema>;

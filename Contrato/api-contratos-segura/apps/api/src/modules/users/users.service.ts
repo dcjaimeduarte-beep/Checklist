@@ -3,7 +3,7 @@ import type { UserRole, UserStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { AuditService } from "../audit/audit.service.js";
 import { hashPassword } from "../../utils/password.js";
-import type { CreateUserBody } from "./users.schemas.js";
+import type { CreateUserBody, UpdateUserBody } from "./users.schemas.js";
 import { UsersRepository } from "./users.repository.js";
 
 export class UsersService {
@@ -59,6 +59,35 @@ export class UsersService {
     });
 
     return createdUser;
+  }
+
+  async updateUser(actorUserId: string | undefined, id: string, payload: UpdateUserBody) {
+    const existing = await this.usersRepository.findById(id);
+    if (!existing) throw this.app.httpErrors.notFound("Usuário não encontrado.");
+
+    if (payload.email && payload.email.toLowerCase() !== existing.email) {
+      const conflict = await this.usersRepository.findByEmail(payload.email);
+      if (conflict) throw this.app.httpErrors.conflict("Já existe um usuário com este e-mail.");
+    }
+
+    const data: Parameters<typeof this.usersRepository.update>[1] = {};
+    if (payload.name)      data.name  = payload.name.trim();
+    if (payload.email)     data.email = payload.email.toLowerCase();
+    if (payload.role)      data.role  = payload.role as UserRole;
+    if ("revendaId" in payload) data.revendaId = payload.revendaId ?? null;
+    if (payload.password)  data.passwordHash = await hashPassword(payload.password);
+
+    const updated = await this.usersRepository.update(id, data);
+
+    await this.auditService.log({
+      actorUserId,
+      action: "user.updated",
+      entityType: "user",
+      entityId: id,
+      metadata: { fields: Object.keys(data) },
+    });
+
+    return updated;
   }
 
   async updateUserStatus(

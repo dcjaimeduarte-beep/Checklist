@@ -60,6 +60,25 @@ export class UsersRepository {
     });
   }
 
+  async update(id: string, data: {
+    name?: string;
+    email?: string;
+    passwordHash?: string;
+    role?: UserRole;
+    revendaId?: string | null;
+  }) {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true, name: true, email: true, role: true,
+        status: true, revendaId: true, lastLoginAt: true,
+        createdAt: true, updatedAt: true,
+        revenda: { select: { id: true, name: true } },
+      },
+    });
+  }
+
   async updateStatus(id: string, status: UserStatus) {
     return this.prisma.user.update({
       where: { id },
