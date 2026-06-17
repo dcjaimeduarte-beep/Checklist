@@ -151,8 +151,17 @@ export async function saveFbConfig(cfg: Partial<FbConfig>): Promise<void> {
   if (cfg.host     !== undefined) entries.push({ key: "firebird.host",     value: cfg.host });
   if (cfg.port     !== undefined) entries.push({ key: "firebird.port",     value: String(cfg.port) });
   if (cfg.database !== undefined) {
-    const resolved = resolveDatabasePath(cfg.database);
-    entries.push({ key: "firebird.database", value: resolved.path });
+    let effectiveHost = cfg.host ?? entries.find((e) => e.key === "firebird.host")?.value;
+    if (!effectiveHost) {
+      const saved = await prisma.systemConfig.findUnique({ where: { key: "firebird.host" } });
+      effectiveHost = saved?.value ?? "localhost";
+    }
+    if (isLocalHost(effectiveHost)) {
+      const resolved = resolveDatabasePath(cfg.database);
+      entries.push({ key: "firebird.database", value: resolved.path });
+    } else {
+      entries.push({ key: "firebird.database", value: cfg.database.trim() });
+    }
   }
   if (cfg.user     !== undefined) entries.push({ key: "firebird.user",     value: cfg.user });
   if (cfg.password !== undefined && cfg.password !== "") {
