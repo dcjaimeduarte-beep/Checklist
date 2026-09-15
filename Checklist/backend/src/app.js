@@ -7,6 +7,7 @@ const bancoRoutes     = require('./routes/bancoRoutes');
 const checklistRoutes = require('./routes/checklistRoutes');
 const vistoriaRoutes  = require('./routes/vistoriaRoutes');
 const kanbanRoutes    = require('./routes/kanbanRoutes');
+const relatorioRoutes = require('./routes/relatorioRoutes');
 
 const { initFirebirdWebTables } = require('./config/firebird-web');
 const { startPoller }           = require('./services/nfPoller');
@@ -31,6 +32,7 @@ app.use('/api/banco',     bancoRoutes);
 app.use('/api/checklist', checklistRoutes);
 app.use('/api/vistoria',  vistoriaRoutes);
 app.use('/api/kanban',    kanbanRoutes);
+app.use('/api/relatorio', relatorioRoutes);
 
 // SPA fallback — qualquer rota que não seja /api retorna o index.html
 app.get('/{*path}', (_req, res) => {

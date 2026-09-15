@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Search, Printer, RotateCcw, Upload, Camera, X, Save, ImageIcon, History, FilePlus, LayoutDashboard } from 'lucide-react'
+import { Search, Printer, RotateCcw, Upload, Camera, X, Save, ImageIcon, History, FilePlus, LayoutDashboard, BarChart3 } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -273,7 +273,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function ChecklistPage({ onHistorico, onKanban }: { onHistorico?: () => void; onKanban?: () => void }) {
+export default function ChecklistPage({ onHistorico, onKanban, onRelatorios }: { onHistorico?: () => void; onKanban?: () => void; onRelatorios?: () => void }) {
   const [placa, setPlaca]     = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro]       = useState('')
@@ -639,6 +639,14 @@ export default function ChecklistPage({ onHistorico, onKanban }: { onHistorico?:
               borderRadius: 6, padding: '0 14px', height: 36, cursor: 'pointer', fontSize: 13,
               display: 'flex', alignItems: 'center', gap: 6 }}>
             <LayoutDashboard size={14} /> Kanban
+          </button>
+        )}
+        {onRelatorios && (
+          <button onClick={onRelatorios}
+            style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #3E7080',
+              borderRadius: 6, padding: '0 14px', height: 36, cursor: 'pointer', fontSize: 13,
+              display: 'flex', alignItems: 'center', gap: 6 }}>
+            <BarChart3 size={14} /> Relatórios
           </button>
         )}
         <button onClick={() => logoRef.current?.click()}

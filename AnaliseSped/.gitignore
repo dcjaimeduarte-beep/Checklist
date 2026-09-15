@@ -1,0 +1,35 @@
+# Dependências
+node_modules/
+
+# Build e cache
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Segredos e ambiente local
+.env
+.env.local
+.env.*.local
+env.sites
+
+# Bancos e dados gerados
+*.sqlite
+*.sqlite-journal
+backend/data/*.sqlite
+backend/data/*.sqlite-journal
+
+# Documentos fiscais reais (não versionar)
+docs/XMLs Proprios/
+
+# Lockfile acidental na raiz (não há package.json)
+/package-lock.json
+
+# Config local de ferramenta
+.claude/settings.local.json
+
+# Logs e SO
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini

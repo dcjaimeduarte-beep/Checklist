@@ -16,6 +16,7 @@ seven-reforma-tributaria-monorepo/
 # Build
 **/coverage/
 **/.vite/
+**/*.tsbuildinfo
 Checklist/backend/public/assets/
 AnaliseSped/frontend/dist/
 
@@ -28,6 +29,7 @@ checklist-seven-deploy/
 checklist-seven-deploy.zip
 checklist-seven-v2-deploy/
 checklist-seven-v2-deploy.zip
+ChecklistSeven-Setup.exe
 
 # Logs
 **/*.log
@@ -37,3 +39,5 @@ checklist/backend/data/
 checklist/backend/uploads/
 Checklist/backend/data/
 Checklist/backend/uploads/
+Contrato/api-contratos-segura/apps/api/data/
+PedidosWeb/backend/data/

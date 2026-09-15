@@ -88,7 +88,7 @@ export function Home() {
   const [arquivosEnviados, setArquivosEnviados]         = useState<Set<string>>(new Set());
   const [clientesComDadosArquivo, setClientesComDadosArquivo] = useState<Set<number>>(new Set());
   const [forcarReenvio, setForcarReenvio]           = useState(false);
-  const [progresso, setProgresso]                   = useState<{ atual: number; total: number; nome: string; email: string } | null>(null);
+  const [progresso, setProgresso]                   = useState<{ atual: number; total: number; totalClientes: number; nome: string; email: string } | null>(null);
   const [filtroResultado, setFiltroResultado]       = useState<"todos" | "ok" | "erro">("todos");
   const [arquivosOriginais, setArquivosOriginais]   = useState<File[]>([]);
 
@@ -327,7 +327,7 @@ export function Home() {
       if (cancelarEnvioRef.current) { cancelado = true; break; }
       const grupo = emailGroups[i];
       const nomes = grupo.itens.map(it => it.cliente.nome).join(" + ");
-      setProgresso({ atual: i + 1, total: totalGrupos, nome: nomes, email: grupo.key.replace(/\|/g, ", ") });
+      setProgresso({ atual: i + 1, total: totalGrupos, totalClientes: itensSelecionados.length, nome: nomes, email: grupo.key.replace(/\|/g, ", ") });
 
       const formData = new FormData();
       formData.append("mes", mes);
@@ -768,7 +768,10 @@ export function Home() {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--color-navy)" }}>
-                  Enviando {progresso.atual} de {progresso.total}
+                  Enviando e-mail {progresso.atual} de {progresso.total}
+                  {progresso.totalClientes !== progresso.total
+                    ? ` (${progresso.totalClientes} clientes)`
+                    : ""}
                 </span>
                 <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--color-teal)" }}>
                   {Math.round((progresso.atual / progresso.total) * 100)}%

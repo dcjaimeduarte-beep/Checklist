@@ -235,7 +235,7 @@ export function mergeTemplate(templateContent: string, ctx: MergeContext): strin
   }
 
   for (const [placeholder, value] of Object.entries(vars)) {
-    result = result.replaceAll(placeholder, value);
+    result = result.replaceAll(placeholder, value.replace(/[\r\n]+/g, " ").trim());
   }
   return result;
 }
