@@ -41,6 +41,17 @@ app.use(rateLimit({
   message: { erro: "Muitas requisições. Tente novamente em breve." },
 }));
 
+function lerListaJson(valor: unknown): string[] {
+  if (typeof valor !== "string" || valor.trim() === "") return [];
+  try {
+    const lista = JSON.parse(valor);
+    if (!Array.isArray(lista)) return [];
+    return lista.filter((item): item is string => typeof item === "string" && item.trim() !== "");
+  } catch {
+    return [];
+  }
+}
+
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 app.get("/api/status", apiKeyMiddleware, (req, res) => {
@@ -60,21 +71,30 @@ app.get("/api/status", apiKeyMiddleware, (req, res) => {
 
   const enviosQuery = filtroMes
     ? `SELECT sl.id, sl.month, sl.files_count, sl.status, sl.error_message,
-              sl.sent_at, c.name as cliente
+              sl.sent_at, sl.files_json, sl.emails_json, c.name as cliente
        FROM send_log sl
        JOIN clients c ON c.id = sl.client_id
        WHERE sl.month = ?
        ORDER BY sl.sent_at DESC`
     : `SELECT sl.id, sl.month, sl.files_count, sl.status, sl.error_message,
-              sl.sent_at, c.name as cliente
+              sl.sent_at, sl.files_json, sl.emails_json, c.name as cliente
        FROM send_log sl
        JOIN clients c ON c.id = sl.client_id
        ORDER BY sl.sent_at DESC
        LIMIT 50`;
 
-  const envios = filtroMes
+  const enviosBrutos = (filtroMes
     ? db.prepare(enviosQuery).all(mes)
-    : db.prepare(enviosQuery).all();
+    : db.prepare(enviosQuery).all()) as Array<Record<string, unknown>>;
+
+  const envios = enviosBrutos.map((row) => {
+    const { files_json, emails_json, ...resto } = row;
+    return {
+      ...resto,
+      arquivos: lerListaJson(files_json),
+      emails:   lerListaJson(emails_json),
+    };
+  });
 
   // Resumo do mês filtrado
   const resumoMes = filtroMes ? (() => {

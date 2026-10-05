@@ -60,7 +60,7 @@ export function Clientes() {
 
   useEffect(() => {
     setPagina(1);
-    if (mostrarInativos) return; // busca só funciona para ativos por ora
+    if (mostrarInativos) return;
     if (busca.length < 2) { carregar(); return; }
     const t = setTimeout(() => {
       buscarClientePorNome(busca).then(setClientes).catch(() => {});
@@ -68,11 +68,16 @@ export function Clientes() {
     return () => clearTimeout(t);
   }, [busca, carregar, mostrarInativos]);
 
+  const termoBusca = busca.trim().toLowerCase();
+  const lista = mostrarInativos && termoBusca.length >= 2
+    ? clientes.filter(c => c.nome.toLowerCase().includes(termoBusca))
+    : clientes;
+
   // Paginação
-  const totalPaginas = porPagina === 0 ? 1 : Math.ceil(clientes.length / porPagina);
+  const totalPaginas = porPagina === 0 ? 1 : Math.ceil(lista.length / porPagina);
   const clientesPagina = porPagina === 0
-    ? clientes
-    : clientes.slice((pagina - 1) * porPagina, pagina * porPagina);
+    ? lista
+    : lista.slice((pagina - 1) * porPagina, pagina * porPagina);
 
   function abrirNovo() {
     setForm(VAZIO);
@@ -243,7 +248,7 @@ export function Clientes() {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
               <span style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
-                {clientes.length} cliente{clientes.length !== 1 ? "s" : ""} {mostrarInativos ? "inativo" : "ativo"}{clientes.length !== 1 ? "s" : ""}
+                {lista.length} cliente{lista.length !== 1 ? "s" : ""} {mostrarInativos ? "inativo" : "ativo"}{lista.length !== 1 ? "s" : ""}
               </span>
               <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", cursor: "pointer", fontSize: "var(--font-size-sm)" }}>
                 <input
@@ -283,7 +288,7 @@ export function Clientes() {
 
           {carregando ? (
             <p style={{ padding: "var(--space-6)", color: "var(--color-gray)" }}>Carregando...</p>
-          ) : clientes.length === 0 ? (
+          ) : lista.length === 0 ? (
             <p style={{ padding: "var(--space-6)", color: "var(--color-gray)" }}>Nenhum cliente encontrado.</p>
           ) : (
             <table className="table">
@@ -373,7 +378,7 @@ export function Clientes() {
           )}
 
           {/* Paginação */}
-          {!carregando && clientes.length > 0 && porPagina !== 0 && totalPaginas > 1 && (
+          {!carregando && lista.length > 0 && porPagina !== 0 && totalPaginas > 1 && (
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               gap: "var(--space-2)", padding: "var(--space-4)",
@@ -764,10 +769,10 @@ export function Clientes() {
                   gap: "var(--space-2)",
                 }}>
                   <div style={{ fontWeight: 600, color: "var(--color-warning-text, #b45309)", fontSize: "var(--font-size-sm)" }}>
-                    E-mails diferentes encontrados — aguardando sua revisão
+                    E-mails adicionados
                   </div>
                   <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
-                    Os e-mails abaixo constam na planilha mas não estão cadastrados no sistema. Nenhum foi adicionado automaticamente.
+                    Estes e-mails estavam na planilha e não no cadastro. Foram incluídos. Os e-mails antigos continuam no cliente.
                   </div>
                   {importResult.emailsParaRevisar.map((item: EmailParaRevisar, i: number) => (
                     <div key={i} style={{
@@ -781,11 +786,11 @@ export function Clientes() {
                     }}>
                       <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{item.nome}</div>
                       <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
-                        <span style={{ fontWeight: 500 }}>No sistema: </span>
+                        <span style={{ fontWeight: 500 }}>Já cadastrados: </span>
                         {item.emailsNaBd.length > 0 ? item.emailsNaBd.join(", ") : <em>nenhum</em>}
                       </div>
                       <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-warning-text, #b45309)" }}>
-                        <span style={{ fontWeight: 500 }}>Na planilha (não adicionado): </span>
+                        <span style={{ fontWeight: 500 }}>Adicionados: </span>
                         {item.emailsNaPlanilha.join(", ")}
                       </div>
                     </div>

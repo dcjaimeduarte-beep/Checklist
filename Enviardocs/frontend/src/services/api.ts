@@ -38,6 +38,8 @@ export interface EnvioLog {
   status: "success" | "error" | "skipped";
   error_message: string | null;
   sent_at: string;
+  arquivos?: string[];
+  emails?: string[];
 }
 
 export interface ResumoMes {

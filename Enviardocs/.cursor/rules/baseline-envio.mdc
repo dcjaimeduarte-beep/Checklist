@@ -1,0 +1,35 @@
+---
+description: Baseline do Enviardocs a partir de outubro de 2026. Toda alteração parte daqui e não desfaz o envio, a importação nem o histórico.
+alwaysApply: true
+---
+
+# Baseline Enviardocs (outubro 2026)
+
+Este é o ponto de partida. Alterações novas partem deste comportamento. Não reverter o que já envia.
+
+## Envio
+
+- O envio real é `POST /envios/lote-upload`. A tela Envio escolhe a pasta no navegador; não lê `STORAGE_DIR`.
+- O casamento de arquivos está só em `frontend/src/services/casarArquivos.ts`. Conferência usa o mesmo módulo. Não criar outro algoritmo.
+- Cliente sem e-mail não casa. Inativo fica de fora do envio.
+- Vários clientes no mesmo arquivo: fica o nome normalizado mais longo.
+- Identificar cliente pelo nome (sem acento, maiúsculas). CNPJ não identifica: empresas diferentes podem repetir o CNPJ. Nunca renomear cliente na importação.
+
+## Importação da planilha
+
+- Campos: nome, CNPJ, e-mail, contato. Cabeçalho da planilha de outubro está na linha 5, com coluna A vazia.
+- E-mail novo entra com `INSERT OR IGNORE`. Nunca apagar e-mail antigo. E-mail novo só vira principal se o cliente não tinha nenhum.
+- Atualizar CNPJ só se os dígitos mudarem. Atualizar contato só se vier preenchido e for diferente.
+- Não desativar quem falta na planilha. Não mexer em quem não mudou.
+- Backup da migração: `backend/data/enviardocs.antes-migracao-outubro.db`. Não sobrescrever.
+
+## Histórico
+
+- Cada envio fica em `send_log` (`month` `YYYY-MM`, `files_json`, `emails_json`) em `backend/data/enviardocs.db`. O banco não entra no Git.
+- Fechar o programa não apaga o histórico. No desligamento, `fecharBanco()` faz checkpoint do WAL.
+- No Dashboard, o mês escolhido mostra aquele mês inteiro. Clique na linha abre os nomes dos arquivos e o e-mail. A busca é por nome do cliente.
+
+## O que não quebrar
+
+- Busca de inativos na aba Clientes filtra a lista já carregada; não chamar a busca que só traz ativos.
+- Conferência não envia. Envio continua na aba Envio.

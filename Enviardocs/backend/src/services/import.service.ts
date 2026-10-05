@@ -1,5 +1,7 @@
 import XLSX from 'xlsx';
+
 import { getDb } from '../database/db';
+import { normalizarNome } from '../utils/nome.util';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -7,6 +9,13 @@ interface RawRow {
   name: string;
   cnpj: string;
   emails: string[];
+  contato: string;
+}
+
+interface ClienteExistente {
+  id: number;
+  cnpj: string | null;
+  contact_name: string | null;
 }
 
 export interface EmailParaRevisar {
@@ -40,48 +49,57 @@ const SKIP_PATTERNS = [
 
 function parseEmails(raw: string): string[] {
   if (!raw || typeof raw !== 'string') return [];
-  return raw
+  const emails = raw
     .split(/[;,]/)
     .map((e) => e.trim().toLowerCase())
     .filter((e) => e.includes('@') && e.length > 5);
+  return [...new Set(emails)];
 }
 
 function shouldSkip(name: string): boolean {
   if (!name || typeof name !== 'string' || name.trim() === '') return true;
-  return SKIP_PATTERNS.some((p) => p.test(name.trim()));
+  const texto = name.trim();
+  return SKIP_PATTERNS.some((p) => p.test(texto)) || SECTION_SEPARATOR.test(texto);
+}
+
+export function normalizarCnpj(raw: string | number | null | undefined): string {
+  const cnpj = String(raw ?? '').trim().replace(/[.\-\/\s]/g, '');
+  if (/^\d+$/.test(cnpj) && cnpj.length >= 8) return cnpj.padStart(14, '0');
+  return cnpj;
+}
+
+function findColumns(data: unknown[][]): { headerRow: number; name: number; cnpj: number; email: number; contato: number } {
+  for (let i = 0; i < Math.min(data.length, 20); i++) {
+    const cells = (data[i] as unknown[]).map((c) => String(c ?? '').toLowerCase().trim());
+    const name = cells.findIndex((c) => c === 'cliente');
+    if (name < 0) continue;
+    const cnpj = cells.findIndex((c) => c === 'cnpj');
+    const email = cells.findIndex((c) => c === 'email' || c === 'e-mail');
+    const contato = cells.findIndex((c) => c === 'contato');
+    if (cnpj < 0 || email < 0) continue;
+    return { headerRow: i, name, cnpj, email, contato };
+  }
+  // Planilha antiga: Cliente na coluna A, CNPJ na B, contato na I, e-mail na J
+  return { headerRow: 4, name: 0, cnpj: 1, email: 9, contato: 8 };
 }
 
 function readSheet(ws: XLSX.WorkSheet): RawRow[] {
   const data = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
+  const cols = findColumns(data);
   const rows: RawRow[] = [];
 
-  // Localiza cabeçalho
-  let dataStart = 5;
-  for (let i = 0; i < Math.min(data.length, 10); i++) {
-    const row = data[i] as string[];
-    if (String(row[0]).toLowerCase().trim() === 'cliente') {
-      dataStart = i + 1;
-      break;
-    }
-  }
-
-  for (let i = dataStart; i < data.length; i++) {
+  for (let i = cols.headerRow + 1; i < data.length; i++) {
     const row = data[i] as (string | number)[];
-    const name = String(row[0] ?? '').trim();
-
-    if (SECTION_SEPARATOR.test(name) || SECTION_SEPARATOR.test(String(row[2] ?? ''))) continue;
+    const name = String(row[cols.name] ?? '').trim();
     if (shouldSkip(name)) continue;
 
-    const emailRaw = String(row[9] ?? '').trim();
-    const emails   = parseEmails(emailRaw);
-
-    // Remove formatação (pontos, barras, hífens) antes de normalizar
-    let cnpj = String(row[1] ?? '').trim().replace(/[.\-\/]/g, '');
-    if (/^\d+$/.test(cnpj) && cnpj.length >= 8) {
-      cnpj = cnpj.padStart(14, '0');
-    }
-
-    rows.push({ name, cnpj, emails });
+    const contato = cols.contato >= 0 ? String(row[cols.contato] ?? '').trim().slice(0, 100) : '';
+    rows.push({
+      name,
+      cnpj: normalizarCnpj(row[cols.cnpj]),
+      emails: parseEmails(String(row[cols.email] ?? '').trim()),
+      contato,
+    });
   }
 
   return rows;
@@ -100,81 +118,118 @@ export function importarPlanilha(buffer: Buffer): ImportResult {
   const db = getDb();
   const result: ImportResult = { inseridos: 0, atualizados: 0, ignorados: 0, emailsParaRevisar: [], detalhes: [] };
 
-  // Carrega índice de clientes existentes — nome é o identificador principal
-  const existingByName = new Map<string, number>();
+  const existingByExact = new Map<string, ClienteExistente>();
+  const existingByFlex = new Map<string, ClienteExistente>();
+  const flexCount = new Map<string, number>();
 
   const allClients = db
-    .prepare('SELECT id, name FROM clients')
-    .all() as { id: number; name: string }[];
+    .prepare('SELECT id, name, cnpj, contact_name FROM clients')
+    .all() as { id: number; name: string; cnpj: string | null; contact_name: string | null }[];
 
   for (const c of allClients) {
-    existingByName.set(c.name.toUpperCase(), c.id);
+    const atual: ClienteExistente = { id: c.id, cnpj: c.cnpj, contact_name: c.contact_name };
+    existingByExact.set(c.name.toUpperCase(), atual);
+    const flex = normalizarNome(c.name);
+    flexCount.set(flex, (flexCount.get(flex) ?? 0) + 1);
+    existingByFlex.set(flex, atual);
+  }
+  for (const [flex, count] of flexCount) {
+    if (count > 1) existingByFlex.delete(flex);
   }
 
-  // Apenas nome + CNPJ para novos — demais campos preenchidos manualmente na tela de Clientes
   const insertClient = db.prepare(
-    'INSERT INTO clients (name, cnpj, active) VALUES (?, ?, 1)'
+    'INSERT INTO clients (name, cnpj, contact_name, active) VALUES (?, ?, ?, 1)'
   );
-
+  const updateCampos = db.prepare(
+    `UPDATE clients
+     SET cnpj = ?, contact_name = ?, updated_at = datetime('now')
+     WHERE id = ?`
+  );
   const insertEmail = db.prepare(
     'INSERT OR IGNORE INTO client_emails (client_id, email, is_primary) VALUES (?, ?, ?)'
   );
-
   const selectEmails = db.prepare(
     'SELECT email FROM client_emails WHERE client_id = ?'
   );
 
+  function localizar(nome: string): ClienteExistente | undefined {
+    return existingByExact.get(nome.toUpperCase()) ?? existingByFlex.get(normalizarNome(nome));
+  }
+
   db.transaction(() => {
     for (const row of allRows) {
-      // Identificação por NOME (case-insensitive) — CNPJ não é usado para deduplicação
-      // pois pode haver empresas distintas com o mesmo CNPJ na planilha
-      const existingId = existingByName.get(row.name.toUpperCase());
+      const existing = localizar(row.name);
 
-      if (existingId !== undefined) {
-        // Já cadastrado — preserva todos os dados; não adiciona e-mails automaticamente
-        const emailsNaBd = (selectEmails.all(existingId) as { email: string }[]).map(e => e.email);
+      if (existing) {
+        const emailsNaBd = (selectEmails.all(existing.id) as { email: string }[])
+          .map((e) => e.email.trim().toLowerCase());
         const emailsNaBdSet = new Set(emailsNaBd);
+        const emailsNovos = row.emails.filter((e) => !emailsNaBdSet.has(e));
 
-        // E-mails da planilha que ainda não existem no banco
-        const emailsDiferentes = row.emails.filter(e => !emailsNaBdSet.has(e));
+        const cnpjBd = normalizarCnpj(existing.cnpj);
+        const mudaCnpj = row.cnpj !== '' && cnpjBd !== row.cnpj;
+        const contatoBd = (existing.contact_name ?? '').trim();
+        const mudaContato = row.contato !== '' && row.contato.toLowerCase() !== contatoBd.toLowerCase();
 
-        if (emailsDiferentes.length > 0) {
+        if (!mudaCnpj && !mudaContato && emailsNovos.length === 0) continue;
+
+        if (mudaCnpj || mudaContato) {
+          const cnpjFinal = mudaCnpj ? row.cnpj : existing.cnpj;
+          const contatoFinal = mudaContato ? row.contato : existing.contact_name;
+          updateCampos.run(cnpjFinal, contatoFinal, existing.id);
+          existing.cnpj = cnpjFinal;
+          existing.contact_name = contatoFinal;
+        }
+
+        if (emailsNovos.length > 0) {
+          const jaTinhaEmail = emailsNaBd.length > 0;
+          emailsNovos.forEach((email, idx) => {
+            insertEmail.run(existing.id, email, !jaTinhaEmail && idx === 0 ? 1 : 0);
+          });
           result.emailsParaRevisar.push({
             nome: row.name,
-            cnpj: row.cnpj || '—',
+            cnpj: existing.cnpj || '—',
             emailsNaBd,
-            emailsNaPlanilha: emailsDiferentes,
+            emailsNaPlanilha: emailsNovos,
           });
+        }
+
+        const partes: string[] = [];
+        if (mudaCnpj) partes.push(`CNPJ atualizado para ${row.cnpj}`);
+        if (mudaContato) partes.push(`contato atualizado para ${row.contato}`);
+        if (emailsNovos.length > 0) {
+          partes.push(`e-mail adicionado: ${emailsNovos.join(', ')} (anteriores preservados)`);
         }
 
         result.atualizados++;
         result.detalhes.push({
           nome: row.name,
-          cnpj: row.cnpj || '—',
+          cnpj: existing.cnpj || '—',
           acao: 'atualizado',
-          motivo: emailsDiferentes.length > 0
-            ? `e-mail diferente na planilha — verifique antes de adicionar`
-            : 'sem alterações (dados já cadastrados)',
+          motivo: partes.join('; '),
         });
         continue;
       }
 
-      // Novo cliente — importa só nome, CNPJ e e-mails
-      const res = insertClient.run(row.name, row.cnpj || null);
+      const res = insertClient.run(row.name, row.cnpj || null, row.contato || null);
       const clientId = res.lastInsertRowid as number;
+      row.emails.forEach((email, idx) => insertEmail.run(clientId, email, idx === 0 ? 1 : 0));
 
-      row.emails.forEach((email, idx) =>
-        insertEmail.run(clientId, email, idx === 0 ? 1 : 0)
-      );
-
-      existingByName.set(row.name.toUpperCase(), clientId);
+      const criado: ClienteExistente = {
+        id: clientId,
+        cnpj: row.cnpj || null,
+        contact_name: row.contato || null,
+      };
+      existingByExact.set(row.name.toUpperCase(), criado);
+      const flex = normalizarNome(row.name);
+      if (!existingByFlex.has(flex)) existingByFlex.set(flex, criado);
 
       result.inseridos++;
       result.detalhes.push({
         nome: row.name,
         cnpj: row.cnpj || '—',
         acao: 'inserido',
-        motivo: row.emails.length === 0 ? 'sem e-mail cadastrado' : undefined,
+        motivo: row.emails.length === 0 ? 'sem e-mail na planilha' : (row.contato ? undefined : 'sem contato na planilha'),
       });
     }
   })();

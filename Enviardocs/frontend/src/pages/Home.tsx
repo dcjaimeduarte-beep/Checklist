@@ -1,6 +1,7 @@
 ﻿import React, { useRef, useState } from "react";
 import { listarClientes, buscarJaEnviados, buscarArquivosEnviados, type Cliente } from "../services/api";
 import { api } from "../services/api";
+import { casarArquivos } from "../services/casarArquivos";
 
 const MES_ATUAL = new Date().toISOString().slice(0, 7);
 
@@ -13,38 +14,6 @@ function formatarCNPJ(cnpj: string | null | undefined): string {
 }
 
 const EXTENSOES = new Set(["pdf", "xml", "xlsx", "docx", "csv", "zip"]);
-
-// Mesma lógica do backend: normaliza nome removendo acentos, caracteres especiais
-function normalizarNome(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "_")
-    .toUpperCase();
-}
-
-
-// Palavras que não identificam o cliente individualmente
-const IGNORAR_PALAVRAS = new Set([
-  "LTDA","EIRELI","ME","EPP","SA","SS","SOCIEDADE","EMPRESA",
-  "COMERCIO","SERVICOS","DE","DA","DO","DAS","DOS","E","EM","COM",
-]);
-
-function palavrasChave(norm: string): string[] {
-  return norm.split("_").filter(p =>
-    !IGNORAR_PALAVRAS.has(p) && (p.length > 2 || /^\d{1,2}$/.test(p))
-  );
-}
-
-// Retorna o tipo de match ou null se não corresponde
-function tipoMatch(fileNorm: string, clienteNorm: string): "exato" | "parcial" | null {
-  if (fileNorm.includes(clienteNorm)) return "exato";
-  const chaves = palavrasChave(clienteNorm);
-  if (chaves.length >= 2 && chaves.every(p => fileNorm.includes(p))) return "parcial";
-  return null;
-}
 
 
 interface PreviewItem {
@@ -118,83 +87,8 @@ export function Home() {
       setArquivosEnviados(arquivosEnviadosSet);
       setClientesComDadosArquivo(clientesComDadosSet);
 
-      const filesWithFullMatch = new Set<string>();
-      clientes.forEach(c => {
-        if (c.emails.length === 0) return;
-        const raw   = (c.nomePasta || c.nome) as string;
-        const limpo = raw.replace(/\s+\d{8,}\s*$/, "").trim();
-        const norm  = normalizarNome(limpo);
-        arquivosValidos.forEach(f => {
-          const fileNorm = normalizarNome(f.name.replace(/\.[^.]+$/, ""));
-          if (fileNorm.includes(norm)) filesWithFullMatch.add(f.name);
-        });
-      });
-
-      const itens: PreviewItem[] = clientes.map(cliente => {
-        if (cliente.emails.length === 0) {
-          return { cliente, arquivos: [], matchTipo: {}, chaveBusca: "", status: "sem_email" as const };
-        }
-        const nomePastaRaw = (cliente.nomePasta || cliente.nome) as string;
-        const nomeLimpo = nomePastaRaw.replace(/\s+\d{8,}\s*$/, "").trim();
-        const clienteNorm = normalizarNome(nomeLimpo);
-        const nomeBase = nomeLimpo.replace(/\s*[-–]\s*.+$/, "").trim();
-        const clienteNormBase = nomeBase !== nomeLimpo ? normalizarNome(nomeBase) : null;
-
-        const matched: File[] = [];
-        const matchTipo: Record<string, "exato" | "parcial"> = {};
-
-        arquivosValidos.forEach(f => {
-          const fileNorm = normalizarNome(f.name.replace(/\.[^.]+$/, ""));
-          const t1 = tipoMatch(fileNorm, clienteNorm);
-          if (t1) {
-            matched.push(f);
-            matchTipo[f.name] = t1;
-            return;
-          }
-          if (clienteNormBase !== null && !filesWithFullMatch.has(f.name)) {
-            const t2 = tipoMatch(fileNorm, clienteNormBase);
-            if (t2) {
-              matched.push(f);
-              matchTipo[f.name] = t2;
-            }
-          }
-        });
-
-        return {
-          cliente,
-          arquivos: matched,
-          matchTipo,
-          chaveBusca: nomeLimpo,
-          status: matched.length > 0 ? ("ok" as const) : ("sem_arquivo" as const),
-        };
-      });
-
-      // Para cada arquivo capturado via Exato por múltiplos clientes,
-      // mantém apenas o cliente com nome normalizado mais longo (mais específico).
-      // Evita que "PARAGOMINAS LTDA" receba arquivos de "PARAGOMINAS LTDA - OKR".
-      const melhorExatoPorArquivo = new Map<string, number>();
-      itens.forEach(item => {
-        const normLen = normalizarNome(item.chaveBusca).length;
-        item.arquivos.forEach(f => {
-          if (item.matchTipo[f.name] === "exato") {
-            const best = melhorExatoPorArquivo.get(f.name) ?? 0;
-            if (normLen > best) melhorExatoPorArquivo.set(f.name, normLen);
-          }
-        });
-      });
-      itens.forEach(item => {
-        const normLen = normalizarNome(item.chaveBusca).length;
-        item.arquivos = item.arquivos.filter(f => {
-          const best = melhorExatoPorArquivo.get(f.name);
-          if (best === undefined) return true; // sem exato em nenhum cliente — mantém
-          return item.matchTipo[f.name] === "exato" && normLen === best;
-        });
-        const mantidos = new Set(item.arquivos.map(f => f.name));
-        for (const k of Object.keys(item.matchTipo)) {
-          if (!mantidos.has(k)) delete item.matchTipo[k];
-        }
-        if (item.arquivos.length === 0 && item.status === "ok") item.status = "sem_arquivo";
-      });
+      const casado = casarArquivos(clientes, arquivosValidos);
+      const itens: PreviewItem[] = casado.itens;
 
       // Detecta clientes que foram enviados mas têm arquivos novos.
       // Só verifica clientes que têm files_json registrado — os sem dados são ignorados
@@ -215,11 +109,8 @@ export function Home() {
         itens.filter(i => i.status === "ok" && !jaEnviadosEfetivo.has(i.cliente.id)).map(i => i.cliente.id)
       );
 
-      const arquivosUsados = new Set(itens.flatMap(i => i.arquivos.map(f => f.name)));
-      const naoIdent = arquivosValidos.filter(f => !arquivosUsados.has(f.name)).map(f => f.name);
-
       setTotalArquivos(arquivosValidos.length);
-      setNaoIdentificados(naoIdent);
+      setNaoIdentificados(casado.naoIdentificados);
       setJaEnviados(jaEnviadosEfetivo);
       setPreview(itens);
       setSelecionados(comArquivo);

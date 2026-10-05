@@ -4,15 +4,17 @@ import { Clientes } from "./pages/Clientes";
 import { Dashboard } from "./pages/Dashboard";
 import { Configuracoes } from "./pages/Configuracoes";
 import { Auditoria } from "./pages/Auditoria";
+import { Conferencia } from "./pages/Conferencia";
 
-type Pagina = "envio" | "clientes" | "auditoria" | "dashboard" | "config";
+type Pagina = "envio" | "conferencia" | "clientes" | "auditoria" | "dashboard" | "config";
 
 const LABELS: Record<Pagina, string> = {
-  envio:     "Envio",
-  clientes:  "Clientes",
-  auditoria: "Auditoria",
-  dashboard: "Dashboard",
-  config:    "Configurações",
+  envio:       "Envio",
+  conferencia: "Conferência",
+  clientes:    "Clientes",
+  auditoria:   "Auditoria",
+  dashboard:   "Dashboard",
+  config:      "Configurações",
 };
 
 export default function App() {
@@ -29,7 +31,7 @@ export default function App() {
           </div>
         </div>
         <nav className="header__nav">
-          {(["envio", "clientes", "auditoria", "dashboard", "config"] as Pagina[]).map(p => (
+          {(["envio", "conferencia", "clientes", "auditoria", "dashboard", "config"] as Pagina[]).map(p => (
             <button
               key={p}
               className={`nav-item${pagina === p ? " nav-item--active" : ""}`}
@@ -42,8 +44,9 @@ export default function App() {
       </header>
 
       <main className="main-content">
-        <div style={{ display: pagina === "envio"     ? "block" : "none" }}><Home /></div>
-        <div style={{ display: pagina === "clientes"  ? "block" : "none" }}><Clientes /></div>
+        <div style={{ display: pagina === "envio"       ? "block" : "none" }}><Home /></div>
+        <div style={{ display: pagina === "conferencia" ? "block" : "none" }}><Conferencia /></div>
+        <div style={{ display: pagina === "clientes"    ? "block" : "none" }}><Clientes /></div>
         <div style={{ display: pagina === "auditoria" ? "block" : "none" }}><Auditoria /></div>
         <div style={{ display: pagina === "dashboard" ? "block" : "none" }}><Dashboard /></div>
         <div style={{ display: pagina === "config"    ? "block" : "none" }}><Configuracoes /></div>
