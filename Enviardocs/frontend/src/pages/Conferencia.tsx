@@ -6,7 +6,7 @@ import {
   buscarArquivosEnviados,
   type Cliente,
 } from "../services/api";
-import { casarArquivos, combinaExato, type ItemCasado } from "../services/casarArquivos";
+import { casarArquivos, combinaExato, semDocumentoNoNome, type ItemCasado } from "../services/casarArquivos";
 
 const EXTENSOES = new Set(["pdf", "xml", "xlsx", "docx", "csv", "zip"]);
 const MES_ATUAL = new Date().toISOString().slice(0, 7);
@@ -22,6 +22,7 @@ interface Analise {
   conflitos: { arquivo: string; clientes: string[] }[];
   semEmailComArquivo: { cliente: Cliente; arquivos: string[] }[];
   inativosComArquivo: { cliente: Cliente; arquivos: string[] }[];
+  semDocumento: ItemCasado<{ name: string }>[];
 }
 
 function formatarCNPJ(cnpj: string | null | undefined): string {
@@ -106,6 +107,7 @@ export function Conferencia() {
         conflitos,
         semEmailComArquivo,
         inativosComArquivo,
+        semDocumento: semDocumentoNoNome(casado.itens, arquivos),
       });
       setFiltro("atencao");
       setBusca("");
@@ -132,7 +134,9 @@ export function Conferencia() {
   const semArquivo = analise?.itens.filter(i => i.status === "sem_arquivo") ?? [];
   const semEmail = analise?.itens.filter(i => i.status === "sem_email") ?? [];
   const parciais = analise?.itens.filter(i => i.arquivos.some(f => i.matchTipo[f.name] === "parcial")) ?? [];
+  const semDocumento = analise?.semDocumento ?? [];
   const atencao =
+    semDocumento.length +
     (analise?.conflitos.length ?? 0) +
     parciais.length +
     (analise?.semEmailComArquivo.length ?? 0) +
@@ -199,7 +203,7 @@ export function Conferencia() {
               { id: "atencao" as Filtro, label: "Atenção", valor: atencao, cor: "#b45309" },
               { id: "prontos" as Filtro, label: "Prontos", valor: prontos.length, cor: "var(--color-teal)" },
               { id: "enviados" as Filtro, label: "Já enviados", valor: enviados.length, cor: "#2563eb" },
-              { id: "sem_arquivo" as Filtro, label: "Sem arquivo", valor: semArquivo.length, cor: "var(--color-text-muted)" },
+              { id: "sem_arquivo" as Filtro, label: "Sem arquivo", valor: semArquivo.length, cor: semArquivo.length > 0 ? "#b45309" : "var(--color-text-muted)" },
               { id: "sem_email" as Filtro, label: "Sem e-mail", valor: semEmail.length, cor: "var(--color-error-text)" },
               { id: "sem_cliente" as Filtro, label: "Sem cliente", valor: analise.naoIdentificados.length, cor: "var(--color-navy)" },
             ]).map(c => (
@@ -233,6 +237,23 @@ export function Conferencia() {
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
               {atencao === 0 && (
                 <div className="alert alert--success">Nenhum ponto fora do padrão nesta pasta.</div>
+              )}
+              {semDocumento.filter(i => casa(i.cliente.nome, i.cliente.cnpj)).length > 0 && (
+                <Bloco
+                  titulo="Cliente ativo sem documento"
+                  detalhe="Cruzamento com o cadastro ativo: nenhum arquivo desta pasta está no nome deste cliente."
+                >
+                  <ul style={{ margin: 0, paddingLeft: "var(--space-5)", maxHeight: 280, overflow: "auto" }}>
+                    {semDocumento.filter(i => casa(i.cliente.nome, i.cliente.cnpj)).map(i => (
+                      <li key={i.cliente.id} style={{ marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600 }}>{i.cliente.nome}</span>
+                        <span style={{ marginLeft: 8, fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+                          {i.status === "sem_email" ? "sem e-mail" : i.cliente.emails.join(", ") || "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </Bloco>
               )}
               {analise.conflitos.length > 0 && (
                 <Bloco titulo="O mesmo arquivo cairia em mais de um cliente" detalhe="No envio, os dois cadastros receberiam o anexo.">

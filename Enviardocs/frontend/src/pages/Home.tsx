@@ -1,7 +1,7 @@
 ﻿import React, { useRef, useState } from "react";
 import { listarClientes, buscarJaEnviados, buscarArquivosEnviados, type Cliente } from "../services/api";
 import { api } from "../services/api";
-import { casarArquivos } from "../services/casarArquivos";
+import { casarArquivos, semDocumentoNoNome } from "../services/casarArquivos";
 
 const MES_ATUAL = new Date().toISOString().slice(0, 7);
 
@@ -53,6 +53,7 @@ export function Home() {
   const [totalArquivos, setTotalArquivos]           = useState(0);
   const [naoIdentificados, setNaoIdentificados]     = useState<string[]>([]);
   const [mostrarNaoIdent, setMostrarNaoIdent]       = useState(false);
+  const [mostrarSemDocumento, setMostrarSemDocumento] = useState(true);
   const [jaEnviados, setJaEnviados]                 = useState<Set<number>>(new Set());
   const [arquivosEnviados, setArquivosEnviados]         = useState<Set<string>>(new Set());
   const [clientesComDadosArquivo, setClientesComDadosArquivo] = useState<Set<number>>(new Set());
@@ -150,6 +151,15 @@ export function Home() {
   // ── Seleção ───────────────────────────────────────────────────────────────
 
   const termoBusca = busca.trim().toLowerCase();
+
+  const semDocumentoLista = preview
+    ? semDocumentoNoNome(preview, arquivosOriginais).filter(item => {
+        if (!termoBusca) return true;
+        const nomeOk = item.cliente.nome.toLowerCase().includes(termoBusca);
+        const cnpjOk = (item.cliente.cnpj ?? "").toLowerCase().includes(termoBusca);
+        return nomeOk || cnpjOk;
+      })
+    : [];
 
   const itensFiltrados = (preview ?? []).filter(item => {
     if (filtro === "com_arquivo"  && item.status !== "ok")          return false;
@@ -438,7 +448,7 @@ export function Home() {
             {([
               { label: "Não enviados", valor: resumo.ok,           cor: "var(--color-teal)",       f: "com_arquivo"  as Filtro },
               { label: "Já enviados",  valor: jaEnviados.size,     cor: "#2563eb",                 f: "ja_enviado"   as Filtro },
-              { label: "Sem arquivo",  valor: resumo.semArquivo,   cor: "var(--color-text-muted)", f: "sem_arquivo"  as Filtro },
+              { label: "Sem arquivo",  valor: resumo.semArquivo,   cor: resumo.semArquivo > 0 ? "#b45309" : "var(--color-text-muted)", f: "sem_arquivo"  as Filtro },
               { label: "Sem e-mail",   valor: resumo.semEmail,     cor: "var(--color-error-text)", f: "sem_email"    as Filtro },
               { label: "Selecionados", valor: selecionados.size,   cor: "#7c3aed",                 f: "selecionados" as Filtro },
               { label: "Total",        valor: resumo.total,        cor: "var(--color-navy)",       f: "todos"        as Filtro },
@@ -459,6 +469,35 @@ export function Home() {
               </button>
             ))}
           </div>
+
+          {semDocumentoLista.length > 0 && (
+            <div className="alert" style={{ background: "#fffbeb", borderColor: "#d97706", color: "#92400e", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-3)" }}>
+                <div className="alert__title" style={{ margin: 0 }}>
+                  {semDocumentoLista.length} cliente{semDocumentoLista.length !== 1 ? "s" : ""} ativo{semDocumentoLista.length !== 1 ? "s" : ""} sem documento — o nome não aparece em nenhum arquivo da pasta
+                </div>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "var(--font-size-sm)", color: "#92400e", whiteSpace: "nowrap" }}
+                  onClick={() => setMostrarSemDocumento(v => !v)}
+                >
+                  {mostrarSemDocumento ? "Ocultar" : "Ver clientes"}
+                </button>
+              </div>
+              {mostrarSemDocumento && (
+                <ul style={{ margin: 0, paddingLeft: "var(--space-5)", fontSize: "var(--font-size-sm)", maxHeight: 280, overflow: "auto" }}>
+                  {semDocumentoLista.map(item => (
+                    <li key={item.cliente.id}>
+                      <span style={{ fontWeight: 600 }}>{item.cliente.nome}</span>
+                      <span style={{ marginLeft: 8, fontSize: "var(--font-size-xs)" }}>
+                        {item.status === "sem_email" ? "sem e-mail" : item.cliente.emails.join(", ")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Arquivos não identificados */}
           {naoIdentificados.length > 0 && (

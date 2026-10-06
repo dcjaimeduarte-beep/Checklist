@@ -12,6 +12,7 @@ Este é o ponto de partida. Alterações novas partem deste comportamento. Não 
 - O envio real é `POST /envios/lote-upload`. A tela Envio escolhe a pasta no navegador; não lê `STORAGE_DIR`.
 - O casamento de arquivos está só em `frontend/src/services/casarArquivos.ts`. Conferência usa o mesmo módulo. Não criar outro algoritmo.
 - Cliente sem e-mail não casa. Inativo fica de fora do envio.
+- Depois de casar a pasta, cruzar o cadastro ativo com `semDocumentoNoNome` no mesmo módulo. Quem não tem arquivo no nome aparece na Conferência (Atenção, "Cliente ativo sem documento") e no Envio (aviso acima da tabela). Sem e-mail entra nessa lista se nenhum arquivo contém o nome. A lista não seleciona ninguém para envio.
 - Vários clientes no mesmo arquivo: fica o nome normalizado mais longo.
 - Identificar cliente pelo nome (sem acento, maiúsculas). CNPJ não identifica: empresas diferentes podem repetir o CNPJ. Nunca renomear cliente na importação.
 

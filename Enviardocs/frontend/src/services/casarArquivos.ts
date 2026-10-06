@@ -129,6 +129,26 @@ export function casarArquivos<T extends { name: string }>(
   return { itens, naoIdentificados };
 }
 
+/**
+ * Cliente ativo cujo nome não aparece em nenhum arquivo.
+ * Quem tem e-mail segue o casamento do envio (status sem_arquivo).
+ * Quem não tem e-mail não casa para envio, mas entra aqui se nenhum arquivo contém o nome.
+ */
+export function semDocumentoNoNome<T extends { name: string }>(
+  itens: ItemCasado<T>[],
+  arquivos: T[],
+): ItemCasado<T>[] {
+  return itens
+    .filter(item => {
+      if (item.status === "sem_arquivo") return true;
+      if (item.status === "sem_email") {
+        return !arquivos.some(f => combinaExato(f.name, item.cliente));
+      }
+      return false;
+    })
+    .sort((a, b) => a.cliente.nome.localeCompare(b.cliente.nome, "pt"));
+}
+
 export function combinaExato(nomeArquivo: string, cliente: { nome: string; nomePasta?: string | null }): boolean {
   const norm = normalizarNome(nomeParaBusca(cliente));
   if (!norm) return false;
