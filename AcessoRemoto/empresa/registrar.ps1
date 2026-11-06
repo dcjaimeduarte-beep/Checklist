@@ -8,14 +8,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if (-not $PSScriptRoot) {
+    $inv = $MyInvocation.MyCommand.Path
+    if (-not $inv) { $inv = $MyInvocation.MyCommand.Definition }
+    $PSScriptRoot = Split-Path -Parent $inv
+}
+. (Join-Path $PSScriptRoot 'windows.ps1')
 . (Join-Path $PSScriptRoot 'cadastro.ps1')
 
 if ($Arquivo) {
-    if (-not (Test-Path -LiteralPath $Arquivo)) {
+    if (-not (Test-Path -Path $Arquivo)) {
         Write-Host "Arquivo nao encontrado: $Arquivo"
         exit 1
     }
-    $txt = Get-Content -LiteralPath $Arquivo -Raw
+    $txt = Get-Content -Path $Arquivo | Out-String
     if (-not $Id -and $txt -match 'ID:\s*(\d{6,})') { $Id = $Matches[1] }
     if (-not $Senha -and $txt -match '(?m)^Senha:\s*(.+)$') { $Senha = $Matches[1].Trim() }
     if (-not $Computador -and $txt -match '(?m)^Computador:\s*(.+)$') { $Computador = $Matches[1].Trim() }

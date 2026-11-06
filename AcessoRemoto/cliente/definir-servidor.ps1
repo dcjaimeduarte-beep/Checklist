@@ -1,13 +1,18 @@
 $ErrorActionPreference = 'Stop'
+if (-not $PSScriptRoot) {
+    $inv = $MyInvocation.MyCommand.Path
+    if (-not $inv) { $inv = $MyInvocation.MyCommand.Definition }
+    $PSScriptRoot = Split-Path -Parent $inv
+}
 
 function Update-ServidorConf {
     param([switch]$PerguntarSempre)
     $confPath = Join-Path $PSScriptRoot 'servidor.conf'
-    if (-not (Test-Path -LiteralPath $confPath)) {
+    if (-not (Test-Path -Path $confPath)) {
         Write-Host 'Falta servidor.conf nesta pasta.'
         exit 1
     }
-    $linhas = @(Get-Content -LiteralPath $confPath)
+    $linhas = @(Get-Content -Path $confPath)
     $hostAtual = ''
     foreach ($linha in $linhas) {
         $t = $linha.Trim()
@@ -40,7 +45,7 @@ function Update-ServidorConf {
             }
         }
         if (-not $trocou) { $novas += "ID_SERVER=$hostAtual" }
-        Set-Content -LiteralPath $confPath -Value $novas -Encoding ASCII
+        Set-Content -Path $confPath -Value $novas -Encoding ASCII
         Write-Host "Endereco salvo em servidor.conf: $hostAtual"
     }
     return $hostAtual

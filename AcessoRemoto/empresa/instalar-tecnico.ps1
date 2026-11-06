@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
+if (-not $PSScriptRoot) {
+    $inv = $MyInvocation.MyCommand.Path
+    if (-not $inv) { $inv = $MyInvocation.MyCommand.Definition }
+    $PSScriptRoot = Split-Path -Parent $inv
+}
+. (Join-Path $PSScriptRoot 'windows.ps1')
 . (Join-Path $PSScriptRoot 'definir-servidor.ps1')
 Update-ServidorConf | Out-Null
 
@@ -23,11 +28,11 @@ if (-not (Test-Path $confPath)) {
 }
 
 $conf = @{}
-Get-Content -LiteralPath $confPath | ForEach-Object {
-    $linha = $_.Trim()
-    if ($linha -eq '' -or $linha.StartsWith('#')) { return }
+foreach ($linhaBruta in @(Get-Content -Path $confPath)) {
+    $linha = $linhaBruta.Trim()
+    if ($linha -eq '' -or $linha.StartsWith('#')) { continue }
     $i = $linha.IndexOf('=')
-    if ($i -lt 1) { return }
+    if ($i -lt 1) { continue }
     $conf[$linha.Substring(0, $i).Trim()] = $linha.Substring($i + 1).Trim()
 }
 
@@ -39,34 +44,7 @@ if ($hostServidor -notmatch '^[A-Za-z0-9._-]+$' -or $chave -notmatch '^[A-Za-z0-
     exit 1
 }
 
-function Get-RustDeskExe {
-    $candidatos = @(
-        (Join-Path $env:ProgramFiles 'RustDesk\rustdesk.exe'),
-        (Join-Path ${env:ProgramFiles(x86)} 'RustDesk\rustdesk.exe')
-    )
-    foreach ($c in $candidatos) {
-        if ($c -and (Test-Path -LiteralPath $c)) { return $c }
-    }
-    return $null
-}
-
-$exe = Get-RustDeskExe
-if (-not $exe) {
-    Write-Host 'Baixando o RustDesk no GitHub...'
-    $headers = @{ 'User-Agent' = 'AcessoRemoto' }
-    $release = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/rustdesk/rustdesk/releases/latest'
-    $asset = $release.assets | Where-Object { $_.name -match '^rustdesk-.+-x86_64\.exe$' } | Select-Object -First 1
-    if (-not $asset) { Write-Host 'Instalador Windows de 64 bits nao encontrado.'; exit 1 }
-    $destino = Join-Path $env:TEMP 'rustdesk-acesso-remoto.exe'
-    Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $destino
-    Start-Process -FilePath $destino -ArgumentList '--silent-install' -Wait
-    $limite = (Get-Date).AddSeconds(40)
-    do {
-        Start-Sleep -Seconds 2
-        $exe = Get-RustDeskExe
-    } while (-not $exe -and (Get-Date) -lt $limite)
-    Remove-Item -LiteralPath $destino -Force -ErrorAction SilentlyContinue
-}
+$exe = Install-RustDeskSePrecisar -PastaPacote $PSScriptRoot
 if (-not $exe) { Write-Host 'RustDesk nao instalou.'; exit 1 }
 
 $utf8 = New-Object System.Text.UTF8Encoding $false
@@ -84,13 +62,9 @@ $pasta = Join-Path $env:APPDATA 'RustDesk\config'
 New-Item -ItemType Directory -Force -Path $pasta | Out-Null
 [System.IO.File]::WriteAllText((Join-Path $pasta 'RustDesk2.toml'), $toml, $utf8)
 
-foreach ($par in @(
-    @('custom-rendezvous-server', $hostServidor),
-    @('relay-server', $hostServidor),
-    @('key', $chave)
-)) {
-    Start-Process -FilePath $exe -ArgumentList @('--option', $par[0], $par[1]) -Wait -WindowStyle Hidden
-}
+Start-RustDesk -Exe $exe -Argumentos @('--option', 'custom-rendezvous-server', $hostServidor) -Aguardar
+Start-RustDesk -Exe $exe -Argumentos @('--option', 'relay-server', $hostServidor) -Aguardar
+Start-RustDesk -Exe $exe -Argumentos @('--option', 'key', $chave) -Aguardar
 
 Write-Host "RustDesk deste computador aponta para $hostServidor."
 Write-Host 'Para entrar no cliente, use Conectar.bat com o ID que ele enviou.'

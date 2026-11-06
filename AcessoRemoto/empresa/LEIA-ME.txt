@@ -1,5 +1,7 @@
 Acesso remoto — equipe da empresa
 
+Funciona no Windows 7, 8, 10 e 11, em 32 bits, 64 bits ou ARM.
+
 Varias pessoas podem atender varios clientes. O RustDesk de cada tecnico aponta para o mesmo servidor. A lista de computadores e compartilhada: nao fica presa ao ID de um unico PC.
 
 1. Rode Definir-servidor.bat e digite o IP do Linux. Copie a pasta para cada tecnico e rode Instalar-tecnico.bat uma vez.

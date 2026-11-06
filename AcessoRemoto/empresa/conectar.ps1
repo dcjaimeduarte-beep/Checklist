@@ -5,18 +5,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'cadastro.ps1')
-
-function Get-RustDeskExe {
-    $candidatos = @(
-        (Join-Path $env:ProgramFiles 'RustDesk\rustdesk.exe'),
-        (Join-Path ${env:ProgramFiles(x86)} 'RustDesk\rustdesk.exe')
-    )
-    foreach ($c in $candidatos) {
-        if ($c -and (Test-Path -LiteralPath $c)) { return $c }
-    }
-    return $null
+if (-not $PSScriptRoot) {
+    $inv = $MyInvocation.MyCommand.Path
+    if (-not $inv) { $inv = $MyInvocation.MyCommand.Definition }
+    $PSScriptRoot = Split-Path -Parent $inv
 }
+. (Join-Path $PSScriptRoot 'windows.ps1')
+. (Join-Path $PSScriptRoot 'cadastro.ps1')
 
 function Open-Maquina {
     param($Exe, $Maquina, [string]$SenhaForcada)
@@ -29,7 +24,7 @@ function Open-Maquina {
         Write-Host 'Sem senha, conexao cancelada.'
         return
     }
-    Start-Process -FilePath $Exe -ArgumentList @('--connect', $Maquina.id, '--password', $senhaUsada)
+    Start-RustDesk -Exe $Exe -Argumentos @('--connect', $Maquina.id, '--password', $senhaUsada)
     Write-Host ("Abrindo " + $Maquina.cliente + " / " + $Maquina.computador + " (" + $Maquina.id + ").")
 }
 
@@ -47,7 +42,7 @@ if ($Id) {
     $lista = @(Get-Maquinas $caminho)
     $achou = $lista | Where-Object { $_.id -eq $Id } | Select-Object -First 1
     if (-not $achou) {
-        $achou = [pscustomobject]@{ cliente = 'Avulso'; computador = $Id; id = $Id; senha = $Senha; observacao = '' }
+        $achou = New-Registro 'Avulso' $Id $Id $Senha ''
     }
     Open-Maquina -Exe $exe -Maquina $achou -SenhaForcada $Senha
     exit 0
@@ -72,7 +67,7 @@ while ($true) {
     $resp = $Busca
     $Busca = ''
     if (-not $resp) { $resp = Read-Host 'Escolha' }
-    if ([string]::IsNullOrWhiteSpace($resp)) { exit 0 }
+    if ($resp -eq $null -or $resp.Trim() -eq '') { exit 0 }
     $resp = $resp.Trim()
 
     if ($resp -eq 'R' -or $resp -eq 'r') {
@@ -89,9 +84,7 @@ while ($true) {
         if ($escolhida.Count -eq 0) {
             $senhaAvulsa = Read-Host 'Esse ID ainda nao esta na lista. Senha desta maquina'
             if ($senhaAvulsa) {
-                Open-Maquina -Exe $exe -Maquina ([pscustomobject]@{
-                    cliente = 'Avulso'; computador = $idLimpo; id = $idLimpo; senha = $senhaAvulsa; observacao = ''
-                })
+                Open-Maquina -Exe $exe -Maquina (New-Registro 'Avulso' $idLimpo $idLimpo $senhaAvulsa '')
                 $guardar = Read-Host 'Registrar na lista da equipe? Digite S para sim'
                 if ($guardar -eq 'S' -or $guardar -eq 's') {
                     & (Join-Path $PSScriptRoot 'registrar.ps1') -Id $idLimpo -Senha $senhaAvulsa

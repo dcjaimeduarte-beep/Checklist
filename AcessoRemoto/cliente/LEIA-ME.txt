@@ -1,5 +1,7 @@
 Acesso remoto — computador do cliente
 
+Funciona no Windows 7, 8, 10 e 11, em 32 bits, 64 bits ou ARM. No Windows 7 e 8 o instalador usa a versao antiga, que ainda abre nesses sistemas. No Windows 10 e 11 usa a versao do proprio processador.
+
 1. Na pasta modelo, rode Definir-servidor.bat e digite o IP do Linux. Depois copie a pasta para este computador.
 2. Confirme com a empresa de informatica que este acesso esta autorizado.
 3. Dê dois cliques em Instalar-acesso.bat.

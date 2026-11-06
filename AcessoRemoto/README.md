@@ -55,7 +55,7 @@ A pasta `data` é a identidade do servidor. Sem ela, o próximo start gera outra
 - `02-para-a-empresa` vai para quem atende
 - `03-para-o-cliente` vai para cada computador autorizado
 
-Em `02` e em `03`, `Definir-servidor.bat` grava o IP do Linux uma vez. Depois a pasta pode ser copiada para cada computador.
+Em `02` e em `03`, `Definir-servidor.bat` grava o IP do Linux uma vez. Depois a pasta pode ser copiada para cada computador. Os `.bat` rodam no Windows 7, 8, 10 e 11, em 32 bits, 64 bits ou ARM: no Windows 7 e 8 entra o instalador legado; no Windows 10 e 11 entra o instalador do processador. Se o download nao passar num Windows antigo, coloque o instalador na pasta com o nome `rustdesk-instalador.exe` e rode de novo.
 
 ## Pacote do cliente e pacote da empresa
 
