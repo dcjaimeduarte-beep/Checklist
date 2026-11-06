@@ -49,9 +49,9 @@ sealed class ClienteForm : Form
         IdNaTela();
         GravarAreaDeTrabalho();
         CriarAtalhoDeInicio();
-        if (string.IsNullOrWhiteSpace(ip) || ip == "DEFINIR" || string.IsNullOrWhiteSpace(impressao))
+        if (string.IsNullOrWhiteSpace(ip) || ip == "DEFINIR" || string.IsNullOrWhiteSpace(impressao) || !PortaInternet.IpPublicoUtil(ip))
         {
-            Estado("ID pronto. No computador do tecnico, deixe a janela do servidor aberta e copie esta pasta de novo.");
+            Estado("ID pronto, mas esta pasta nao tem o IP da internet da empresa. No servidor, grave esse IP e copie a pasta 03-cliente de novo.");
             return;
         }
         if (!int.TryParse(portaTexto, out var porta)) porta = 47200;
@@ -185,31 +185,25 @@ sealed class ClienteForm : Form
 
     async Task<TcpClient?> ConectarAsync(string ip, int porta, CancellationToken ct)
     {
-        var alvos = new List<string>();
-        if (!string.IsNullOrWhiteSpace(ip) && ip != "DEFINIR") alvos.Add(ip);
-        if (!alvos.Contains("127.0.0.1")) alvos.Add("127.0.0.1");
-        foreach (var alvo in alvos)
+        TcpClient? tcp = null;
+        try
         {
-            TcpClient? tcp = null;
-            try
-            {
-                Estado("Conectando em " + alvo + ":" + porta + "...");
-                tcp = new TcpClient();
-                using var estouro = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                estouro.CancelAfter(TimeSpan.FromSeconds(alvo == "127.0.0.1" ? 2 : 6));
-                await tcp.ConnectAsync(alvo, porta, estouro.Token);
-                return tcp;
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                tcp?.Dispose();
-                Estado("Sem resposta de " + alvo + ". Deixe o servidor aberto no computador do tecnico.");
-            }
-            catch (Exception ex)
-            {
-                tcp?.Dispose();
-                Estado("Nao conectou em " + alvo + ". " + ex.Message);
-            }
+            Estado("Conectando no IP da empresa " + ip + ":" + porta + "...");
+            tcp = new TcpClient();
+            using var estouro = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            estouro.CancelAfter(TimeSpan.FromSeconds(8));
+            await tcp.ConnectAsync(ip, porta, estouro.Token);
+            return tcp;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            tcp?.Dispose();
+            Estado("Sem resposta do IP " + ip + ". No roteador da empresa, encaminhe a porta " + porta + " para o computador do tecnico.");
+        }
+        catch (Exception ex)
+        {
+            tcp?.Dispose();
+            Estado("Nao conectou em " + ip + ". " + ex.Message);
         }
         return null;
     }

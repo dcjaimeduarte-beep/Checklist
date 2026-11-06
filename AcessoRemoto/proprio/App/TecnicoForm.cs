@@ -69,9 +69,13 @@ sealed class TecnicoForm : Form
         _conectar.Enabled = false;
         try
         {
-            _estado.Text = "Conectando...";
+            _estado.Text = "Conectando no servidor deste computador...";
             var tcp = new TcpClient();
-            await tcp.ConnectAsync(ip, porta, ct);
+            using (var estouro = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                estouro.CancelAfter(TimeSpan.FromSeconds(4));
+                await tcp.ConnectAsync("127.0.0.1", porta, estouro.Token);
+            }
             tcp.NoDelay = true;
             var ssl = new SslStream(tcp.GetStream(), false, (_, cert, _, _) =>
             {
@@ -98,6 +102,10 @@ sealed class TecnicoForm : Form
             }
             _estado.Text = "Conectado ao " + id;
             _ = Task.Run(() => LerTelaAsync(ssl, ct));
+        }
+        catch (OperationCanceledException)
+        {
+            _estado.Text = "O servidor nao respondeu neste computador. Deixe a janela do servidor aberta.";
         }
         catch (Exception ex)
         {

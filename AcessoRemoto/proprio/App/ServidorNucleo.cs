@@ -326,9 +326,15 @@ sealed class ServidorNucleo
 
     async Task LoopTecnicoAsync(Ligacao ligacao, Aviso pedido, CancellationToken ct)
     {
-        if (!_maquinas.TryGetValue(pedido.Id.Trim(), out var maquina) || !SenhaConfere(maquina, pedido.Senha))
+        var idPedido = (pedido.Id ?? "").Trim();
+        if (!_maquinas.TryGetValue(idPedido, out var maquina))
         {
-            await ligacao.EnviarAsync(Tipos.Erro, Mensagens.Texto(new Aviso { Mensagem = "ID ou senha nao confere." }), ct);
+            await ligacao.EnviarAsync(Tipos.Erro, Mensagens.Texto(new Aviso { Mensagem = "O cliente ainda nao chegou no servidor. A janela dele precisa mostrar Conectado." }), ct);
+            return;
+        }
+        if (!SenhaConfere(maquina, pedido.Senha))
+        {
+            await ligacao.EnviarAsync(Tipos.Erro, Mensagens.Texto(new Aviso { Mensagem = "Senha nao confere." }), ct);
             return;
         }
         lock (maquina.Trava)
