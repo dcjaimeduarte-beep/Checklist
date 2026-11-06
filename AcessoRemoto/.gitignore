@@ -8,3 +8,4 @@ backups/
 dist/
 cliente/servidor.conf
 empresa/servidor.conf
+empresa/cadastro.csv

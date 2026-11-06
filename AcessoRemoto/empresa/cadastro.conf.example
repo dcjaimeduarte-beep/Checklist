@@ -1,0 +1,4 @@
+# Lista que todos os tecnicos abrem no Conectar.bat.
+# Deixe cadastro.csv nesta pasta, ou aponte para a mesma pasta de rede em todos os computadores.
+# Exemplo de rede: \\\\servidor\suporte\\cadastro.csv
+CADASTRO=cadastro.csv

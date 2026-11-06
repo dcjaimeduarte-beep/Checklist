@@ -47,7 +47,18 @@ rm -rf dist/para-o-cliente dist/para-a-empresa
 mkdir -p dist/para-o-cliente dist/para-a-empresa
 
 cp cliente/instalar-cliente.ps1 cliente/Instalar-acesso.bat cliente/LEIA-ME.txt dist/para-o-cliente/
-cp empresa/instalar-tecnico.ps1 empresa/Instalar-tecnico.bat empresa/conectar.ps1 empresa/Conectar.bat empresa/LEIA-ME.txt dist/para-a-empresa/
+cp empresa/instalar-tecnico.ps1 empresa/Instalar-tecnico.bat \
+  empresa/conectar.ps1 empresa/Conectar.bat \
+  empresa/registrar.ps1 empresa/Registrar.bat \
+  empresa/cadastro.ps1 empresa/LEIA-ME.txt \
+  empresa/cadastro.csv.example empresa/cadastro.conf.example \
+  dist/para-a-empresa/
+printf 'cliente,computador,id,senha,observacao\n' > dist/para-a-empresa/cadastro.csv
+printf '%s\n' \
+  '# Lista usada por toda a equipe. Para varios tecnicos, use o mesmo caminho de rede.' \
+  '# Exemplo: \\\\servidor\\suporte\\cadastro.csv' \
+  'CADASTRO=cadastro.csv' \
+  > dist/para-a-empresa/cadastro.conf
 escrever_conf dist/para-o-cliente/servidor.conf
 escrever_conf dist/para-a-empresa/servidor.conf
 escrever_conf cliente/servidor.conf
@@ -72,7 +83,8 @@ echo "Pacote do cliente: dist/para-o-cliente.zip"
 echo "Envie esse zip. No computador dele, extraia e rode Instalar-acesso.bat."
 echo
 echo "Pacote da empresa: dist/para-a-empresa.zip"
-echo "No computador de quem atende, extraia e rode Instalar-tecnico.bat."
-echo "Depois use Conectar.bat com o ID que o cliente enviar."
+echo "Cada tecnico extrai e roda Instalar-tecnico.bat uma vez."
+echo "Registrar.bat inclui o computador na lista. Conectar.bat deixa escolher qualquer cliente."
+echo "Para a equipe inteira ver a mesma lista, aponte CADASTRO em cadastro.conf para uma pasta de rede."
 echo
 echo "A chave privada continua so em data/id_ed25519. Estes zips levam a chave publica."

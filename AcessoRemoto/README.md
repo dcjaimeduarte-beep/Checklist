@@ -58,9 +58,11 @@ Com o servidor no ar e o backup feito, monte os dois pacotes. Troque o exemplo p
 Isso gera:
 
 - `dist/para-o-cliente.zip` — envie ao cliente. Ele extrai e abre `Instalar-acesso.bat`. O RustDesk instala já no servidor da empresa, com senha só daquela máquina e o ícone visível. Na Área de Trabalho fica `Acesso-remoto-desta-maquina.txt`, com o ID e a senha. O cliente devolve esse arquivo.
-- `dist/para-a-empresa.zip` — no computador de quem atende, extraia e rode `Instalar-tecnico.bat` uma vez. Depois, `Conectar.bat` pede o ID e a senha e abre a tela.
+- `dist/para-a-empresa.zip` — cada pessoa que atende extrai no próprio computador e roda `Instalar-tecnico.bat` uma vez. O servidor é o mesmo para toda a equipe. `Registrar.bat` inclui o cliente e o computador na lista. `Conectar.bat` mostra todos e deixa escolher pelo número, pelo nome do cliente ou pelo ID.
 
-Anote na [cliente/caderneta.csv](cliente/caderneta.csv) o nome, o computador, o ID e onde a senha ficou. A senha em si fica no cofre, uma por máquina. Para trocar a senha de um PC que já tinha o programa, rode de novo com `-NovaSenha` no PowerShell do cliente.
+A lista é o `cadastro.csv`. Vários técnicos e vários clientes cabem nela: o mesmo cliente pode ter caixa, escritório e notebook, cada um com ID e senha próprios. Para todo mundo ver a mesma lista, coloque o arquivo numa pasta de rede e aponte `CADASTRO` em `cadastro.conf` para esse caminho, igual em cada computador da equipe. O modelo está em [empresa/cadastro.csv.example](empresa/cadastro.csv.example). A senha fica nessa lista, só para o suporte; o arquivo não entra no Git nem no zip do cliente.
+
+Para trocar a senha de um PC que já tinha o programa, rode de novo no cliente com `-NovaSenha` e registre de novo.
 
 O zip leva a chave pública. A chave privada continua em `data/`. `dist/` e os `servidor.conf` preenchidos ficam fora do Git.
 

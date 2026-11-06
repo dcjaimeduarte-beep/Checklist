@@ -10,9 +10,9 @@ No Linux, com o servidor já no ar:
 ./scripts/preparar-cliente.sh suporte.suaempresa.com "Minha Informatica"
 ```
 
-Envie `dist/para-o-cliente.zip`. No PC do cliente, a pessoa autorizada extrai e abre `Instalar-acesso.bat`. O arquivo `Acesso-remoto-desta-maquina.txt` na Área de Trabalho traz o ID e a senha daquela máquina. Guarde a senha no cofre e registre o ID em `caderneta.csv`.
+Envie `dist/para-o-cliente.zip`. No PC do cliente, a pessoa autorizada extrai e abre `Instalar-acesso.bat`. O arquivo `Acesso-remoto-desta-maquina.txt` na Área de Trabalho traz o ID e a senha daquela máquina.
 
-No PC de quem atende, extraia `dist/para-a-empresa.zip`, rode `Instalar-tecnico.bat` uma vez e, em cada atendimento, `Conectar.bat`.
+Cada técnico extrai `dist/para-a-empresa.zip` e roda `Instalar-tecnico.bat` uma vez. `Registrar.bat` coloca o computador na lista da equipe. `Conectar.bat` abre qualquer cliente da lista, pelo nome ou pelo ID. Se várias pessoas atendem, aponte o `CADASTRO` de `cadastro.conf` para o mesmo arquivo numa pasta de rede.
 
 Os dois lados usam o mesmo servidor. O ID público do site do RustDesk fica de fora dessa configuração.
 
