@@ -20,3 +20,4 @@ fi
 echo
 echo "A chave privada fica em data/id_ed25519 e não sai deste servidor."
 echo "Faça o backup agora: ./scripts/backup-data.sh"
+echo "Depois monte os pacotes: ./scripts/preparar-cliente.sh IP_OU_DOMINIO \"Nome da empresa\""

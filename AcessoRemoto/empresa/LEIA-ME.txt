@@ -1,0 +1,8 @@
+Acesso remoto — computador da empresa
+
+1. Rode Instalar-tecnico.bat uma vez. Ele aponta o RustDesk para o mesmo servidor dos clientes.
+2. Para entrar em um computador, rode Conectar.bat e informe o ID que o cliente enviou.
+3. Quando o RustDesk pedir, use a senha daquela maquina, guardada no cofre.
+4. O arquivo cliente/caderneta.csv lista nome, computador, ID e o lugar da senha. A senha nao entra na planilha.
+
+O pacote que vai para o cliente e a pasta gerada por ./scripts/preparar-cliente.sh.

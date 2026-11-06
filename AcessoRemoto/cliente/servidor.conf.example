@@ -1,0 +1,5 @@
+# Copie para servidor.conf ou gere com ./scripts/preparar-cliente.sh
+# A chave abaixo e a publica (id_ed25519.pub). A privada fica no servidor.
+EMPRESA=Empresa de informatica
+ID_SERVER=suporte.suaempresa.com
+KEY=COLE_A_CHAVE_PUBLICA

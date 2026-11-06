@@ -47,11 +47,24 @@ A pasta `data` é a identidade do servidor. Sem ela, o próximo start gera outra
 
 `./scripts/backup-data.sh` gera `backups/rustdesk-data-AAAAMMDD-HHMMSS.tar.gz`. Copie esse arquivo para um disco ou cofre fora do servidor. `data/` e `backups/` estão fora do Git.
 
-## PCs
+## Pacote do cliente e pacote da empresa
 
-O passo a passo do seu computador e dos clientes está em [cliente/INSTALACAO.md](cliente/INSTALACAO.md). A lista de IDs fica em [cliente/caderneta.csv](cliente/caderneta.csv): nome, computador, ID, onde a senha está guardada e quem autorizou. A senha em si fica no cofre, uma por máquina.
+Com o servidor no ar e o backup feito, monte os dois pacotes. Troque o exemplo pelo IP ou domínio público deste Linux e pelo nome que o cliente reconhece:
 
-Quem atende e quem é atendido usam o mesmo servidor de ID e a mesma chave. A configuração oficial do cliente está em [Client Configuration](https://rustdesk.com/docs/en/self-host/client-configuration/).
+```sh
+./scripts/preparar-cliente.sh suporte.suaempresa.com "Minha Informatica"
+```
+
+Isso gera:
+
+- `dist/para-o-cliente.zip` — envie ao cliente. Ele extrai e abre `Instalar-acesso.bat`. O RustDesk instala já no servidor da empresa, com senha só daquela máquina e o ícone visível. Na Área de Trabalho fica `Acesso-remoto-desta-maquina.txt`, com o ID e a senha. O cliente devolve esse arquivo.
+- `dist/para-a-empresa.zip` — no computador de quem atende, extraia e rode `Instalar-tecnico.bat` uma vez. Depois, `Conectar.bat` pede o ID e a senha e abre a tela.
+
+Anote na [cliente/caderneta.csv](cliente/caderneta.csv) o nome, o computador, o ID e onde a senha ficou. A senha em si fica no cofre, uma por máquina. Para trocar a senha de um PC que já tinha o programa, rode de novo com `-NovaSenha` no PowerShell do cliente.
+
+O zip leva a chave pública. A chave privada continua em `data/`. `dist/` e os `servidor.conf` preenchidos ficam fora do Git.
+
+O roteiro manual, se o pacote não puder ser usado, está em [cliente/INSTALACAO.md](cliente/INSTALACAO.md).
 
 ## Uso
 

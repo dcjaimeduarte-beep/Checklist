@@ -3,3 +3,8 @@ data/
 
 # Cópias do backup ficam fora do Git. A chave privada vai dentro do arquivo.
 backups/
+
+# Pacotes gerados com o IP e a chave publica deste servidor.
+dist/
+cliente/servidor.conf
+empresa/servidor.conf

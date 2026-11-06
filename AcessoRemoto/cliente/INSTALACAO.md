@@ -1,46 +1,33 @@
-# RustDesk no PC da empresa e no PC do cliente
+# Instalação nos computadores
 
-O mesmo programa entra nos dois lados. Quem atende e quem é atendido apontam para o servidor da empresa. O ID público do RustDesk não conversa com o servidor de vocês.
+O caminho normal é o pacote, para o cliente não preencher IP nem chave na mão.
 
-Instale só com autorização de quem responde pelo computador. O ícone do RustDesk fica visível. A senha permanente é uma por máquina e fica no cofre de senhas da empresa. Nesta caderneta entra o lugar da senha, o ID e quem autorizou.
+## Pacote
 
-Baixe o cliente na página de versões do projeto: https://github.com/rustdesk/rustdesk/releases
-
-## 1. Servidor no ar
-
-No Linux, a partir da pasta `AcessoRemoto`:
+No Linux, com o servidor já no ar:
 
 ```sh
-./scripts/portas.sh
-./scripts/subir.sh
-./scripts/backup-data.sh
+./scripts/preparar-cliente.sh suporte.suaempresa.com "Minha Informatica"
 ```
 
-Anote o IP ou o domínio desse Linux e a chave pública que o `subir.sh` imprime (`data/id_ed25519.pub`).
+Envie `dist/para-o-cliente.zip`. No PC do cliente, a pessoa autorizada extrai e abre `Instalar-acesso.bat`. O arquivo `Acesso-remoto-desta-maquina.txt` na Área de Trabalho traz o ID e a senha daquela máquina. Guarde a senha no cofre e registre o ID em `caderneta.csv`.
 
-## 2. No seu PC e em cada PC autorizado
+No PC de quem atende, extraia `dist/para-a-empresa.zip`, rode `Instalar-tecnico.bat` uma vez e, em cada atendimento, `Conectar.bat`.
 
-1. Instale o RustDesk e abra o programa.
-2. No menu ao lado do ID, abra **Rede** e desbloqueie a rede (o Windows pede permissão de administrador).
-3. Em **Servidor de ID**, coloque o IP ou o domínio do Linux. Exemplo: `suporte.suaempresa.com`
-4. Em **Key**, cole a chave pública inteira, uma linha.
-5. Deixe **Servidor de relay** e **Servidor de API** em branco. O relay é deduzido sozinho. A API é da versão paga.
-6. Aplique.
+Os dois lados usam o mesmo servidor. O ID público do site do RustDesk fica de fora dessa configuração.
 
-Para repetir a mesma rede nos outros PCs: em **Rede**, use **Exportar configuração do servidor**, guarde o texto e, no próximo PC, use **Importar configuração do servidor** e aplique. Os dois lados precisam dessa configuração.
+## Manual, se o pacote não rodar
 
-## 3. Senha permanente e serviço
+Baixe o cliente em https://github.com/rustdesk/rustdesk/releases
 
-No PC do cliente, ainda com a pessoa presente ou com a autorização já combinada:
+1. Instale o RustDesk.
+2. No menu ao lado do ID, abra Rede e desbloqueie.
+3. Em Servidor de ID, coloque o IP ou o domínio do Linux.
+4. Em Key, cole `data/id_ed25519.pub`.
+5. Deixe Servidor de API em branco. O relay pode ficar em branco; o pacote preenche o mesmo host.
+6. Em Segurança, defina uma senha permanente só desta máquina e marque o uso dessa senha.
+7. Instale como serviço, com o ícone na bandeja.
 
-1. Em **Segurança**, defina a senha permanente daquela máquina.
-2. Guarde a senha no cofre. Na `caderneta.csv`, preencha o nome, o computador, o ID que aparece na tela, o lugar da senha, a data e quem autorizou.
-3. Na janela principal, instale o RustDesk como serviço para o acesso continuar depois do reinício, com o ícone na bandeja.
+Quem atende repete os passos 1 a 5, sem senha permanente, e digita o ID do cliente no RustDesk.
 
-A caderneta do próprio RustDesk (ícone de agenda) também guarda o ID. A planilha `caderneta.csv` é a lista da empresa.
-
-## 4. Conectar
-
-No seu PC, digite o ID do cliente e a senha daquela máquina. A sessão abre a tela e permite copiar arquivos.
-
-Se a chave do servidor mudar, o cliente recusa a conexão até você colar a chave nova no campo Key. Por isso o backup da pasta `data` fica fora do servidor.
+Se a chave do servidor mudar, gere os zips de novo e rode a instalação outra vez. O backup de `data` evita essa troca.
