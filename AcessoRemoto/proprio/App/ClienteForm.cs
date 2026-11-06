@@ -11,7 +11,7 @@ sealed class ClienteForm : Form
 {
     readonly Label _id = new() { AutoSize = true, Font = new Font(FontFamily.GenericSansSerif, 22f, FontStyle.Bold), Location = new Point(24, 70) };
     readonly Label _senha = new() { AutoSize = true, Font = new Font(FontFamily.GenericSansSerif, 14f), Location = new Point(24, 120) };
-    readonly Label _estado = new() { AutoSize = true, Location = new Point(24, 170) };
+    readonly Label _estado = new() { AutoSize = true, Location = new Point(24, 170), MaximumSize = new Size(500, 0) };
     readonly CancellationTokenSource _ct = new();
     volatile bool _tecnicoPresente;
     string _idTexto = "";
@@ -20,8 +20,8 @@ sealed class ClienteForm : Form
     public ClienteForm()
     {
         Text = "Acesso remoto — este computador";
-        Width = 520;
-        Height = 280;
+        Width = 560;
+        Height = 320;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -45,24 +45,27 @@ sealed class ClienteForm : Form
         conf.TryGetValue("IP", out var ip);
         conf.TryGetValue("PORTA", out var portaTexto);
         conf.TryGetValue("IMPRESSAO", out var impressao);
-        if (string.IsNullOrWhiteSpace(ip) || ip == "DEFINIR" || string.IsNullOrWhiteSpace(impressao))
-        {
-            Estado("A empresa ainda nao preparou esta pasta. Abra o servidor la e copie a pasta de novo.");
-            return;
-        }
-        if (!int.TryParse(portaTexto, out var porta)) porta = 47200;
         CarregarIdentidade();
         IdNaTela();
         GravarAreaDeTrabalho();
         CriarAtalhoDeInicio();
+        if (string.IsNullOrWhiteSpace(ip) || ip == "DEFINIR" || string.IsNullOrWhiteSpace(impressao))
+        {
+            Estado("ID pronto. No computador do tecnico, deixe a janela do servidor aberta e copie esta pasta de novo.");
+            return;
+        }
+        if (!int.TryParse(portaTexto, out var porta)) porta = 47200;
 
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                Estado("Conectando ao servidor da empresa...");
-                using var tcp = new TcpClient();
-                await tcp.ConnectAsync(ip, porta, ct);
+                using var tcp = await ConectarAsync(ip, porta, ct);
+                if (tcp == null)
+                {
+                    await Task.Delay(4000, ct);
+                    continue;
+                }
                 tcp.NoDelay = true;
                 using var ssl = new SslStream(tcp.GetStream(), false, (_, cert, _, _) =>
                 {
@@ -175,9 +178,40 @@ sealed class ClienteForm : Form
             }
             catch { }
         }
-        _idTexto = "";
+        _idTexto = RandomNumberGenerator.GetInt32(100_000_000, 1_000_000_000).ToString();
         _senhaTexto = NovaSenha();
         SalvarIdentidade();
+    }
+
+    async Task<TcpClient?> ConectarAsync(string ip, int porta, CancellationToken ct)
+    {
+        var alvos = new List<string>();
+        if (!string.IsNullOrWhiteSpace(ip) && ip != "DEFINIR") alvos.Add(ip);
+        if (!alvos.Contains("127.0.0.1")) alvos.Add("127.0.0.1");
+        foreach (var alvo in alvos)
+        {
+            TcpClient? tcp = null;
+            try
+            {
+                Estado("Conectando em " + alvo + ":" + porta + "...");
+                tcp = new TcpClient();
+                using var estouro = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                estouro.CancelAfter(TimeSpan.FromSeconds(alvo == "127.0.0.1" ? 2 : 6));
+                await tcp.ConnectAsync(alvo, porta, estouro.Token);
+                return tcp;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                tcp?.Dispose();
+                Estado("Sem resposta de " + alvo + ". Deixe o servidor aberto no computador do tecnico.");
+            }
+            catch (Exception ex)
+            {
+                tcp?.Dispose();
+                Estado("Nao conectou em " + alvo + ". " + ex.Message);
+            }
+        }
+        return null;
     }
 
     void SalvarIdentidade()
@@ -208,7 +242,7 @@ sealed class ClienteForm : Form
         if (IsDisposed) return;
         BeginInvoke(() =>
         {
-            _id.Text = "ID: " + (string.IsNullOrEmpty(_idTexto) ? "aguardando o servidor" : _idTexto);
+            _id.Text = "ID: " + _idTexto;
             _senha.Text = "Senha: " + _senhaTexto;
         });
     }

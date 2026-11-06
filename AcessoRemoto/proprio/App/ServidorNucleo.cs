@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -69,6 +71,7 @@ sealed class ServidorNucleo
     public int Porta { get; } = 47200;
     public string Impressao { get; private set; } = "";
     public Action<string>? Log;
+    public Action<string>? IpSugerido;
 
     public ServidorNucleo(string pastaExe)
     {
@@ -82,12 +85,14 @@ sealed class ServidorNucleo
     {
         _cert = CarregarCertificado();
         Impressao = Convert.ToHexString(SHA256.HashData(_cert.RawData));
-        GravarConfDosPacotes();
+        GravarConfTecnico();
+        LiberarPorta();
         _ouvinte = new TcpListener(IPAddress.Any, Porta);
         _ouvinte.Start();
-        Log?.Invoke("Servidor no ar na porta " + Porta + ".");
-        foreach (var ip in IpsLocais()) Log?.Invoke("IP deste Windows: " + ip);
-        Log?.Invoke("Deixe esta janela aberta. Copie a pasta do cliente depois de abrir o servidor.");
+        Log?.Invoke("Servidor no ar na porta " + Porta + ". Deixe esta janela aberta.");
+        var lan = IpsLocais().FirstOrDefault() ?? "127.0.0.1";
+        Log?.Invoke("IP dentro da empresa: " + lan);
+        _ = PrepararInternetAsync(lan, ct);
         try
         {
             while (!ct.IsCancellationRequested)
@@ -104,24 +109,72 @@ sealed class ServidorNucleo
         }
     }
 
-    void GravarConfDosPacotes()
+    void GravarConfTecnico()
     {
-        var ips = IpsLocais();
-        var ip = ips.FirstOrDefault() ?? "127.0.0.1";
-        var linhas = new[]
+        GravarConf(Path.Combine(Program.PastaExe(), "..", "02-tecnico", "servidor.conf"), "127.0.0.1");
+        Log?.Invoke("O programa do tecnico, neste computador, usa 127.0.0.1.");
+    }
+
+    public void GravarIpCliente(string ip)
+    {
+        ip = (ip ?? "").Trim();
+        if (!IPAddress.TryParse(ip, out var endereco) || endereco.AddressFamily != AddressFamily.InterNetwork)
+        {
+            Log?.Invoke("IP invalido. Use so o numero, por exemplo 203.0.113.10.");
+            return;
+        }
+        GravarConf(Path.Combine(Program.PastaExe(), "..", "03-cliente", "servidor.conf"), ip);
+        Log?.Invoke("IP gravado na pasta do cliente: " + ip + ". Copie a pasta 03-cliente agora.");
+        if (!PortaInternet.IpPublicoUtil(ip))
+            Log?.Invoke("Esse IP e da rede interna. O cliente em outra internet nao alcanca esse numero.");
+    }
+
+    void GravarConf(string caminho, string ip)
+    {
+        ConfLocal.Gravar(caminho, new[]
         {
             "IP=" + ip,
             "PORTA=" + Porta,
             "IMPRESSAO=" + Impressao
-        };
-        var pasta = Program.PastaExe();
-        ConfLocal.Gravar(Path.Combine(pasta, "..", "03-cliente", "servidor.conf"), linhas);
-        ConfLocal.Gravar(Path.Combine(pasta, "..", "02-tecnico", "servidor.conf"), linhas);
-        Log?.Invoke("IP gravado para o cliente e o tecnico: " + ip);
-        if (ips.Count > 1)
+        });
+    }
+
+    async Task PrepararInternetAsync(string lan, CancellationToken ct)
+    {
+        var (ip, abriu, detalhe) = await PortaInternet.AbrirAsync(Porta, lan, ct);
+        Log?.Invoke(detalhe);
+        string? publico = PortaInternet.IpPublicoUtil(ip) ? ip : null;
+        if (publico == null)
         {
-            Log?.Invoke("Este Windows tem mais de um IP. Se o cliente nao achar, troque a linha IP em servidor.conf.");
+            var visto = await PortaInternet.DescobrirIpAsync(ct);
+            if (PortaInternet.IpPublicoUtil(visto)) publico = visto;
+            else if (!string.IsNullOrWhiteSpace(visto))
+                Log?.Invoke("A internet da empresa esta atras de outra rede (" + visto + "). A operadora precisa entregar um IP publico.");
         }
+        if (publico == null)
+        {
+            Log?.Invoke("Digite o IP publico da empresa na caixa acima e clique em Gravar.");
+            return;
+        }
+        IpSugerido?.Invoke(publico);
+        GravarIpCliente(publico);
+        if (!abriu)
+            Log?.Invoke("No roteador da empresa, encaminhe a porta " + Porta + "/tcp para " + lan + ".");
+    }
+
+    static void LiberarPorta()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = "advfirewall firewall add rule name=\"AcessoRemoto 47200\" dir=in action=allow protocol=TCP localport=47200",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            });
+        }
+        catch { }
     }
 
     static List<string> IpsLocais()
@@ -129,34 +182,61 @@ sealed class ServidorNucleo
         var lista = new List<string>();
         try
         {
-            foreach (var ip in Dns.GetHostAddresses(Dns.GetHostName()))
+            foreach (var placa in NetworkInterface.GetAllNetworkInterfaces())
             {
-                if (ip.AddressFamily != AddressFamily.InterNetwork) continue;
-                var texto = ip.ToString();
-                if (texto.StartsWith("127.") || texto.StartsWith("169.254.")) continue;
-                lista.Add(texto);
+                if (placa.OperationalStatus != OperationalStatus.Up) continue;
+                if (placa.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                var desc = placa.Description.ToLowerInvariant();
+                if (desc.Contains("virtual") || desc.Contains("hyper-v") || desc.Contains("wsl") || desc.Contains("vmware") || desc.Contains("virtualbox")) continue;
+                foreach (var uni in placa.GetIPProperties().UnicastAddresses)
+                {
+                    if (uni.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                    var texto = uni.Address.ToString();
+                    if (texto.StartsWith("127.") || texto.StartsWith("169.254.")) continue;
+                    lista.Add(texto);
+                }
             }
         }
         catch { }
-        return lista;
+        lista.Sort((a, b) => Preferencia(a).CompareTo(Preferencia(b)));
+        return lista.Distinct().ToList();
+    }
+
+    static int Preferencia(string ip)
+    {
+        if (ip.StartsWith("192.168.")) return 0;
+        if (ip.StartsWith("10.")) return 1;
+        if (ip.StartsWith("172.")) return 2;
+        return 3;
     }
 
     X509Certificate2 CarregarCertificado()
     {
         var pfx = Path.Combine(_pastaDados, "servidor.pfx");
         var senhaArq = Path.Combine(_pastaDados, "servidor.pfx.senha");
+        var marca = Path.Combine(_pastaDados, "cert-v2.txt");
+        if (!File.Exists(marca))
+        {
+            if (File.Exists(pfx)) File.Delete(pfx);
+            if (File.Exists(senhaArq)) File.Delete(senhaArq);
+        }
         if (File.Exists(pfx) && File.Exists(senhaArq))
         {
             var senha = File.ReadAllText(senhaArq).Trim();
-            return new X509Certificate2(pfx, senha, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet);
+            return new X509Certificate2(pfx, senha, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
         }
         using var rsa = RSA.Create(2048);
         var pedido = new CertificateRequest("CN=AcessoRemoto", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        pedido.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        pedido.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
+        var usos = new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") };
+        pedido.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(usos, false));
         var cert = pedido.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(10));
         var senhaNova = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
         File.WriteAllBytes(pfx, cert.Export(X509ContentType.Pfx, senhaNova));
         File.WriteAllText(senhaArq, senhaNova);
-        return new X509Certificate2(pfx, senhaNova, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet);
+        File.WriteAllText(marca, "ok");
+        return new X509Certificate2(pfx, senhaNova, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
     }
 
     async Task AtenderAsync(TcpClient tcp, CancellationToken ct)
@@ -303,9 +383,12 @@ sealed class ServidorNucleo
             return existente;
         }
         if (senha.Length < 6) return null;
+        var escolhido = id.Length == 9 && id.All(char.IsDigit) && id[0] != '0' && !_maquinas.ContainsKey(id)
+            ? id
+            : NovoId();
         var nova = new Maquina
         {
-            Id = NovoId(),
+            Id = escolhido,
             Sal = Convert.ToHexString(RandomNumberGenerator.GetBytes(8))
         };
         nova.Hash = Hash(nova.Sal, senha);
