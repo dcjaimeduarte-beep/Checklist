@@ -1,0 +1,12 @@
+Pasta do servidor. Fica no Linux com IP publico.
+
+chmod +x scripts/*.sh
+./scripts/portas.sh
+./scripts/subir.sh
+./scripts/backup-data.sh
+
+O subir.sh cria a pasta data e mostra a chave publica. Copie essa linha.
+Nas pastas 02 e 03, rode Definir-servidor.bat, digite o IP deste Linux e cole a chave.
+
+Libere no firewall e no painel da VPS: 21115/tcp, 21116/tcp, 21116/udp e 21117/tcp.
+Nao apague a pasta data depois disso. Ela e a identidade do servidor.

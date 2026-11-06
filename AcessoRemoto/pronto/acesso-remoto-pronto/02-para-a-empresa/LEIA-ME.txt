@@ -1,0 +1,19 @@
+Acesso remoto — equipe da empresa
+
+Funciona no Windows 7, 8, 10 e 11, em 32 bits, 64 bits ou ARM.
+
+Varias pessoas podem atender varios clientes. O RustDesk de cada tecnico aponta para o mesmo servidor. A lista de computadores e compartilhada: nao fica presa ao ID de um unico PC.
+
+1. Rode Definir-servidor.bat e digite o IP do Linux. Copie a pasta para cada tecnico e rode Instalar-tecnico.bat uma vez.
+2. Quando um cliente instalar o acesso, registre a maquina com Registrar.bat.
+   Dá para apontar o arquivo que ficou na Area de Trabalho dele:
+   powershell -File registrar.ps1 -Arquivo C:\caminho\Acesso-remoto-desta-maquina.txt
+3. Para a equipe inteira ver a mesma lista, copie cadastro.csv para uma pasta de rede
+   e coloque esse caminho em cadastro.conf, igual em todos os computadores:
+   CADASTRO=\\servidor\suporte\cadastro.csv
+4. Conectar.bat mostra todos os computadores. Escolha pelo numero, pelo nome do cliente ou pelo ID.
+   R cadastra outro sem fechar a lista.
+
+A senha fica no cadastro.csv para qualquer tecnico entrar. Esse arquivo nao vai para o Git nem para o zip do cliente. A pasta de rede fica so com a equipe de suporte.
+
+O pacote do cliente continua o mesmo para cada computador autorizado: Instalar-acesso.bat.
