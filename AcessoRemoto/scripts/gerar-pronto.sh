@@ -91,4 +91,75 @@ PY
 
 mkdir -p /opt/cursor/artifacts
 cp dist/acesso-remoto-pronto.zip dist/pronto/01-servidor.zip dist/pronto/02-para-a-empresa.zip dist/pronto/03-para-o-cliente.zip /opt/cursor/artifacts/
-echo "Pronto em dist/pronto e em /opt/cursor/artifacts"
+
+# Copia visivel no GitHub, sem a chave privada.
+rm -rf pronto
+mkdir -p pronto
+cp dist/acesso-remoto-pronto.zip pronto/acesso-remoto-pronto.zip
+python3 - <<'PY'
+import zipfile
+from pathlib import Path
+origem = zipfile.ZipFile("dist/acesso-remoto-pronto.zip")
+destino = Path("pronto")
+for info in origem.infolist():
+    nome = info.filename
+    if nome.endswith("data/id_ed25519") or nome.endswith("data/id_ed25519.pub"):
+        continue
+    alvo = destino / nome
+    if nome.endswith("/"):
+        alvo.mkdir(parents=True, exist_ok=True)
+        continue
+    alvo.parent.mkdir(parents=True, exist_ok=True)
+    dados = origem.read(info)
+    if nome.endswith("servidor.conf"):
+        texto = dados.decode("utf-8")
+        linhas = []
+        for linha in texto.splitlines():
+            if linha.startswith("KEY="):
+                linhas.append("KEY=COLE_A_CHAVE_PUBLICA")
+            else:
+                linhas.append(linha)
+        dados = ("\n".join(linhas) + "\n").encode("utf-8")
+    alvo.write_bytes(dados)
+servidor_leia = destino / "acesso-remoto-pronto" / "01-servidor" / "LEIA-ME.txt"
+servidor_leia.write_text(
+    "\n".join([
+        "Pasta do servidor. Fica no Linux com IP publico.",
+        "",
+        "chmod +x scripts/*.sh",
+        "./scripts/portas.sh",
+        "./scripts/subir.sh",
+        "./scripts/backup-data.sh",
+        "",
+        "O subir.sh cria a pasta data e mostra a chave publica. Copie essa linha.",
+        "Nas pastas 02 e 03, rode Definir-servidor.bat, digite o IP deste Linux e cole a chave.",
+        "",
+        "Libere no firewall e no painel da VPS: 21115/tcp, 21116/tcp, 21116/udp e 21117/tcp.",
+        "Nao apague a pasta data depois disso. Ela e a identidade do servidor.",
+        "",
+    ]) + "\n",
+    encoding="utf-8",
+)
+leia = destino / "acesso-remoto-pronto" / "LEIA-ME.txt"
+leia.write_text(
+    "\n".join([
+        "Estas tres pastas ficam no projeto, em AcessoRemoto/pronto.",
+        "",
+        "01-servidor: copie para o Linux e rode ./scripts/portas.sh, ./scripts/subir.sh e ./scripts/backup-data.sh.",
+        "O subir.sh mostra a chave publica. Copie essa linha.",
+        "",
+        "02-para-a-empresa e 03-para-o-cliente: rode Definir-servidor.bat, informe o IP do Linux e cole a chave publica.",
+        "Depois copie 02 para cada tecnico e 03 para cada computador autorizado.",
+        "",
+    ]) + "\n",
+    encoding="utf-8",
+)
+# regrava o zip publico sem a chave privada
+publico = destino / "acesso-remoto-pronto.zip"
+with zipfile.ZipFile(publico, "w", zipfile.ZIP_DEFLATED) as z:
+    for arq in (destino / "acesso-remoto-pronto").rglob("*"):
+        if arq.is_file():
+            z.write(arq, Path("acesso-remoto-pronto") / arq.relative_to(destino / "acesso-remoto-pronto"))
+print("pasta publica", publico)
+PY
+echo "Pronto em dist/pronto, em pronto/ e em /opt/cursor/artifacts"
