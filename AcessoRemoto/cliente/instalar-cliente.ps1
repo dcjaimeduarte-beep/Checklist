@@ -8,6 +8,8 @@ param(
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
+. (Join-Path $PSScriptRoot 'definir-servidor.ps1')
+Update-ServidorConf | Out-Null
 
 function Test-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()

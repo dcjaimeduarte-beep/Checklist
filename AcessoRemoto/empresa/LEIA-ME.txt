@@ -2,7 +2,7 @@ Acesso remoto — equipe da empresa
 
 Varias pessoas podem atender varios clientes. O RustDesk de cada tecnico aponta para o mesmo servidor. A lista de computadores e compartilhada: nao fica presa ao ID de um unico PC.
 
-1. Cada tecnico extrai este pacote e roda Instalar-tecnico.bat uma vez.
+1. Rode Definir-servidor.bat e digite o IP do Linux. Copie a pasta para cada tecnico e rode Instalar-tecnico.bat uma vez.
 2. Quando um cliente instalar o acesso, registre a maquina com Registrar.bat.
    Dá para apontar o arquivo que ficou na Area de Trabalho dele:
    powershell -File registrar.ps1 -Arquivo C:\caminho\Acesso-remoto-desta-maquina.txt

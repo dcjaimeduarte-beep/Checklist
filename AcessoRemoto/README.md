@@ -47,6 +47,16 @@ A pasta `data` é a identidade do servidor. Sem ela, o próximo start gera outra
 
 `./scripts/backup-data.sh` gera `backups/rustdesk-data-AAAAMMDD-HHMMSS.tar.gz`. Copie esse arquivo para um disco ou cofre fora do servidor. `data/` e `backups/` estão fora do Git.
 
+## Pastas prontas
+
+`scripts/gerar-pronto.sh` monta tres pastas com a mesma chave do servidor:
+
+- `01-servidor` vai para o Linux, com a pasta `data` já criada
+- `02-para-a-empresa` vai para quem atende
+- `03-para-o-cliente` vai para cada computador autorizado
+
+Em `02` e em `03`, `Definir-servidor.bat` grava o IP do Linux uma vez. Depois a pasta pode ser copiada para cada computador.
+
 ## Pacote do cliente e pacote da empresa
 
 Com o servidor no ar e o backup feito, monte os dois pacotes. Troque o exemplo pelo IP ou domínio público deste Linux e pelo nome que o cliente reconhece:

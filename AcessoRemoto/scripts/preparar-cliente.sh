@@ -46,8 +46,11 @@ escrever_conf() {
 rm -rf dist/para-o-cliente dist/para-a-empresa
 mkdir -p dist/para-o-cliente dist/para-a-empresa
 
-cp cliente/instalar-cliente.ps1 cliente/Instalar-acesso.bat cliente/LEIA-ME.txt dist/para-o-cliente/
+cp cliente/instalar-cliente.ps1 cliente/Instalar-acesso.bat cliente/LEIA-ME.txt \
+  cliente/definir-servidor.ps1 cliente/Definir-servidor.bat \
+  dist/para-o-cliente/
 cp empresa/instalar-tecnico.ps1 empresa/Instalar-tecnico.bat \
+  empresa/definir-servidor.ps1 empresa/Definir-servidor.bat \
   empresa/conectar.ps1 empresa/Conectar.bat \
   empresa/registrar.ps1 empresa/Registrar.bat \
   empresa/cadastro.ps1 empresa/LEIA-ME.txt \
