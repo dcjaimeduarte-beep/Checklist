@@ -214,7 +214,7 @@ sealed class ServidorNucleo
     {
         var pfx = Path.Combine(_pastaDados, "servidor.pfx");
         var senhaArq = Path.Combine(_pastaDados, "servidor.pfx.senha");
-        var marca = Path.Combine(_pastaDados, "cert-v2.txt");
+        var marca = Path.Combine(_pastaDados, "cert-v3.txt");
         if (!File.Exists(marca))
         {
             if (File.Exists(pfx)) File.Delete(pfx);
@@ -223,7 +223,7 @@ sealed class ServidorNucleo
         if (File.Exists(pfx) && File.Exists(senhaArq))
         {
             var senha = File.ReadAllText(senhaArq).Trim();
-            return new X509Certificate2(pfx, senha, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+            return AbrirCertificado(pfx, senha);
         }
         using var rsa = RSA.Create(2048);
         var pedido = new CertificateRequest("CN=AcessoRemoto", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -236,7 +236,15 @@ sealed class ServidorNucleo
         File.WriteAllBytes(pfx, cert.Export(X509ContentType.Pfx, senhaNova));
         File.WriteAllText(senhaArq, senhaNova);
         File.WriteAllText(marca, "ok");
-        return new X509Certificate2(pfx, senhaNova, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+        return AbrirCertificado(pfx, senhaNova);
+    }
+
+    static X509Certificate2 AbrirCertificado(string pfx, string senha)
+    {
+        return new X509Certificate2(
+            pfx,
+            senha,
+            X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.Exportable);
     }
 
     async Task AtenderAsync(TcpClient tcp, CancellationToken ct)
