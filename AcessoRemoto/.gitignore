@@ -1,0 +1,5 @@
+# Chaves e banco do hbbs. Perder esta pasta troca a identidade do servidor.
+data/
+
+# Cópias do backup ficam fora do Git. A chave privada vai dentro do arquivo.
+backups/

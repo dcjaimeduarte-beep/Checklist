@@ -41,3 +41,7 @@ Checklist/backend/data/
 Checklist/backend/uploads/
 Contrato/api-contratos-segura/apps/api/data/
 PedidosWeb/backend/data/
+
+# Chaves do servidor RustDesk (AcessoRemoto)
+AcessoRemoto/data/
+AcessoRemoto/backups/
