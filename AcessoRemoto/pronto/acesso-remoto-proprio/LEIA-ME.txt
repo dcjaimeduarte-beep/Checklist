@@ -1,0 +1,15 @@
+O tecnico fica na empresa. O cliente fica em outro lugar, com outra internet.
+O servidor fica no computador do tecnico. O cliente so espera o acesso.
+
+1. No computador do tecnico, pasta 01-servidor:
+   Clique com o botao direito em Liberar-porta.bat e escolha Executar como administrador.
+   Dê dois cliques em AcessoRemoto.exe e deixe a janela aberta.
+   Ela mostra o IP da internet da empresa e grava esse IP na pasta 03-cliente.
+   No roteador da empresa, encaminhe a porta 47200/tcp para este computador.
+
+2. So depois disso, copie a pasta 03-cliente para o computador do cliente.
+   La, dê dois cliques em AcessoRemoto.exe.
+   A janela mostra o ID e a senha. Envie o arquivo da Area de Trabalho para o tecnico.
+
+3. No computador do tecnico, pasta 02-tecnico, dê dois cliques em AcessoRemoto.exe.
+   Digite o ID e a senha e clique em Conectar. A tela que abre e a do cliente.

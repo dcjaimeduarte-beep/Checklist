@@ -1,13 +1,10 @@
 Acesso remoto — computador do cliente
 
-Funciona no Windows 7, 8, 10 e 11, em 32 bits, 64 bits ou ARM. No Windows 7 e 8 o instalador usa a versao antiga, que ainda abre nesses sistemas. No Windows 10 e 11 usa a versao do proprio processador.
+1. Dê dois cliques em Instalar-acesso.bat.
+2. Quando o Windows pedir permissao, clique em Sim.
+3. Espere terminar. Abra Acesso-remoto-desta-maquina.txt na Area de Trabalho.
+4. Envie esse arquivo para o tecnico. Ele tem o ID e a senha.
 
-1. Na pasta modelo, rode Definir-servidor.bat e digite o IP do Linux. Depois copie a pasta para este computador.
-2. Confirme com a empresa de informatica que este acesso esta autorizado.
-3. Dê dois cliques em Instalar-acesso.bat.
-4. Aceite a permissao de administrador do Windows.
-5. Quando terminar, abra o arquivo Acesso-remoto-desta-maquina.txt na Area de Trabalho.
-6. Envie esse arquivo para a empresa (ID e senha). A senha e so desta maquina.
-7. O icone do RustDesk permanece perto do relogio. O programa oficial e o RustDesk.
-
-A empresa usa o ID para abrir a tela quando for prestar suporte. Se o arquivo nao estiver na Area de Trabalho, ele tambem fica em C:\ProgramData\AcessoRemoto\maquina.txt.
+O tecnico abre o RustDesk no computador dele, digita o ID e a senha.
+O icone do RustDesk fica perto do relogio. Nao apague o programa.
+Se o arquivo nao estiver na Area de Trabalho, ele tambem fica em C:\ProgramData\AcessoRemoto\maquina.txt.

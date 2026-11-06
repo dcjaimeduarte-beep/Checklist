@@ -1,6 +1,8 @@
 # Acesso remoto
 
-Projeto separado para o suporte da empresa conectar nos computadores dos clientes. O acesso é o [RustDesk](https://rustdesk.com/) de código aberto, com o servidor OSS (`hbbs` e `hbbr`) neste Linux. A licença do programa permite o uso na empresa. O console web e o cadastro centralizado ficam na versão paga; a tela remota, a senha permanente e a cópia de arquivos ficam nesta versão.
+Programa próprio da empresa, só Windows, sem RustDesk, TeamViewer ou AnyDesk. O pacote pronto está em `pronto/acesso-remoto-proprio`. Um Windows fica ligado com o servidor. O cliente abre o programa e recebe um ID. O técnico digita esse ID e a senha.
+
+O texto abaixo descreve a alternativa com RustDesk, se um dia for preciso.
 
 A versão gratuita do TeamViewer e a do AnyDesk valem para uso pessoal. Suporte a cliente é uso profissional e, nesses dois, pede licença paga. Por isso o atendimento da empresa passa por este servidor.
 
