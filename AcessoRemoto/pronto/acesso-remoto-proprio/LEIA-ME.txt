@@ -1,0 +1,20 @@
+Programa proprio de acesso remoto. Nao usa RustDesk, TeamViewer nem AnyDesk.
+Os dois computadores sao Windows. Um deles fica ligado com o servidor.
+
+1. No Windows que fica ligado, abra a pasta 01-servidor.
+   Clique com o botao direito em Liberar-porta.bat e escolha Executar como administrador.
+   Dê dois cliques em AcessoRemoto.exe e deixe a janela aberta.
+   Ela grava o IP nas pastas 02-tecnico e 03-cliente.
+
+2. Copie a pasta 03-cliente para o computador do cliente.
+   Dê dois cliques em AcessoRemoto.exe.
+   A janela mostra o ID e a senha. O mesmo texto fica na Area de Trabalho,
+   no arquivo Acesso-remoto-desta-maquina.txt. Envie esse arquivo para o tecnico.
+
+3. No computador do tecnico, abra a pasta 02-tecnico.
+   Dê dois cliques em AcessoRemoto.exe.
+   Digite o ID e a senha e clique em Conectar.
+
+O computador do servidor precisa ficar ligado. O do cliente tambem, com a janela do programa aberta.
+Se o cliente estiver em outra rede, encaminhe a porta 47200/tcp do roteador para o Windows do servidor
+e troque a linha IP dos dois arquivos servidor.conf pelo IP publico.
