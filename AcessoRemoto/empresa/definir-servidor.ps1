@@ -8,11 +8,17 @@ if (-not $PSScriptRoot) {
 function Update-ServidorConf {
     param([switch]$PerguntarSempre)
     $confPath = Join-Path $PSScriptRoot 'servidor.conf'
-    if (-not (Test-Path -Path $confPath)) {
-        Write-Host 'Falta servidor.conf nesta pasta.'
-        exit 1
+    if (-not (Test-Path -LiteralPath $confPath)) {
+        $modelo = @(
+            'EMPRESA=Empresa de informatica',
+            'ID_SERVER=DEFINIR',
+            'KEY=COLE_A_CHAVE_PUBLICA'
+        )
+        Set-Content -Path $confPath -Value $modelo -Encoding ASCII
+        $linhas = $modelo
+    } else {
+        $linhas = @(Get-Content -LiteralPath $confPath)
     }
-    $linhas = @(Get-Content -Path $confPath)
     $hostAtual = ''
     $chaveAtual = ''
     foreach ($linha in $linhas) {

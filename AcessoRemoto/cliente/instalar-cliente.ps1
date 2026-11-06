@@ -37,7 +37,7 @@ if (-not $Desktop) { $Desktop = Join-Path $PerfilUsuario 'Desktop' }
 
 $confPath = Join-Path $PSScriptRoot 'servidor.conf'
 if (-not (Test-Path $confPath)) {
-    Write-Host 'Falta servidor.conf nesta pasta. Na empresa, rode ./scripts/preparar-cliente.sh e envie o pacote gerado.'
+    Write-Host 'Falta servidor.conf nesta pasta. Rode Definir-servidor.bat nesta mesma pasta.'
     exit 1
 }
 
