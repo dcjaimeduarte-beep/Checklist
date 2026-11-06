@@ -1,0 +1,17 @@
+Servidor no Windows. Nao precisa de Linux.
+
+Escolha um computador com Windows 10 ou 11 que fique ligado. Pode ser o do tecnico.
+Copie esta pasta para C:\AcessoRemoto.
+
+1. Dê dois cliques em Subir-servidor.bat.
+2. Aceite a permissao de administrador.
+3. Copie a linha da chave publica que aparecer.
+4. Anote o IP que aparecer embaixo da chave.
+5. No cliente e no tecnico, rode Definir-servidor.bat com esse IP e essa chave.
+
+Mostrar-chave.bat mostra a mesma linha de novo.
+Parar-servidor.bat para o servidor e nao apaga a chave.
+
+O IP mostrado vale para computadores na mesma rede. Para um cliente em outro lugar, encaminhe no roteador as portas 21115/tcp, 21116/tcp, 21116/udp e 21117/tcp para este Windows e use o IP publico da internet.
+
+Nao apague a pasta data. Ela e a identidade do servidor.

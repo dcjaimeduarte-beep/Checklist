@@ -9,3 +9,6 @@ dist/
 cliente/servidor.conf
 empresa/servidor.conf
 empresa/cadastro.csv
+servidor-windows/bin/
+servidor-windows/data/
+servidor-windows/iniciar-com-o-windows.bat

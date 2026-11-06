@@ -35,7 +35,7 @@ function Update-ServidorConf {
 
     $precisaIp = $PerguntarSempre -or -not $hostAtual -or $hostAtual -eq 'DEFINIR'
     if ($precisaIp) {
-        Write-Host 'Digite o IP publico ou o dominio do Linux onde o servidor esta.'
+        Write-Host 'Digite o IP do Windows que ficou ligado com o servidor.'
         Write-Host 'Sem http e sem barra. Exemplo: 203.0.113.10'
         $hostAtual = Read-Host 'IP ou dominio'
         if ($hostAtual -match ':') { $hostAtual = ($hostAtual -split ':')[0] }

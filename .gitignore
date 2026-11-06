@@ -49,3 +49,9 @@ AcessoRemoto/dist/
 AcessoRemoto/cliente/servidor.conf
 AcessoRemoto/empresa/servidor.conf
 AcessoRemoto/empresa/cadastro.csv
+AcessoRemoto/servidor-windows/bin/
+AcessoRemoto/servidor-windows/data/
+AcessoRemoto/servidor-windows/iniciar-com-o-windows.bat
+AcessoRemoto/pronto/acesso-remoto-pronto/01-servidor-windows/bin/
+AcessoRemoto/pronto/acesso-remoto-pronto/01-servidor-windows/data/
+AcessoRemoto/pronto/acesso-remoto-pronto/01-servidor-windows/iniciar-com-o-windows.bat

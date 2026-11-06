@@ -13,8 +13,6 @@ if (-not $PSScriptRoot) {
     $PSScriptRoot = Split-Path -Parent $inv
 }
 . (Join-Path $PSScriptRoot 'windows.ps1')
-. (Join-Path $PSScriptRoot 'definir-servidor.ps1')
-Update-ServidorConf | Out-Null
 
 function Test-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -35,38 +33,28 @@ if (-not (Test-Admin)) {
 if (-not $PerfilUsuario) { $PerfilUsuario = $env:USERPROFILE }
 if (-not $Desktop) { $Desktop = Join-Path $PerfilUsuario 'Desktop' }
 
+$empresa = 'Empresa de informatica'
+$hostServidor = ''
+$chave = ''
 $confPath = Join-Path $PSScriptRoot 'servidor.conf'
-if (-not (Test-Path $confPath)) {
-    Write-Host 'Falta servidor.conf nesta pasta. Rode Definir-servidor.bat nesta mesma pasta.'
-    exit 1
+if (Test-Path -Path $confPath) {
+    foreach ($linhaBruta in @(Get-Content -Path $confPath)) {
+        $linha = $linhaBruta.Trim()
+        if ($linha -eq '' -or $linha.StartsWith('#')) { continue }
+        $i = $linha.IndexOf('=')
+        if ($i -lt 1) { continue }
+        $nome = $linha.Substring(0, $i).Trim()
+        $valor = $linha.Substring($i + 1).Trim()
+        if ($nome -eq 'EMPRESA' -and $valor) { $empresa = $valor }
+        if ($nome -eq 'ID_SERVER') { $hostServidor = $valor }
+        if ($nome -eq 'KEY') { $chave = $valor }
+    }
 }
-
-$conf = @{}
-foreach ($linhaBruta in @(Get-Content -Path $confPath)) {
-    $linha = $linhaBruta.Trim()
-    if ($linha -eq '' -or $linha.StartsWith('#')) { continue }
-    $i = $linha.IndexOf('=')
-    if ($i -lt 1) { continue }
-    $conf[$linha.Substring(0, $i).Trim()] = $linha.Substring($i + 1).Trim()
-}
-
-$empresa = $conf['EMPRESA']
-if (-not $empresa) { $empresa = 'Empresa de informatica' }
-$hostServidor = $conf['ID_SERVER']
-$chave = $conf['KEY']
 if ($hostServidor -match ':') { $hostServidor = ($hostServidor -split ':')[0] }
-
-if ($hostServidor -notmatch '^[A-Za-z0-9._-]+$') {
-    Write-Host 'ID_SERVER invalido em servidor.conf. Use o IP ou o dominio, sem http e sem barra.'
-    exit 1
-}
-if ($chave -notmatch '^[A-Za-z0-9+/=]{40,128}$' -or $chave -eq 'COLE_A_CHAVE_PUBLICA') {
-    Write-Host 'KEY invalida em servidor.conf. Use a chave publica id_ed25519.pub do servidor.'
-    exit 1
-}
+$usaServidorProprio = ($hostServidor -match '^[A-Za-z0-9._-]+$' -and $hostServidor -ne 'DEFINIR' -and $chave -match '^[A-Za-z0-9+/=]{40,128}$' -and $chave -ne 'COLE_A_CHAVE_PUBLICA')
 
 if (-not $Confirmado) {
-    Write-Host ""
+    Write-Host ''
     Write-Host "Isto instala o RustDesk para $empresa acessar a tela deste computador."
     Write-Host 'O icone fica visivel perto do relogio. So siga se esse acesso foi autorizado.'
     $resposta = Read-Host 'Digite SIM para autorizar'
@@ -96,7 +84,8 @@ do {
 } while ((Get-Date) -lt $limiteServico)
 
 $utf8 = New-Object System.Text.UTF8Encoding $false
-$toml = @"
+if ($usaServidorProprio) {
+    $toml = @"
 rendezvous_server = '$hostServidor:21116'
 nat_type = 1
 serial = 0
@@ -107,6 +96,16 @@ relay-server = '$hostServidor'
 key = '$chave'
 approve-mode = 'password'
 "@
+} else {
+    $hostServidor = 'rede do RustDesk'
+    $toml = @"
+nat_type = 1
+serial = 0
+
+[options]
+approve-mode = 'password'
+"@
+}
 
 $pastas = @(
     'C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config',
@@ -117,9 +116,11 @@ foreach ($pasta in $pastas) {
     [System.IO.File]::WriteAllText((Join-Path $pasta 'RustDesk2.toml'), $toml, $utf8)
 }
 
-Start-RustDesk -Exe $exe -Argumentos @('--option', 'custom-rendezvous-server', $hostServidor) -Aguardar
-Start-RustDesk -Exe $exe -Argumentos @('--option', 'relay-server', $hostServidor) -Aguardar
-Start-RustDesk -Exe $exe -Argumentos @('--option', 'key', $chave) -Aguardar
+if ($usaServidorProprio) {
+    Start-RustDesk -Exe $exe -Argumentos @('--option', 'custom-rendezvous-server', $hostServidor) -Aguardar
+    Start-RustDesk -Exe $exe -Argumentos @('--option', 'relay-server', $hostServidor) -Aguardar
+    Start-RustDesk -Exe $exe -Argumentos @('--option', 'key', $chave) -Aguardar
+}
 Start-RustDesk -Exe $exe -Argumentos @('--option', 'approve-mode', 'password') -Aguardar
 
 Restart-Service -Name 'Rustdesk' -ErrorAction SilentlyContinue
@@ -138,22 +139,22 @@ if (-not $jaExistia -or $NovaSenha) {
 }
 
 $id = ''
-foreach ($t in 1..8) {
+foreach ($t in 1..15) {
     $saida = & $exe --get-id 2>&1 | Out-String
     $m = [regex]::Match($saida, '\d{6,}')
     if ($m.Success) { $id = $m.Value; break }
     Start-Sleep -Seconds 2
 }
-if (-not $id) { $id = '(abra o RustDesk e copie o ID da janela)' }
+if (-not $id) { $id = '(abra o RustDesk e copie o numero da janela)' }
 
 $texto = @"
 $empresa
 Computador: $env:COMPUTERNAME
 ID: $id
 Senha: $senhaTexto
-Servidor: $hostServidor
 
-Envie este arquivo para a empresa. A senha e so desta maquina.
+Envie este arquivo para o tecnico.
+No computador dele, abra o RustDesk, digite este ID e esta senha.
 O icone do RustDesk fica perto do relogio.
 "@
 

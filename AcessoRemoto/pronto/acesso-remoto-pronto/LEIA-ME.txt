@@ -1,11 +1,11 @@
-Estas tres pastas ficam no projeto, em AcessoRemoto/pronto.
+Tudo e Windows.
 
-01-servidor: copie para o Linux e rode ./scripts/portas.sh, ./scripts/subir.sh e ./scripts/backup-data.sh.
-O subir.sh mostra a chave publica. Copie essa linha.
+03-para-o-cliente: copie esta pasta para o computador do cliente.
+Ele dá dois cliques em Instalar-acesso.bat e clica em Sim.
+Na Area de Trabalho fica o arquivo com o ID e a senha. Ele envia esse arquivo.
 
-02-para-a-empresa e 03-para-o-cliente: rode Definir-servidor.bat, informe o IP do Linux e cole a chave publica.
-Depois copie 02 para cada tecnico e 03 para cada computador autorizado.
+02-para-a-empresa: no computador do tecnico, dê dois cliques em Instalar-tecnico.bat.
+Abra o RustDesk, digite o ID e a senha que o cliente enviou.
 
 Nao baixe um zip deste pacote. O Windows acusa virus porque o conteudo instala acesso remoto.
 Use as pastas desta pasta.
-
