@@ -92,10 +92,9 @@ PY
 mkdir -p /opt/cursor/artifacts
 cp dist/acesso-remoto-pronto.zip dist/pronto/01-servidor.zip dist/pronto/02-para-a-empresa.zip dist/pronto/03-para-o-cliente.zip /opt/cursor/artifacts/
 
-# Copia visivel no GitHub, sem a chave privada.
+# Copia visivel no GitHub, sem zip. O Windows bloqueia o zip na hora de baixar.
 rm -rf pronto
 mkdir -p pronto
-cp dist/acesso-remoto-pronto.zip pronto/acesso-remoto-pronto.zip
 python3 - <<'PY'
 import zipfile
 from pathlib import Path
@@ -151,15 +150,12 @@ leia.write_text(
         "02-para-a-empresa e 03-para-o-cliente: rode Definir-servidor.bat, informe o IP do Linux e cole a chave publica.",
         "Depois copie 02 para cada tecnico e 03 para cada computador autorizado.",
         "",
+        "Nao baixe um zip deste pacote. O Windows acusa virus porque o conteudo instala acesso remoto.",
+        "Use as pastas desta pasta.",
+        "",
     ]) + "\n",
     encoding="utf-8",
 )
-# regrava o zip publico sem a chave privada
-publico = destino / "acesso-remoto-pronto.zip"
-with zipfile.ZipFile(publico, "w", zipfile.ZIP_DEFLATED) as z:
-    for arq in (destino / "acesso-remoto-pronto").rglob("*"):
-        if arq.is_file():
-            z.write(arq, Path("acesso-remoto-pronto") / arq.relative_to(destino / "acesso-remoto-pronto"))
-print("pasta publica", publico)
+print("pasta publica", destino / "acesso-remoto-pronto")
 PY
 echo "Pronto em dist/pronto, em pronto/ e em /opt/cursor/artifacts"

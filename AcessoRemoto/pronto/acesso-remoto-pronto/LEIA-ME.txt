@@ -6,3 +6,6 @@ O subir.sh mostra a chave publica. Copie essa linha.
 02-para-a-empresa e 03-para-o-cliente: rode Definir-servidor.bat, informe o IP do Linux e cole a chave publica.
 Depois copie 02 para cada tecnico e 03 para cada computador autorizado.
 
+Nao baixe um zip deste pacote. O Windows acusa virus porque o conteudo instala acesso remoto.
+Use as pastas desta pasta.
+
